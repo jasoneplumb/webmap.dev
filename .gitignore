@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+
+# Legacy files with embedded secrets
+index.html-backup
+index.html.backup
+dropbox_uploader.sh
