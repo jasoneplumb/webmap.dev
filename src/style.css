@@ -1,0 +1,13 @@
+html { height: 100%; width: 100%; padding: 0; margin: 0; }
+body { height: 100%; width: 100%; padding: 0; margin: 0; }
+#map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
+
+/* Icon state classes for GPS accuracy filter visual feedback */
+#disabled {
+  -webkit-filter: grayscale(1);
+  filter: grayscale(1);
+}
+#enabled {
+  -webkit-filter: grayscale(0);
+  filter: none;
+}
