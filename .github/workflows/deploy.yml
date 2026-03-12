@@ -2,7 +2,7 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [main]
+    branches: [mainline]
   workflow_dispatch:
 
 # Only one deployment at a time
