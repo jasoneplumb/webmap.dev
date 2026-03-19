@@ -20,29 +20,44 @@ interface ToggleControlConfig {
 function makeToggleControl(config: ToggleControlConfig): L.Control {
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
+      const container = L.DomUtil.create('div') as HTMLDivElement;
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.justifyContent = 'center';
+      container.style.minWidth = '44px';
+      container.style.minHeight = '44px';
+      container.style.background = 'rgba(255, 255, 255, 0.85)';
+      container.style.borderRadius = '4px';
+      container.style.boxShadow = '0 1px 5px rgba(0, 0, 0, 0.65)';
+      container.style.cursor = 'pointer';
+      container.style.userSelect = 'none';
+
       const img = L.DomUtil.create('img') as HTMLImageElement;
       img.id = config.id;
       img.style.width = '30px';
+      img.style.height = '30px';
       img.alt = img.title = config.disabledTitle;
       img.src = config.disabledSrc;
 
+      container.appendChild(img);
+
       // touchend + preventDefault prevents the browser from synthesizing a click event,
       // which would fire the handler twice on mobile. click alone handles desktop.
-      L.DomEvent.on(img, 'touchend', (e: Event) => {
+      L.DomEvent.on(container, 'touchend', (e: Event) => {
         e.preventDefault();
         config.onClick(e);
         e.stopImmediatePropagation();
       });
-      L.DomEvent.on(img, 'click', (e: Event) => {
+      L.DomEvent.on(container, 'click', (e: Event) => {
         config.onClick(e);
         e.stopImmediatePropagation();
       });
 
-      return img;
+      return container;
     },
     onRemove(): void {
       const el = document.getElementById(config.id);
-      if (el) L.DomEvent.off(el);
+      if (el && el.parentElement) L.DomEvent.off(el.parentElement);
     },
   });
 

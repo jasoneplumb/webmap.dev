@@ -408,3 +408,115 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .offline-banner.visible {
   transform: translateY(0);
 }
+
+/* ── Tile Loading Indicator ───────────────────────────────────────────────── */
+
+@keyframes tile-loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#tile-loading {
+  animation: tile-loading-spin 1s linear infinite;
+}
+
+/* ── Mobile-optimized Control Layout ──────────────────────────────────────── */
+
+/* Stack controls vertically at bottom-right, grouped for mobile thumb reach */
+@media (max-width: 768px) {
+  /* Leaflet default control container positioning */
+  .leaflet-control-container {
+    touch-action: none;
+  }
+
+  /* Bottom-right control group: zoom, locate, tracking */
+  .leaflet-bottom.leaflet-right {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    bottom: 10px;
+    right: 10px;
+  }
+
+  /* Ensure controls are thumb-sized (min 44×44px) */
+  .leaflet-control {
+    margin: 0 !important;
+  }
+
+  .leaflet-control-zoom {
+    border: none;
+    background: none;
+  }
+
+  .leaflet-control-zoom-in,
+  .leaflet-control-zoom-out {
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+    font-size: 18px;
+    line-height: 44px;
+    color: #333;
+    margin: 0 !important;
+  }
+
+  .leaflet-control-zoom-in:hover,
+  .leaflet-control-zoom-out:hover {
+    background: rgba(255, 255, 255, 0.95);
+    color: #000;
+  }
+
+  /* Layer control at bottom-left on mobile */
+  .leaflet-control-layers {
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+  }
+
+  /* Scale control stays at bottom-left, slightly smaller on mobile */
+  .leaflet-control-scale {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid #ccc !important;
+    border-radius: 2px;
+    font-size: 10px;
+  }
+}
+
+/* Desktop: controls remain at bottom-right in a row */
+@media (min-width: 769px) {
+  .leaflet-bottom.leaflet-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    bottom: 10px;
+    right: 10px;
+  }
+
+  .leaflet-control-zoom {
+    border: none;
+    background: none;
+  }
+
+  .leaflet-control-zoom-in,
+  .leaflet-control-zoom-out {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+    margin: 0 !important;
+  }
+
+  .leaflet-control-zoom-in:hover,
+  .leaflet-control-zoom-out:hover {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .leaflet-control-scale {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid #ccc !important;
+    border-radius: 2px;
+    font-size: 11px;
+  }
+}

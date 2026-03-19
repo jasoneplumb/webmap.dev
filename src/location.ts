@@ -88,9 +88,9 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
   // Update locate button icon to reflect current state
   updateLocateIcon(state.locateState);
 
-  // Follow GPS position when in active (following) state
+  // Follow GPS position when in active (following) state — animate smoothly
   if (state.locateState === 'active' && state.youAreHereLocation !== null) {
-    map.panTo(state.youAreHereLocation);
+    map.panTo(state.youAreHereLocation, { animate: true, duration: 0.25 });
   }
 }
 
