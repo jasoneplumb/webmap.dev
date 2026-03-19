@@ -123,3 +123,196 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   height: 16px;
   text-shadow: 0 0 3px #fff, 0 0 3px #fff;
 }
+
+/* ===== Info Panel ===== */
+/* Mobile (≤768px): bottom sheet with three snap points (peek / half / full).  */
+/* Desktop (>768px): left-side slide-in panel (Google Maps desktop pattern).   */
+
+.info-panel {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  /* will-change: transform enables GPU compositing for smooth animation */
+  will-change: transform;
+}
+
+/* ── Mobile bottom sheet ── */
+@media (max-width: 768px) {
+  .info-panel {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 90vh;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    /* JS sets transform directly; this is just a safe CSS fallback */
+    transform: translateY(110%);
+    overflow: hidden;
+  }
+}
+
+/* ── Desktop side panel ── */
+@media (min-width: 769px) {
+  .info-panel {
+    top: 0;
+    left: -380px;
+    bottom: 0;
+    width: 360px;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+    transition: left 0.3s ease;
+    overflow-y: auto;
+  }
+
+  .info-panel--visible {
+    left: 0;
+  }
+}
+
+/* ── Drag handle (mobile only) ── */
+.info-panel__handle-area {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+@media (min-width: 769px) {
+  .info-panel__handle-area {
+    display: none;
+  }
+}
+
+.info-panel__handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #ccc;
+}
+
+/* ── Header ── */
+.info-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.info-panel__title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #222;
+}
+
+.info-panel__subtitle {
+  font-size: 13px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.info-panel__close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #888;
+  padding: 0 0 0 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.info-panel__close:hover {
+  color: #333;
+}
+
+/* ── Scrollable body ── */
+.info-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Search results list ── */
+.sheet-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sheet-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 6px;
+}
+
+.sheet-result:last-child {
+  border-bottom: none;
+}
+
+.sheet-result:hover,
+.sheet-result:active {
+  background: #f5f5f5;
+}
+
+.sheet-result__name {
+  font-size: 14px;
+  color: #333;
+  flex: 1;
+}
+
+.sheet-result__arrow {
+  color: #bbb;
+  font-size: 18px;
+  margin-left: 8px;
+}
+
+/* ── Reverse geocode address view ── */
+.sheet-address {
+  margin-bottom: 16px;
+}
+
+.sheet-address__line {
+  font-size: 15px;
+  color: #222;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.sheet-address__coords {
+  font-size: 12px;
+  color: #888;
+  font-family: monospace;
+}
+
+.sheet-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sheet-btn {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.sheet-btn:hover {
+  background: #0066dd;
+}
