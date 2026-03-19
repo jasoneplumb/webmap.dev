@@ -3,7 +3,6 @@
 //          appendTrailPoint for location.ts to call on each GPS fix.
 import L from 'leaflet';
 import type { AppState } from './types';
-import { updateLocateIcon } from './controls';
 
 const MIN_TRAIL_DIST_M = 5;   // minimum metres between trail points (GPS jitter filter)
 const MIN_ARROW_DIST_M = 50;  // minimum metres between direction-arrow markers
@@ -116,12 +115,23 @@ function setStatsBarVisible(visible: boolean): void {
 
 let recControlContainer: HTMLElement | null = null;
 
+// Module-level refs so updateRecordingButtons can re-render from outside
+let storedState: AppState | null = null;
+let storedActivatePolling: (() => void) | null = null;
+let storedDeactivatePolling: (() => void) | null = null;
+let storedMap: L.Map | null = null;
+
 export function addRecordingControl(
   map: L.Map,
   state: AppState,
   activatePolling: () => void,
   deactivatePolling: () => void,
 ): void {
+  storedState = state;
+  storedActivatePolling = activatePolling;
+  storedDeactivatePolling = deactivatePolling;
+  storedMap = map;
+
   const RecCtrl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'recording-panel');
@@ -138,6 +148,13 @@ export function addRecordingControl(
   }).addTo(map);
 }
 
+/** Re-render recording buttons (call when locate state changes) */
+export function updateRecordingButtons(): void {
+  if (storedState && storedActivatePolling && storedDeactivatePolling && storedMap) {
+    renderButtons(storedState, storedActivatePolling, storedDeactivatePolling, storedMap);
+  }
+}
+
 function renderButtons(
   state: AppState,
   activatePolling: () => void,
@@ -149,12 +166,15 @@ function renderButtons(
   c.innerHTML = '';
 
   if (state.recordingState === 'idle') {
-    c.appendChild(
-      makeBtn('⏺ Record', 'rec-btn rec-btn-start', () => {
-        startRecording(state, map, activatePolling);
-        renderButtons(state, activatePolling, deactivatePolling, map);
-      }),
-    );
+    const btn = makeBtn('⏺ Record', 'rec-btn rec-btn-start', () => {
+      startRecording(state, map, activatePolling);
+      renderButtons(state, activatePolling, deactivatePolling, map);
+    });
+    if (state.locateState === 'off') {
+      btn.disabled = true;
+      btn.title = 'Enable location first';
+    }
+    c.appendChild(btn);
   } else if (state.recordingState === 'recording') {
     c.appendChild(
       makeBtn('⏸ Pause', 'rec-btn rec-btn-pause', () => {
@@ -244,13 +264,6 @@ function startRecording(
     smoothFactor: 2,
     interactive: false,
   }).addTo(map);
-
-  // Auto-enable locate on first recording if locate is off — ensures the blue dot appears
-  if (state.locateState === 'off') {
-    state.locateState = 'active';
-    activatePolling(); // locate refcount
-    updateLocateIcon('active');
-  }
 
   activatePolling(); // recording refcount
 
