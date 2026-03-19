@@ -178,6 +178,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   opacity: 0.8;
 }
 
+.rec-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .rec-btn-start  { background: #22c55e; color: #fff; }
 .rec-btn-pause  { background: #f59e0b; color: #fff; }
 .rec-btn-resume { background: #22c55e; color: #fff; }

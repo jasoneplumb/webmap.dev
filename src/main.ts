@@ -14,7 +14,7 @@ import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
-import { createStatsBar, addRecordingControl } from './recording';
+import { createStatsBar, addRecordingControl, updateRecordingButtons } from './recording';
 
 const state = createInitialState();
 const map = createMap();
@@ -95,11 +95,16 @@ addLocateControl(map, () => {
               showToast('Location access is denied. Enable it in browser settings.');
             } else {
               startLocating();
+              updateRecordingButtons();
             }
           })
-          .catch(() => startLocating()); // permissions API unavailable — just try
+          .catch(() => {
+            startLocating(); // permissions API unavailable — just try
+            updateRecordingButtons();
+          });
       } else {
         startLocating();
+        updateRecordingButtons();
       }
       break;
 
@@ -108,6 +113,7 @@ addLocateControl(map, () => {
       state.locateState = 'off';
       deactivatePolling();
       updateLocateIcon('off');
+      updateRecordingButtons();
       break;
 
     case 'passive':
