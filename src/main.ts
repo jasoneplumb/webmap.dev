@@ -141,3 +141,18 @@ addReverseGeocoding(map, state);
 // Focus map for keyboard zoom shortcuts
 document.getElementById('map')?.focus();
 document.body.style.zoom = '100%';
+
+// ── Offline detection ─────────────────────────────────────────────────────────
+function updateOfflineBanner(): void {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  if (navigator.onLine) {
+    banner.classList.remove('visible');
+  } else {
+    banner.classList.add('visible');
+  }
+}
+
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+updateOfflineBanner();
