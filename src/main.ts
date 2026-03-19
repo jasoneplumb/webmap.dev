@@ -11,6 +11,7 @@ import { createInitialState } from './types';
 import { createMap } from './map';
 import { addClipboardControl, addCenteringControl } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
+import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
 import { createStatsBar, addRecordingControl } from './recording';
@@ -66,6 +67,7 @@ addCenteringControl(map, () => {
 createStatsBar();
 addRecordingControl(map, state, activatePolling, deactivatePolling);
 
+initInfoPanel(map);
 addSearchControl(map, state);
 addReverseGeocoding(map, state);
 
