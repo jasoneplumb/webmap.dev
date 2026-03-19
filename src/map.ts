@@ -25,7 +25,6 @@ export function createMap(): L.Map {
       return container;
     },
   });
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   new (ZoomViewer as new (opts: L.ControlOptions) => L.Control)({
     position: 'bottomleft',
   }).addTo(map);
@@ -37,6 +36,10 @@ export function createMap(): L.Map {
   // tradeoff: Mapbox requires a token but provides the best outdoor/trail data.
   // OSM is the anonymous fallback; Google satellite is included for imagery context.
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  // keepBuffer: extra tiles to cache beyond the viewport (smoother panning)
+  // updateWhenZooming: false defers tile loads during pinch-zoom animation
+  const tilePerf = { keepBuffer: 3, updateWhenZooming: false } as const;
+
   const elevationWithTrails = L.tileLayer(
     `https://api.mapbox.com/styles/v1/mapbox/outdoors-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
     {
@@ -46,6 +49,7 @@ export function createMap(): L.Map {
       maxNativeZoom: 18,
       minZoom: 2,
       minNativeZoom: 2,
+      ...tilePerf,
     },
   ).addTo(map);
 
@@ -56,6 +60,7 @@ export function createMap(): L.Map {
     maxNativeZoom: 18,
     minZoom: 2,
     minNativeZoom: 2,
+    ...tilePerf,
   });
 
   const gsi = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
@@ -66,6 +71,7 @@ export function createMap(): L.Map {
     maxNativeZoom: 18,
     minZoom: 2,
     minNativeZoom: 2,
+    ...tilePerf,
   });
 
   const baseMaps = { Imagery: gsi, Streets: osm, Trails: elevationWithTrails };
