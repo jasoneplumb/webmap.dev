@@ -24,12 +24,25 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   void state;
 
   const apikey = import.meta.env.VITE_ESRI_API_KEY;
+
+  // Warn if API key is missing at startup
+  if (!apikey) {
+    console.warn(
+      'VITE_ESRI_API_KEY is not configured. ' +
+      'Search functionality will not work. ' +
+      'Set VITE_ESRI_API_KEY in your .env file.'
+    );
+  }
+
+  // Disable useMapBounds: at low zoom (initial map view), the visible bbox is the
+  // entire world, causing ESRI to return no results. Instead, rely on ESRI's
+  // location biasing which intelligently prioritizes results near the map center.
   const searchControl = geosearch({
     placeholder: '',
-    title: 'Search for places or addresses within visible region',
+    title: 'Search for places or addresses',
     position: 'topleft',
     expanded: false,
-    useMapBounds: true,
+    useMapBounds: false,
     zoomToResult: false,
     minCharacters: 3,
     debounceDelay: 250,
