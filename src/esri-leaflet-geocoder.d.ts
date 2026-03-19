@@ -25,6 +25,8 @@ export interface GeosearchOptions {
   zoomToResult?: boolean;
   providers?: unknown[];
   apikey?: string;
+  minCharacters?: number;
+  debounceDelay?: number;
 }
 
 export interface ArcgisOnlineProviderOptions {
