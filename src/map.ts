@@ -67,7 +67,7 @@ export function createMap(): L.Map {
   }).addTo(map);
 
   L.control.scale({ position: 'bottomleft' }).addTo(map);
-  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.zoom({ position: 'topleft' }).addTo(map);
   map.setZoom(2);
 
   // tradeoff: Mapbox requires a token but provides the best outdoor/trail data.
@@ -112,7 +112,7 @@ export function createMap(): L.Map {
   });
 
   const baseMaps = { Imagery: gsi, Streets: osm, Trails: elevationWithTrails };
-  L.control.layers(baseMaps, undefined, { position: 'bottomright' }).addTo(map);
+  L.control.layers(baseMaps, undefined, { position: 'topleft' }).addTo(map);
 
   return map;
 }

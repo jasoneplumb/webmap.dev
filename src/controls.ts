@@ -71,7 +71,7 @@ export function addClipboardControl(map: L.Map, onClick: (e: Event) => void): vo
     id: 'clip',
     disabledSrc: '/copy-pin-to-clipboard-lines-v1.1.svg',
     disabledTitle: 'Copy dropped pin to clipboard (Disabled)',
-    position: 'bottomright',
+    position: 'topleft',
     onClick,
   }).addTo(map);
 }
@@ -83,7 +83,7 @@ export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void 
     id: 'locate',
     disabledSrc: '/centering-lines-v1.1.svg',
     disabledTitle: 'Locate (Off)',
-    position: 'bottomright',
+    position: 'topleft',
     onClick,
   }).addTo(map);
 }
@@ -113,7 +113,7 @@ export function addTrackingControl(map: L.Map, onClick: (e: Event) => void): voi
     id: 'tracking',
     disabledSrc: '/logging-lines-v1.1.svg',
     disabledTitle: 'Tracking Toggle (Disabled)',
-    position: 'bottomright',
+    position: 'topleft',
     onClick,
   }).addTo(map);
 }
