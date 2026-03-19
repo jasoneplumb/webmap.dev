@@ -3,6 +3,9 @@
 //          modules mutate it directly (no event bus needed for this size app)
 import type L from 'leaflet';
 
+// Three-state location button: off → active (following) → passive (dot visible, not following)
+export type LocateState = 'off' | 'active' | 'passive';
+
 export type RecordingState = 'idle' | 'recording' | 'paused';
 
 export interface AppState {
@@ -14,24 +17,26 @@ export interface AppState {
 
   // Control toggle states
   copyToClipboard: boolean;
-  centering: boolean;
-  tracking: boolean;
-  initiateTracking: boolean; // true until first recording activation (triggers auto-centering)
+  locateState: LocateState; // three-state location button (replaces centering boolean)
 
   // Timer/polling state
-  updateCallback: number; // refcount: 0=stopped, 1=centering, 2=centering+tracking
+  updateCallback: number; // refcount: 0=stopped; each consumer (locate, recording) adds 1
   timer: ReturnType<typeof setTimeout> | undefined;
   initialZoom: boolean; // true until first GPS fix; zooms to level 16 on first fix
 
+  // Persistent location marker refs (updated in place instead of adding new layers)
+  locationMarker: L.Marker | null;
+  accuracyCircle: L.Circle | null;
+
   // Recording state machine
   recordingState: RecordingState;
-  recordingStartMs: number;        // performance.now() when recording began
-  recordingPauseMs: number;        // total accumulated pause duration in ms
-  recordingPauseStart: number | null; // performance.now() when current pause began
-  totalDistance: number;           // total meters traveled during recording
-  lastTrailPoint: L.LatLng | null; // last appended trail point (distance filter)
-  lastArrowPoint: L.LatLng | null; // last arrow marker point (spacing filter)
-  lastSpeedMs: number;             // m/s from most recent GPS fix
+  recordingStartMs: number;
+  recordingPauseMs: number;
+  recordingPauseStart: number | null;
+  totalDistance: number;
+  lastTrailPoint: L.LatLng | null;
+  lastArrowPoint: L.LatLng | null;
+  lastSpeedMs: number;
   trail: L.Polyline | null;
   trailGlow: L.Polyline | null;
   arrowMarkers: L.Marker[];
@@ -45,12 +50,12 @@ export function createInitialState(): AppState {
     youAreHereLocationlng: 0,
     prior: 1000,
     copyToClipboard: false,
-    centering: false,
-    tracking: false,
-    initiateTracking: true,
+    locateState: 'off',
     updateCallback: 0,
     timer: undefined,
     initialZoom: true,
+    locationMarker: null,
+    accuracyCircle: null,
     recordingState: 'idle',
     recordingStartMs: 0,
     recordingPauseMs: 0,

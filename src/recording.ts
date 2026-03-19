@@ -3,6 +3,7 @@
 //          appendTrailPoint for location.ts to call on each GPS fix.
 import L from 'leaflet';
 import type { AppState } from './types';
+import { updateLocateIcon } from './controls';
 
 const MIN_TRAIL_DIST_M = 5;   // minimum metres between trail points (GPS jitter filter)
 const MIN_ARROW_DIST_M = 50;  // minimum metres between direction-arrow markers
@@ -244,16 +245,14 @@ function startRecording(
     interactive: false,
   }).addTo(map);
 
-  // Auto-enable centering on first recording activation (mirrors prior tracking behavior)
-  if (state.initiateTracking) {
-    state.initiateTracking = false;
-    document.title = 'You are here';
-    state.centering = true;
-    activatePolling(); // centering refcount
+  // Auto-enable locate on first recording if locate is off — ensures the blue dot appears
+  if (state.locateState === 'off') {
+    state.locateState = 'active';
+    activatePolling(); // locate refcount
+    updateLocateIcon('active');
   }
 
-  state.tracking = true;
-  activatePolling(); // tracking refcount
+  activatePolling(); // recording refcount
 
   setStatsBarVisible(true);
   if (state.statsTimer !== null) clearInterval(state.statsTimer);
@@ -280,8 +279,7 @@ function resumeRecording(state: AppState): void {
 function stopRecording(state: AppState, deactivatePolling: () => void): void {
   if (state.recordingState === 'idle') return;
   state.recordingState = 'idle';
-  state.tracking = false;
-  deactivatePolling(); // tracking refcount
+  deactivatePolling(); // recording refcount
 
   if (state.statsTimer !== null) {
     clearInterval(state.statsTimer);

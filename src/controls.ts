@@ -4,6 +4,7 @@
 // Pattern: Factory function creates a fresh L.Control subclass per control instance,
 //          capturing config in a closure to avoid shared state between controls.
 import L from 'leaflet';
+import type { LocateState } from './types';
 
 interface ToggleControlConfig {
   id: string;
@@ -45,7 +46,6 @@ function makeToggleControl(config: ToggleControlConfig): L.Control {
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   return new (Ctrl as new (opts: L.ControlOptions) => L.Control)({
     position: config.position,
   });
@@ -61,14 +61,36 @@ export function addClipboardControl(map: L.Map, onClick: (e: Event) => void): vo
   }).addTo(map);
 }
 
-export function addCenteringControl(map: L.Map, onClick: (e: Event) => void): void {
+// Three-state locate button: Off → Active (following) → Passive (dot only)
+// Icon mapping: off=lines, active=color, passive=bw
+export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void {
   makeToggleControl({
-    id: 'centering',
+    id: 'locate',
     disabledSrc: '/centering-lines-v1.1.svg',
-    disabledTitle: 'Centering Toggle (Disabled)',
+    disabledTitle: 'Locate (Off)',
     position: 'bottomright',
     onClick,
   }).addTo(map);
+}
+
+// Updates the locate button icon to reflect current state
+export function updateLocateIcon(locateState: LocateState): void {
+  const img = document.getElementById('locate') as HTMLImageElement | null;
+  if (!img) return;
+  switch (locateState) {
+    case 'off':
+      img.alt = img.title = 'Locate (Off)';
+      img.src = '/centering-lines-v1.1.svg';
+      break;
+    case 'active':
+      img.alt = img.title = 'Locate (Following)';
+      img.src = '/centering-color-v1.1.svg';
+      break;
+    case 'passive':
+      img.alt = img.title = 'Locate (Passive — tap to re-center)';
+      img.src = '/centering-bw-v1.1.svg';
+      break;
+  }
 }
 
 export function addTrackingControl(map: L.Map, onClick: (e: Event) => void): void {
