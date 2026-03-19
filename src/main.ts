@@ -138,6 +138,12 @@ initInfoPanel(map);
 addSearchControl(map, state);
 addReverseGeocoding(map, state);
 
+// ── Version badge ─────────────────────────────────────────────────────────────
+const versionBadge = document.createElement('div');
+versionBadge.id = 'version-badge';
+versionBadge.textContent = `v${__APP_VERSION__}`;
+document.getElementById('map')?.appendChild(versionBadge);
+
 // Focus map for keyboard zoom shortcuts
 document.getElementById('map')?.focus();
 document.body.style.zoom = '100%';
