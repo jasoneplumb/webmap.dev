@@ -1,0 +1,138 @@
+Execute the following workflow autonomously. Complete all steps including git push and GitHub operations.
+
+**Batching requirement:** Always batch independent tool calls in a single API request. When reading files, read ALL needed files together — never one at a time. When searching, run ALL related searches in parallel. This is mandatory: sequential reads/searches are wasteful and slow.
+
+**UPFRONT FILE INVENTORY (do this FIRST, before any Read):**
+List all files you will likely need for this task, then read them ALL together in a single batched API call.
+
+**BATCHING RULE (before every Read/Grep/Glob):** Ask "what else do I need?" and batch it all together. Never read one file, then another — list everything needed first, then read in ONE call.
+
+**Already read a file? Don't re-read** — reuse from context unless it was edited since last read.
+
+# Feature Workflow
+
+Uses feature/ branch prefix, feat commit type, enhancement label.
+
+## Verify worktree
+
+```bash
+case "$(pwd)" in
+  */clones/*) ;; # OK
+  *) echo "ERROR: Not in a clone worktree. Aborting."; exit 1 ;;
+esac
+```
+
+## Ensure branch
+
+Create or use `feature/map-interaction-polish` from mainline.
+
+## Planning and Implementation
+
+Read all relevant files upfront in one batch: `src/map.ts`, `src/controls.ts`, `src/main.ts`, `src/types.ts`, `src/style.css`, `package.json`, `index.html`
+
+Implement the following improvements:
+
+### Fractional zoom and smooth scroll
+
+- Set `zoomSnap: 0` and `zoomDelta: 0.5` in map options for fluid pinch-zoom
+- Evaluate `Leaflet.SmoothWheelZoom` for continuous scroll zoom — install if available on npm
+- Tune `wheelPxPerZoomLevel` if SmoothWheelZoom is used
+
+### Consistent animations
+
+- Use `flyTo()` for all programmatic view transitions (search result selection already uses flyTo — verify and extend)
+- Use `panTo()` with short duration for GPS follow-mode updates (200-300ms)
+- Configure `easeLinearity: 0.25` for natural camera easing
+
+### Mobile-optimized control layout
+
+- Position zoom +/- at bottom-right (thumb-reachable)
+- Locate me button: bottom-right above zoom
+- Track toggle: bottom-right above locate
+- Touch targets: minimum 44×44px
+- Semi-transparent controls
+- Responsive repositioning below 768px viewport
+
+### Auto-hiding compass (stretch if time allows)
+
+- Only show compass control when map is rotated from north-up
+- Tap to snap back to north with animation
+
+### Tile loading indicator
+
+- Add a subtle loading indicator while tiles are fetching
+- Check `leaflet-loading` plugin or implement a simple spinner via map `loading`/`load` events
+
+## Run local quality checks
+
+```bash
+npm run type-check && npm run lint && npm run build
+```
+
+Fix any issues before proceeding.
+
+## Create PR
+
+```bash
+gh pr create \
+  --title "feat(map): interaction polish — fractional zoom, animations, and mobile layout" \
+  --label "review-requested" \
+  --label "enhancement" \
+  --body "$(cat <<'EOF'
+## Summary
+
+- Enables fractional zoom (`zoomSnap: 0`) for fluid pinch-zoom interactions
+- Adds smooth scroll-zoom (continuous, not stepped)
+- Standardizes programmatic view transitions with `flyTo`/animated `panTo`
+- Positions controls for mobile thumb reach (bottom-right grouping)
+- Adds tile loading indicator for slow connections
+
+## Changes
+
+[Describe files changed and key decisions]
+
+## Test plan
+
+- [ ] `npm run type-check && npm run lint && npm run build` passes
+- [ ] Pinch-zoom is smooth and fractional on mobile
+- [ ] Scroll zoom feels continuous, not stepped
+- [ ] GPS follow mode pans smoothly (no jarring jumps)
+- [ ] Search result selection uses flyTo animation
+- [ ] Controls are thumb-reachable on mobile viewport
+- [ ] Tile loading indicator appears during slow loads
+
+Closes #6
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+## Review, CI, and merge
+
+After PR is created:
+
+1. Read all review channels in parallel: `gh api repos/$REPO/pulls/$PR/reviews`, `gh api repos/$REPO/pulls/$PR/comments`, `gh api repos/$REPO/issues/$PR/comments`
+2. Address any P1/P2 feedback, commit, push
+3. Verify review gate: cycle `review-requested` label if `claude-review` check hasn't run after 5 minutes
+4. Wait for CI:
+   ```bash
+   DURATIONS=$(gh run list --limit 3 --status completed --json createdAt,updatedAt --jq '[.[] | (((.updatedAt | fromdateiso8601) - (.createdAt | fromdateiso8601)))] | if length > 0 then add / length | floor else 180 end')
+   sleep $DURATIONS
+   for i in 1 2 3; do gh pr checks $PR 2>&1 && break; echo "attempt $i — retrying in 30s..."; sleep 30; done
+   ```
+5. Check for CHANGES_REQUESTED reviews; address if any
+6. Merge: `gh pr merge $PR --squash --delete-branch`
+
+## Additional Context
+
+GitHub Issue #6: feat: Map interaction polish — smooth zoom, animations, and control layout
+
+Key plugins to evaluate:
+- `Leaflet.SmoothWheelZoom` — continuous scroll zoom
+- `leaflet-edgebuffer` — tile preloading (already added in PR#10 if referenced)
+- `leaflet-loading` — tile loading indicator
+
+Labels: enhancement, P3, UX
+
+Closes #6

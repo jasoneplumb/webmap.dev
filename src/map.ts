@@ -7,7 +7,44 @@ export function createMap(): L.Map {
   const map = L.map('map', {
     zoomControl: false,
     preferCanvas: true,
+    zoomSnap: 0,
+    zoomDelta: 0.5,
   }).fitWorld();
+
+  // Tile loading indicator — shows spinner while tiles are fetching
+  let loadingTimer: ReturnType<typeof setTimeout> | undefined;
+  const createLoadingIndicator = (): HTMLElement => {
+    const indicator = L.DomUtil.create('div');
+    indicator.id = 'tile-loading';
+    indicator.style.position = 'absolute';
+    indicator.style.top = '10px';
+    indicator.style.right = '10px';
+    indicator.style.width = '20px';
+    indicator.style.height = '20px';
+    indicator.style.border = '2px solid rgba(100, 100, 100, 0.3)';
+    indicator.style.borderTop = '2px solid rgba(100, 100, 100, 0.8)';
+    indicator.style.borderRadius = '50%';
+    indicator.style.animation = 'tile-loading-spin 1s linear infinite';
+    indicator.style.zIndex = '1000';
+    indicator.style.display = 'none';
+    return indicator;
+  };
+
+  const loadingIndicator = createLoadingIndicator();
+  map.getContainer().appendChild(loadingIndicator);
+
+  map.on('loading', () => {
+    if (loadingTimer !== undefined) clearTimeout(loadingTimer);
+    loadingIndicator.style.display = 'block';
+  });
+
+  map.on('load', () => {
+    // Debounce the hide to avoid flashing on rapid tile loads
+    if (loadingTimer !== undefined) clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(() => {
+      loadingIndicator.style.display = 'none';
+    }, 300);
+  });
 
   // Subtle zoom level indicator in bottom-left corner
   const ZoomViewer = L.Control.extend({
@@ -19,7 +56,7 @@ export function createMap(): L.Map {
       container.style.textAlign = 'right';
       container.style.opacity = '0.15';
       m.on('zoomstart zoom zoomend', () => {
-        gauge.innerHTML = 'Zoom level: ' + m.getZoom();
+        gauge.innerHTML = 'Zoom level: ' + m.getZoom().toFixed(1);
       });
       container.appendChild(gauge);
       return container;
@@ -30,7 +67,7 @@ export function createMap(): L.Map {
   }).addTo(map);
 
   L.control.scale({ position: 'bottomleft' }).addTo(map);
-  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
   map.setZoom(2);
 
   // tradeoff: Mapbox requires a token but provides the best outdoor/trail data.
