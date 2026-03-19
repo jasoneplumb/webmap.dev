@@ -108,28 +108,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   // Disable double-click zoom so dblclick can drop a pin instead
   map.doubleClickZoom.disable();
 
-  // Initiate a clipboard write within the current user-gesture context.
-  // Browsers gate navigator.clipboard on transient activation — by the time
-  // the async geocode response arrives the gesture has expired, so writeText
-  // fails silently. ClipboardItem accepts a Promise<Blob> that we resolve
-  // once the address is known, capturing the gesture at write() time.
-  function deferClipboardWrite(): ((text: string) => void) | undefined {
-    if (!state.copyToClipboard) return undefined;
-    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return undefined;
-
-    let resolveBlob: ((blob: Blob) => void) | undefined;
-    const blobPromise = new Promise<Blob>((r) => { resolveBlob = r; });
-
-    navigator.clipboard
-      .write([new ClipboardItem({ 'text/plain': blobPromise })])
-      .catch(() => {});
-
-    return (text: string) => {
-      resolveBlob?.(new Blob([text], { type: 'text/plain' }));
-    };
-  }
-
-  function reverseGeocode(latlng: L.LatLng, resolveClipboard?: (text: string) => void): void {
+  function reverseGeocode(latlng: L.LatLng): void {
     geocoder
       .reverse()
       .latlng(latlng)
@@ -137,13 +116,6 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
         if (error || !result) return;
         const addr = result.address.Match_addr;
 
-        // Prefer the deferred write (initiated during user gesture) if available,
-        // otherwise fall back to direct writeText (works in Chrome on HTTPS).
-        if (resolveClipboard) {
-          resolveClipboard(addr);
-        } else if (state.copyToClipboard) {
-          navigator.clipboard.writeText(addr).catch(() => {});
-        }
         if (state.recordingState === 'idle') document.title = addr;
 
         // Format coordinates for display
@@ -172,7 +144,16 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     pinLayer.clearLayers();
     const pin = L.marker(latlng, { draggable: true });
     pinLayer.addLayer(pin);
-    reverseGeocode(latlng, deferClipboardWrite());
+
+    // Copy coordinates to clipboard immediately within the user gesture.
+    // The address (resolved async via geocode) can be copied from the info
+    // sheet's "Copy address" button which provides its own user gesture.
+    if (state.copyToClipboard) {
+      const coords = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+      navigator.clipboard.writeText(coords).catch(() => {});
+    }
+
+    reverseGeocode(latlng);
 
     // Debounced reverse geocode as pin is dragged to a new location
     let dragDebounce: ReturnType<typeof setTimeout> | undefined;
