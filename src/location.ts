@@ -1,10 +1,11 @@
-// Intent: Handle GPS location events — apply haversine distance filter, draw accuracy
-//         circles, update icon states, and recenter the map
+// Intent: Handle GPS location events — apply haversine distance filter, update icon
+//         states, recenter the map, and append points to the active recording trail
 // Context: map.locate() fires 'locationfound' for every GPS fix. The haversine filter
 //          ignores updates where we haven't moved more than half the accuracy radius
 //          AND accuracy hasn't improved — reduces jitter when standing still.
 import L from 'leaflet';
 import type { AppState } from './types';
+import { appendTrailPoint } from './recording';
 
 export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map): void {
   // Haversine formula: great-circle distance between previous and current position
@@ -26,25 +27,9 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     state.youAreHereLocationlng = e.latlng.lng;
     state.youAreHereLocation = e.latlng;
 
-    if (state.tracking) {
-      // Blue dot for position, translucent circle for accuracy radius
-      L.circleMarker(e.latlng, { radius: 1, color: 'blue' }).addTo(map);
-      const opacity = Math.min(5 / e.accuracy, 1);
-      L.circle(e.latlng, {
-        radius: e.accuracy / 2,
-        opacity: 0,
-        fillOpacity: opacity,
-        color: 'blue',
-      }).addTo(map);
-    }
-  }
-
-  // Update icon states — icons turn from outline→color when actively working
-  if (state.tracking) {
-    const t_img = document.getElementById('tracking') as HTMLImageElement | null;
-    if (t_img) {
-      t_img.alt = t_img.title = 'Tracking Toggle (Enabled)';
-      t_img.src = '/logging-color-v1.1.svg';
+    if (state.recordingState === 'recording') {
+      const speedMs = isNaN(e.speed) ? 0 : e.speed;
+      appendTrailPoint(e.latlng, speedMs, state, map);
     }
   }
 

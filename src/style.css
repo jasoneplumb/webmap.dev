@@ -11,3 +11,115 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   -webkit-filter: grayscale(0);
   filter: none;
 }
+
+/* ── Recording stats bar ──────────────────────────────────────────────────── */
+#recording-stats {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  padding: 7px 14px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.rec-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rec-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: rec-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.rec-dot-paused {
+  animation: none;
+  background: #f59e0b;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+#rec-status-label {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #ef4444;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
+
+.stat-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Recording control panel ─────────────────────────────────────────────── */
+.recording-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rec-btn {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  transition: opacity 0.15s;
+}
+
+.rec-btn:active {
+  opacity: 0.8;
+}
+
+.rec-btn-start  { background: #22c55e; color: #fff; }
+.rec-btn-pause  { background: #f59e0b; color: #fff; }
+.rec-btn-resume { background: #22c55e; color: #fff; }
+.rec-btn-stop   { background: #ef4444; color: #fff; }
+
+/* ── Trail direction arrows ──────────────────────────────────────────────── */
+.trail-arrow {
+  color: #4287f5;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  width: 16px;
+  height: 16px;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+}

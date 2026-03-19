@@ -1,6 +1,6 @@
 // Intent: Application entry point — wires all modules together
 // Pattern: Single AppState object threaded through all modules by reference.
-//          updateCallback is a refcount so centering and tracking can independently
+//          updateCallback is a refcount so centering and recording can independently
 //          request/release the GPS polling loop without stepping on each other.
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -9,10 +9,11 @@ import './style.css';
 
 import { createInitialState } from './types';
 import { createMap } from './map';
-import { addClipboardControl, addCenteringControl, addTrackingControl } from './controls';
+import { addClipboardControl, addCenteringControl } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { onLocationFound } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
+import { createStatsBar, addRecordingControl } from './recording';
 
 const state = createInitialState();
 const map = createMap();
@@ -20,7 +21,7 @@ const map = createMap();
 // Wire GPS location callback
 map.on('locationfound', (e: L.LocationEvent) => onLocationFound(e, state, map));
 
-// Polling refcount helpers — shared by centering and tracking
+// Polling refcount helpers — shared by centering and recording
 function activatePolling(): void {
   state.updateCallback += 1;
   if (state.updateCallback === 1) scheduleUpdateCallback(state, map);
@@ -61,27 +62,9 @@ addCenteringControl(map, () => {
   }
 });
 
-// Tracking: record GPS breadcrumb trail; also auto-enables centering on first activation
-addTrackingControl(map, () => {
-  state.tracking = !state.tracking;
-  if (state.tracking) {
-    if (state.initiateTracking) {
-      // First-ever tracking activation: auto-enable centering too
-      state.initiateTracking = false;
-      document.title = 'You are here';
-      state.centering = true;
-      activatePolling(); // centering's refcount
-    }
-    activatePolling(); // tracking's refcount
-  } else {
-    deactivatePolling(); // tracking's refcount
-    const img = document.getElementById('tracking') as HTMLImageElement | null;
-    if (img) {
-      img.alt = img.title = 'Tracking Toggle (Disabled)';
-      img.src = '/logging-lines-v1.1.svg';
-    }
-  }
-});
+// Recording: Start/Pause/Resume/Stop state machine with real-time stats and styled trail
+createStatsBar();
+addRecordingControl(map, state, activatePolling, deactivatePolling);
 
 addSearchControl(map, state);
 addReverseGeocoding(map, state);
