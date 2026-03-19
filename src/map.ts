@@ -25,7 +25,6 @@ export function createMap(): L.Map {
       return container;
     },
   });
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   new (ZoomViewer as new (opts: L.ControlOptions) => L.Control)({
     position: 'bottomleft',
   }).addTo(map);
