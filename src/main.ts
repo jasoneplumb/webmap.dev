@@ -79,6 +79,9 @@ addClipboardControl(map, () => {
 
 function startLocating(): void {
   state.locateState = 'active';
+  // Request location immediately within the user gesture so iOS Safari
+  // shows the permission prompt (the gesture expires before the 500ms polling timer fires)
+  map.locate({ setView: false, maxZoom: map.getZoom() });
   activatePolling();
   updateLocateIcon('active');
 }
