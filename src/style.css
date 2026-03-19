@@ -12,6 +12,76 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   filter: none;
 }
 
+/* ── Blue dot location marker ─────────────────────────────────────────────── */
+
+/* Clear Leaflet's default divIcon styles */
+.blue-dot {
+  background: transparent !important;
+  border: none !important;
+}
+
+.blue-dot__inner {
+  width: 16px;
+  height: 16px;
+  background-color: #4285F4;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+/* Pulsing ring on the blue dot */
+.blue-dot__inner::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  background-color: rgba(66, 133, 244, 0.35);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  animation: blue-dot-pulse 2s ease-out infinite;
+}
+
+@keyframes blue-dot-pulse {
+  0%   { transform: translate(-50%, -50%) scale(1);   opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(3.5); opacity: 0;   }
+}
+
+/* Gray dot on GPS signal loss — overrides background color, suppresses pulse */
+.blue-dot--gray .blue-dot__inner {
+  background-color: #9e9e9e;
+  border-color: #e0e0e0;
+}
+.blue-dot--gray .blue-dot__inner::before {
+  display: none;
+}
+
+/* ── Toast notification ───────────────────────────────────────────────────── */
+
+#locate-toast {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 30, 0.85);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: sans-serif;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  white-space: nowrap;
+}
+
+#locate-toast.visible {
+  opacity: 1;
+}
+
 /* ── Recording stats bar ──────────────────────────────────────────────────── */
 #recording-stats {
   position: absolute;

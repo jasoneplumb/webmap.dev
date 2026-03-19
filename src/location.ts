@@ -1,11 +1,33 @@
-// Intent: Handle GPS location events — apply haversine distance filter, update icon
-//         states, recenter the map, and append points to the active recording trail
+// Intent: Handle GPS location events — apply haversine distance filter, draw/update
+//         blue dot marker and accuracy circle, recenter the map when in active state,
+//         and append points to the active recording trail
 // Context: map.locate() fires 'locationfound' for every GPS fix. The haversine filter
 //          ignores updates where we haven't moved more than half the accuracy radius
 //          AND accuracy hasn't improved — reduces jitter when standing still.
 import L from 'leaflet';
 import type { AppState } from './types';
+import { updateLocateIcon } from './controls';
 import { appendTrailPoint } from './recording';
+
+// divIcon HTML for the blue pulsing dot — styled via .blue-dot CSS in style.css
+function createBlueDotIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'blue-dot',
+    html: '<div class="blue-dot__inner"></div>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
+// Gray dot shown on GPS signal loss
+function createGrayDotIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'blue-dot blue-dot--gray',
+    html: '<div class="blue-dot__inner"></div>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
 
 export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map): void {
   // Haversine formula: great-circle distance between previous and current position
@@ -27,20 +49,56 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     state.youAreHereLocationlng = e.latlng.lng;
     state.youAreHereLocation = e.latlng;
 
+    // Blue dot: create on first fix, update position on subsequent fixes
+    if (state.locationMarker === null) {
+      state.locationMarker = L.marker(e.latlng, {
+        icon: createBlueDotIcon(),
+        zIndexOffset: 1000,
+        interactive: false,
+      }).addTo(map);
+    } else {
+      state.locationMarker.setLatLng(e.latlng);
+      // Restore blue icon in case it was grayed out from a prior signal loss
+      state.locationMarker.setIcon(createBlueDotIcon());
+    }
+
+    // Accuracy circle: translucent blue, no stroke, opacity fades as accuracy improves
+    // Opacity: full (0.35) at 100m+ accuracy, fades to 0.1 at 5m or better
+    const fillOpacity = Math.max(0.1, Math.min(0.35, e.accuracy / 300));
+    if (state.accuracyCircle === null) {
+      state.accuracyCircle = L.circle(e.latlng, {
+        radius: e.accuracy,
+        weight: 0,
+        fillColor: '#4285F4',
+        fillOpacity,
+      }).addTo(map);
+    } else {
+      state.accuracyCircle.setLatLng(e.latlng);
+      state.accuracyCircle.setRadius(e.accuracy);
+      state.accuracyCircle.setStyle({ fillOpacity });
+    }
+
+    // Append to the recording trail when actively recording
     if (state.recordingState === 'recording') {
       const speedMs = isNaN(e.speed) ? 0 : e.speed;
       appendTrailPoint(e.latlng, speedMs, state, map);
     }
   }
 
-  if (state.centering) {
-    const cnt_img = document.getElementById('centering') as HTMLImageElement | null;
-    if (cnt_img) {
-      cnt_img.alt = cnt_img.title = 'Centering Toggle (Enabled)';
-      cnt_img.src = '/centering-color-v1.1.svg';
-    }
-    if (state.youAreHereLocation !== null) {
-      map.panTo(state.youAreHereLocation);
-    }
+  // Update locate button icon to reflect current state
+  updateLocateIcon(state.locateState);
+
+  // Follow GPS position when in active (following) state
+  if (state.locateState === 'active' && state.youAreHereLocation !== null) {
+    map.panTo(state.youAreHereLocation);
   }
+}
+
+// Handle GPS signal loss — gray out the dot and reset accuracy filter
+export function onLocationError(state: AppState): void {
+  if (state.locationMarker !== null) {
+    state.locationMarker.setIcon(createGrayDotIcon());
+  }
+  // Reset prior so next fix is accepted regardless of accuracy change
+  state.prior = 1000;
 }

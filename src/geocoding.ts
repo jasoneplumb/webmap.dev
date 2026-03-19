@@ -109,7 +109,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
             alert(String(err));
           });
         }
-        if (!state.tracking) document.title = addr;
+        if (state.recordingState === 'idle') document.title = addr;
 
         // Format coordinates for display
         const lat = latlng.lat;

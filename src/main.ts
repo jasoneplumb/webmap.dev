@@ -1,6 +1,6 @@
 // Intent: Application entry point — wires all modules together
 // Pattern: Single AppState object threaded through all modules by reference.
-//          updateCallback is a refcount so centering and recording can independently
+//          updateCallback is a refcount so locate and recording can independently
 //          request/release the GPS polling loop without stepping on each other.
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -9,20 +9,24 @@ import './style.css';
 
 import { createInitialState } from './types';
 import { createMap } from './map';
-import { addClipboardControl, addCenteringControl } from './controls';
+import { addClipboardControl, addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
-import { onLocationFound } from './location';
+import { onLocationFound, onLocationError } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
 import { createStatsBar, addRecordingControl } from './recording';
 
 const state = createInitialState();
 const map = createMap();
 
-// Wire GPS location callback
+// Wire GPS location callbacks
 map.on('locationfound', (e: L.LocationEvent) => onLocationFound(e, state, map));
+map.on('locationerror', () => {
+  onLocationError(state);
+  showToast('GPS signal lost');
+});
 
-// Polling refcount helpers — shared by centering and recording
+// Polling refcount helpers — shared by locate and recording
 function activatePolling(): void {
   state.updateCallback += 1;
   if (state.updateCallback === 1) scheduleUpdateCallback(state, map);
@@ -34,7 +38,28 @@ function deactivatePolling(): void {
   if (state.updateCallback === 0) cancelUpdateCallback(state, map);
 }
 
-// Clipboard: copy reverse-geocoded address to clipboard on pin drop
+// ── Toast ────────────────────────────────────────────────────────────────────
+
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+function showToast(message: string, durationMs = 3000): void {
+  let toast = document.getElementById('locate-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'locate-toast';
+    document.getElementById('map')?.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('visible');
+  if (toastTimer !== undefined) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast?.classList.remove('visible');
+    toastTimer = undefined;
+  }, durationMs);
+}
+
+// ── Clipboard ────────────────────────────────────────────────────────────────
+
 addClipboardControl(map, () => {
   state.copyToClipboard = !state.copyToClipboard;
   const img = document.getElementById('clip') as HTMLImageElement | null;
@@ -48,22 +73,64 @@ addClipboardControl(map, () => {
   }
 });
 
-// Centering: keep map panned to current GPS position
-addCenteringControl(map, () => {
-  state.centering = !state.centering;
-  if (state.centering) {
-    activatePolling();
-  } else {
-    deactivatePolling();
-    const img = document.getElementById('centering') as HTMLImageElement | null;
-    if (img) {
-      img.alt = img.title = 'Centering Toggle (Disabled)';
-      img.src = '/centering-lines-v1.1.svg';
-    }
+// ── Three-state locate button ─────────────────────────────────────────────────
+// States: off → active (following) → passive (dot visible, not following)
+// Pan while active automatically drops to passive.
+
+function startLocating(): void {
+  state.locateState = 'active';
+  activatePolling();
+  updateLocateIcon('active');
+}
+
+addLocateControl(map, () => {
+  switch (state.locateState) {
+    case 'off':
+      // Check permission before prompting — gracefully degrade if denied
+      if ('permissions' in navigator) {
+        navigator.permissions
+          .query({ name: 'geolocation' })
+          .then((result) => {
+            if (result.state === 'denied') {
+              showToast('Location access is denied. Enable it in browser settings.');
+            } else {
+              startLocating();
+            }
+          })
+          .catch(() => startLocating()); // permissions API unavailable — just try
+      } else {
+        startLocating();
+      }
+      break;
+
+    case 'active':
+      // Turn off: release locate's polling refcount
+      state.locateState = 'off';
+      deactivatePolling();
+      updateLocateIcon('off');
+      break;
+
+    case 'passive':
+      // Re-center: fly to current position and resume following
+      state.locateState = 'active';
+      if (state.youAreHereLocation !== null) {
+        map.flyTo(state.youAreHereLocation, map.getZoom(), { animate: true, duration: 0.8 });
+      }
+      updateLocateIcon('active');
+      break;
   }
 });
 
-// Recording: Start/Pause/Resume/Stop state machine with real-time stats and styled trail
+// Pan while following → drop to passive (map stays on user's panned position)
+map.on('dragstart', () => {
+  if (state.locateState === 'active') {
+    state.locateState = 'passive';
+    updateLocateIcon('passive');
+  }
+});
+
+// ── Recording (trail with stats) ──────────────────────────────────────────────
+
 createStatsBar();
 addRecordingControl(map, state, activatePolling, deactivatePolling);
 
