@@ -4,10 +4,16 @@
   <title>webmap.dev</title>
   <meta charset="utf-8">
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#4CAF50">
+  <meta name="description" content="GPS mapping and trail recording with offline support">
   <link rel="icon" type="image/svg+xml" href="/logo-color-v1.1.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
 </head>
 <body>
   <div id="map"></div>
+  <div id="offline-banner" class="offline-banner">
+    <span>You are offline — cached tiles and GPS recording still work</span>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

@@ -386,3 +386,25 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .sheet-btn:hover {
   background: #0066dd;
 }
+
+/* ── Offline banner ───────────────────────────────────────────────────────── */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #f59e0b;
+  color: #1f2937;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 14px;
+  z-index: 2000;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+  pointer-events: none;
+  font-weight: 500;
+}
+
+.offline-banner.visible {
+  transform: translateY(0);
+}
