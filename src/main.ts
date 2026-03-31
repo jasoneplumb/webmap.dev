@@ -89,25 +89,23 @@ function startLocating(): void {
 addLocateControl(map, () => {
   switch (state.locateState) {
     case 'off':
-      // Check permission before prompting — gracefully degrade if denied
+      // Start locating synchronously so map.locate() fires within the user
+      // gesture — iOS Safari silently denies the permission prompt otherwise.
+      startLocating();
+      updateRecordingButtons();
+      // If permission was previously denied, show a toast and undo
       if ('permissions' in navigator) {
         navigator.permissions
           .query({ name: 'geolocation' })
           .then((result) => {
             if (result.state === 'denied') {
               showToast('Location access is denied. Enable it in browser settings.');
-            } else {
-              startLocating();
-              updateRecordingButtons();
+              state.locateState = 'off';
+              deactivatePolling();
+              updateLocateIcon('off');
             }
           })
-          .catch(() => {
-            startLocating(); // permissions API unavailable — just try
-            updateRecordingButtons();
-          });
-      } else {
-        startLocating();
-        updateRecordingButtons();
+          .catch(() => { /* permissions API unavailable — locate already in progress */ });
       }
       break;
 
