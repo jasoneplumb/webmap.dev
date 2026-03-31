@@ -39,6 +39,7 @@ export interface AppState {
   lastSpeedMs: number;
   trail: L.Polyline | null;
   trailGlow: L.Polyline | null;
+  trailPoints: Array<{ latlng: L.LatLng; t: number; speedMs: number }>;
   arrowMarkers: L.Marker[];
   statsTimer: ReturnType<typeof setInterval> | null;
 }
@@ -66,6 +67,7 @@ export function createInitialState(): AppState {
     lastSpeedMs: 0,
     trail: null,
     trailGlow: null,
+    trailPoints: [],
     arrowMarkers: [],
     statsTimer: null,
   };

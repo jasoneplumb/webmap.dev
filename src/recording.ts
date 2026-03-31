@@ -248,6 +248,7 @@ function startRecording(
   state.lastTrailPoint = null;
   state.lastArrowPoint = null;
   state.lastSpeedMs = 0;
+  state.trailPoints = [];
 
   // Glow layer beneath the main trail line
   state.trailGlow = L.polyline([], {
@@ -291,6 +292,11 @@ function resumeRecording(state: AppState): void {
 
 function stopRecording(state: AppState, deactivatePolling: () => void): void {
   if (state.recordingState === 'idle') return;
+
+  if (state.trailPoints.length > 0) {
+    downloadGpx(state);
+  }
+
   state.recordingState = 'idle';
   deactivatePolling(); // recording refcount
 
@@ -299,6 +305,71 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
     state.statsTimer = null;
   }
   setStatsBarVisible(false);
+}
+
+// ── GPX export ────────────────────────────────────────────────────────────────
+
+function perfToIso(t: number): string {
+  return new Date(Date.now() - (performance.now() - t)).toISOString();
+}
+
+function buildGpx(state: AppState): string {
+  const startDate = new Date(Date.now() - (performance.now() - state.recordingStartMs));
+  const trackName = startDate
+    .toISOString()
+    .replace('T', ' ')
+    .replace(/:\d{2}\.\d{3}Z$/, '');
+
+  const trkpts = state.trailPoints
+    .map(({ latlng, t, speedMs }) => {
+      const timeTag = `<time>${perfToIso(t)}</time>`;
+      const speedTag =
+        speedMs > 0
+          ? `<extensions><speed>${speedMs.toFixed(4)}</speed></extensions>`
+          : '';
+      return (
+        `      <trkpt lat="${latlng.lat.toFixed(7)}" lon="${latlng.lng.toFixed(7)}">` +
+        `${timeTag}${speedTag}</trkpt>`
+      );
+    })
+    .join('\n');
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<gpx version="1.1" creator="webmap.dev"\n' +
+    '     xmlns="http://www.topografix.com/GPX/1/1">\n' +
+    '  <trk>\n' +
+    `    <name>${trackName}</name>\n` +
+    '    <trkseg>\n' +
+    trkpts +
+    '\n    </trkseg>\n' +
+    '  </trk>\n' +
+    '</gpx>'
+  );
+}
+
+function gpxFilename(state: AppState): string {
+  const d = new Date(Date.now() - (performance.now() - state.recordingStartMs));
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  const month = pad(d.getUTCMonth() + 1);
+  const day = pad(d.getUTCDate());
+  const hh = pad(d.getUTCHours());
+  const mm = pad(d.getUTCMinutes());
+  return `track-${year}-${month}-${day}-${hh}${mm}.gpx`;
+}
+
+function downloadGpx(state: AppState): void {
+  const gpx = buildGpx(state);
+  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = gpxFilename(state);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Trail point appending (called from location.ts) ───────────────────────────
@@ -322,6 +393,7 @@ export function appendTrailPoint(
   state.trail?.addLatLng(latlng);
   state.trailGlow?.addLatLng(latlng);
   state.lastTrailPoint = latlng;
+  state.trailPoints.push({ latlng, t: performance.now(), speedMs });
 
   // Direction arrow: add between lastArrowPoint and current point when far enough apart
   if (state.lastArrowPoint !== null) {
