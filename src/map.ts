@@ -88,7 +88,7 @@ export function createMap(): L.Map {
       minNativeZoom: 2,
       ...tilePerf,
     },
-  ).addTo(map);
+  );
 
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     tileSize: 512,
@@ -98,7 +98,7 @@ export function createMap(): L.Map {
     minZoom: 2,
     minNativeZoom: 2,
     ...tilePerf,
-  });
+  }).addTo(map);
 
   const gsi = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -111,7 +111,7 @@ export function createMap(): L.Map {
     ...tilePerf,
   });
 
-  const baseMaps = { Imagery: gsi, Streets: osm, Trails: elevationWithTrails };
+  const baseMaps = { Imagery: gsi, Structures: osm, Topo: elevationWithTrails };
   L.control.layers(baseMaps, undefined, { position: 'topleft' }).addTo(map);
 
   return map;
