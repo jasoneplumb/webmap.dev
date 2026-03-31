@@ -4,6 +4,13 @@
 //          request/release the GPS polling loop without stepping on each other.
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet's default marker icon paths broken by Vite's asset pipeline
+L.Icon.Default.mergeOptions({
+  iconUrl: '/marker-icon.png',
+  iconRetinaUrl: '/marker-icon-2x.png',
+  shadowUrl: '/marker-shadow.png',
+});
 import 'esri-leaflet-geocoder/dist/esri-leaflet-geocoder.css';
 import './style.css';
 
