@@ -23,6 +23,7 @@ export interface GeosearchOptions {
   expanded?: boolean;
   useMapBounds?: boolean;
   zoomToResult?: boolean;
+  collapseAfterResult?: boolean;
   providers?: unknown[];
   apikey?: string;
   minCharacters?: number;
