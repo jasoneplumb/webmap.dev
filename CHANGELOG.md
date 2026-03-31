@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0-beta (2026-03-31)
+
+### Features
+
+- **UI controls** — relocated controls from bottom-right to top-left for better thumb reach on mobile
+- **Version badge** — version overlay displayed in upper-right corner of the map (#20)
+
+### Fixes
+
+- **iOS user gestures** — GPS and clipboard operations now execute within the user gesture to avoid Safari's permission expiry (#25, #26)
+- **iOS GPS permission** — location request now occurs directly inside user gesture handler (#23)
+- **Record button** — disabled when location is not enabled to prevent invalid state (#24)
+- **Clipboard copy** — reverse geocode clipboard copy no longer fails due to expired user gesture
+
 ## v0.3.0-beta (2026-03-18)
 
 ### Features
