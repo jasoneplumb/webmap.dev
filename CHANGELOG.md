@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.0-beta (2026-03-31)
+
+### Features
+
+- **GPX export** — track is automatically downloaded as a GPX 1.1 file when recording is stopped; filename includes start date/time (#41)
+
+### Fixes
+
+- **Search** — spinner now resolves on results/error; pressing Enter submits the query instead of collapsing the control (#40)
+- **iOS locate** — removed racy `permissions.query` check that caused the first Locate tap to fail with a false "access denied" (#38)
+- **Map layers** — restored missing dropped-pin marker icon; default layer changed to Streets; layer labels renamed to Structures and Topo (#37)
+
 ## v0.4.0-beta (2026-03-31)
 
 ### Features
