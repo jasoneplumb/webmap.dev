@@ -37,6 +37,10 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   // Disable useMapBounds: at low zoom (initial map view), the visible bbox is the
   // entire world, causing ESRI to return no results. Instead, rely on ESRI's
   // location biasing which intelligently prioritizes results near the map center.
+  //
+  // collapseAfterResult: false — prevents clear() from collapsing the control
+  // immediately when Enter is pressed (before results arrive). We handle collapse
+  // ourselves in the results handler and on blur.
   const searchControl = geosearch({
     placeholder: '',
     title: 'Search for places or addresses',
@@ -44,14 +48,61 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     expanded: false,
     useMapBounds: false,
     zoomToResult: false,
+    collapseAfterResult: false,
     minCharacters: 3,
     debounceDelay: 250,
     providers: [arcgisOnlineProvider({ maxResults: 15, apikey })],
   });
   searchControl.addTo(map);
 
+  // Grab internal DOM refs (created in onAdd, so must come after addTo).
+  const input = (searchControl as unknown as { _input: HTMLInputElement })._input;
+  const wrapper = (searchControl as unknown as { _wrapper: HTMLElement })._wrapper;
+
+  // Fix: patch each provider's results() so that on error it calls back with an
+  // empty array instead of propagating the error. Without this, GeosearchCore
+  // never fires the 'load' event on failure and the spinner stays indefinitely.
+  const core = (searchControl as unknown as { _geosearchCore: { _providers: unknown[] } })._geosearchCore;
+  for (const provider of core._providers) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = provider as any;
+    const orig = p.results.bind(p) as (
+      text: unknown, key: unknown, bounds: unknown,
+      cb: (err: unknown, results: unknown[]) => void,
+    ) => unknown;
+    p.results = function (
+      text: unknown, key: unknown, bounds: unknown,
+      cb: (err: null, results: unknown[]) => void,
+    ): unknown {
+      return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
+        // On error, pass empty results so the 'load' event still fires and the
+        // spinner is removed.
+        cb(null, error ? [] : results);
+      });
+    };
+  }
+
+  // Collapse the search control and clear the input — called after results arrive
+  // or when the input loses focus.
+  function collapseSearch(): void {
+    input.value = '';
+    (searchControl as unknown as { _lastValue: string })._lastValue = '';
+    input.placeholder = '';
+    L.DomUtil.removeClass(wrapper, 'geocoder-control-expanded');
+  }
+
+  // Collapse on blur so clicking away from the field still hides it. Use a
+  // short timeout so a mousedown on a suggestion item fires first (matching the
+  // existing library behaviour for suggestion clicks).
+  input.addEventListener('blur', () => {
+    setTimeout(collapseSearch, 150);
+  });
+
   const results = L.layerGroup().addTo(map);
   searchControl.on('results', (data) => {
+    // Remove loading spinner and collapse the control now that results are in.
+    L.DomUtil.removeClass(input, 'geocoder-control-loading');
+    collapseSearch();
     results.clearLayers();
     if (data.results.length) {
       document.title = data.text;
