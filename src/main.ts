@@ -21,7 +21,18 @@ const map = createMap();
 
 // Wire GPS location callbacks
 map.on('locationfound', (e: L.LocationEvent) => onLocationFound(e, state, map));
-map.on('locationerror', () => {
+map.on('locationerror', (e: L.ErrorEvent) => {
+  // Leaflet error code 1 = PERMISSION_DENIED (browser or OS blocked access)
+  // On iOS Safari the permissions API is unreliable, so this event is the
+  // only trustworthy signal that location was actually denied.
+  if (e.code === 1 && state.locateState !== 'off') {
+    showToast('Location access is denied. Enable it in browser settings.');
+    state.locateState = 'off';
+    deactivatePolling();
+    updateLocateIcon('off');
+    updateRecordingButtons();
+    return;
+  }
   onLocationError(state);
   showToast('GPS signal lost');
 });
@@ -93,20 +104,6 @@ addLocateControl(map, () => {
       // gesture — iOS Safari silently denies the permission prompt otherwise.
       startLocating();
       updateRecordingButtons();
-      // If permission was previously denied, show a toast and undo
-      if ('permissions' in navigator) {
-        navigator.permissions
-          .query({ name: 'geolocation' })
-          .then((result) => {
-            if (result.state === 'denied') {
-              showToast('Location access is denied. Enable it in browser settings.');
-              state.locateState = 'off';
-              deactivatePolling();
-              updateLocateIcon('off');
-            }
-          })
-          .catch(() => { /* permissions API unavailable — locate already in progress */ });
-      }
       break;
 
     case 'active':
