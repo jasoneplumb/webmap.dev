@@ -19,7 +19,7 @@ import { createMap } from './map';
 import { addClipboardControl, addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
-import { onLocationFound, onLocationError } from './location';
+import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
 import { createStatsBar, addRecordingControl, updateRecordingButtons } from './recording';
 
@@ -36,6 +36,7 @@ map.on('locationerror', (e: L.ErrorEvent) => {
     showToast('Location access is denied. Enable it in browser settings.');
     state.locateState = 'off';
     deactivatePolling();
+    clearLocationMarkers(state, map);
     updateLocateIcon('off');
     updateRecordingButtons();
     return;
@@ -114,9 +115,10 @@ addLocateControl(map, () => {
       break;
 
     case 'active':
-      // Turn off: release locate's polling refcount
+      // Turn off: release locate's polling refcount and remove location markers
       state.locateState = 'off';
       deactivatePolling();
+      clearLocationMarkers(state, map);
       updateLocateIcon('off');
       updateRecordingButtons();
       break;
