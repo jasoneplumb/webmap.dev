@@ -67,8 +67,14 @@ function makeCollapseController(input: HTMLInputElement, wrapper: HTMLElement) {
     wrapper.classList.remove('geocoder-control-expanded');
   }
 
+  // minCharacters matches the value configured in addSearchControl (3).
   function onEnterKeydown() {
-    pendingSearch = true;
+    if (input.value.length >= 3) pendingSearch = true;
+  }
+
+  function onEscapeKeydown() {
+    pendingSearch = false;
+    collapseSearch();
   }
 
   function onBlur() {
@@ -82,7 +88,7 @@ function makeCollapseController(input: HTMLInputElement, wrapper: HTMLElement) {
     collapseSearch();
   }
 
-  return { onEnterKeydown, onBlur, onResults, collapseSearch,
+  return { onEnterKeydown, onEscapeKeydown, onBlur, onResults, collapseSearch,
            isPendingSearch: () => pendingSearch };
 }
 
@@ -170,6 +176,27 @@ describe('collapse controller', () => {
     ctrl.onEnterKeydown();
     ctrl.onResults(); // search completed
     ctrl.onBlur();    // user blurs — should collapse since pendingSearch is false
+    vi.runAllTimers();
+    expect(wrapper.classList.contains('geocoder-control-expanded')).toBe(false);
+  });
+
+  it('Escape clears pendingSearch and collapses immediately', () => {
+    const ctrl = makeCollapseController(input, wrapper);
+    input.value = 'Seattle';
+    ctrl.onEnterKeydown();
+    expect(ctrl.isPendingSearch()).toBe(true);
+    ctrl.onEscapeKeydown();
+    expect(ctrl.isPendingSearch()).toBe(false);
+    expect(wrapper.classList.contains('geocoder-control-expanded')).toBe(false);
+  });
+
+  it('Enter with short input does NOT set pendingSearch (below minCharacters)', () => {
+    const ctrl = makeCollapseController(input, wrapper);
+    input.value = 'Se'; // 2 chars — below the minCharacters threshold of 3
+    ctrl.onEnterKeydown();
+    expect(ctrl.isPendingSearch()).toBe(false);
+    // blur should still collapse because pendingSearch was never set
+    ctrl.onBlur();
     vi.runAllTimers();
     expect(wrapper.classList.contains('geocoder-control-expanded')).toBe(false);
   });

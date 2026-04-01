@@ -103,6 +103,8 @@ export function addSearchControl(map: L.Map, state: AppState): void {
       // Only mark search as pending if input meets the minimum length threshold.
       // If it doesn't, no request is dispatched and the results handler never fires,
       // which would leave pendingSearch stuck true and prevent future blur-collapses.
+      // 3 = minCharacters configured above; below this threshold the library
+      // does not dispatch a request, so the results event never fires.
       if (input.value.length >= 3) pendingSearch = true;
     } else if (e.key === 'Escape') {
       // Cancel in-flight guard and collapse immediately.
