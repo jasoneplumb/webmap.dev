@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.0-beta (2026-04-01)
+
+### Added
+
+- **UI** — fix bottom sheet drift, scroll jank, tile blur, and icon allocation (#54)
+
+### Fixed
+
+- **Recording** — GPX export data correctness: locale-safe track name, multi-segment support across pause/resume, timing drift fix, deferred revokeObjectURL (#57)
+- **PWA** — guard against auto-update during active recording; add PNG icons; remove ToS tile caching (#49)
+- **Recording** — reduce revokeObjectURL timeout from 1000ms to 0ms (#58)
+
 ## v0.5.1-beta (2026-04-01)
 
 ### Fixed
