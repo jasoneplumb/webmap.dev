@@ -10,7 +10,7 @@ export default defineConfig({
   },
   plugins: [
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       manifest: {
         name: 'webmap.dev',
         short_name: 'webmap',
@@ -22,32 +22,21 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/logo-color-v1.1.svg',
+            src: '/logo-192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/logo-color-v1.1.svg',
+            src: '/logo-512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any',
           },
         ],
       },
       workbox: {
         runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.mapbox\.com\/styles\/.*/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'mapbox-tiles',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
-            },
-          },
           {
             urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
             handler: 'StaleWhileRevalidate',
@@ -60,26 +49,11 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^https:\/\/.*\.google\.com\/vt\/.*/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'google-imagery',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
-            },
-          },
-          {
             urlPattern: /^https:\/\/geocode\.arcgis\.com\/.*/,
             handler: 'NetworkOnly',
-            options: {
-              cacheName: 'geocode-api',
-            },
           },
         ],
         navigateFallback: null,
-        skipWaiting: true,
       },
     }),
   ],

@@ -22,6 +22,7 @@ import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
 import { createStatsBar, addRecordingControl, updateRecordingButtons } from './recording';
+import { registerSW } from 'virtual:pwa-register';
 
 const state = createInitialState();
 const map = createMap();
@@ -184,3 +185,33 @@ function updateOfflineBanner(): void {
 window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
+
+let pendingSwUpdate: (() => void) | null = null;
+
+function applyUpdateWhenSafe(update: () => void): void {
+  // Apply immediately if idle; defer if recording or paused (paused !== idle)
+  if (state.recordingState === 'idle') {
+    update();
+    return;
+  }
+  if (pendingSwUpdate !== null) return; // already waiting for recording to finish
+  pendingSwUpdate = update;
+  showToast('App update available — will apply after recording stops', 6000);
+  const poll = setInterval(() => {
+    if (state.recordingState === 'idle' && pendingSwUpdate !== null) {
+      clearInterval(poll);
+      const fn = pendingSwUpdate;
+      pendingSwUpdate = null;
+      showToast('Recording saved — applying app update…', 2000);
+      setTimeout(fn, 1500); // brief pause so user sees the toast
+    }
+  }, 2000);
+}
+
+// Note: vite-plugin-pwa also exposes onOfflineReady for first-install caching.
+// Not wired here — silent first-install caching is acceptable.
+const updateSW = registerSW({
+  onNeedRefresh() {
+    applyUpdateWhenSafe(() => updateSW(true));
+  },
+});
