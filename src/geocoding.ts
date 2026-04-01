@@ -275,7 +275,10 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
 
   const mapContainer = map.getContainer();
   mapContainer.addEventListener('touchstart', (e: TouchEvent) => {
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1) {
+      cancelLongPress(); // second finger joined mid-hold — cancel timer
+      return;
+    }
     contextmenuFired = false;
     const touch = e.touches[0];
     if (!touch) return;
