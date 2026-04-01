@@ -99,8 +99,12 @@ export function onLocationError(state: AppState): void {
   if (state.locationMarker !== null) {
     state.locationMarker.setIcon(createGrayDotIcon());
   }
-  // Reset prior so next fix is accepted regardless of accuracy change
-  state.prior = 1000;
+  // Only reset prior when we have no position yet; if we already have a fix,
+  // preserve prior so the haversine filter doesn't accept a degraded-accuracy
+  // position that would make the dot jump on signal recovery.
+  if (state.locationMarker === null) {
+    state.prior = 1000;
+  }
 }
 
 // Remove blue dot and accuracy circle from the map (called when locate is turned off)

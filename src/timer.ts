@@ -13,11 +13,11 @@ export function cancelUpdateCallback(state: AppState, map: L.Map): void {
   map.stopLocate();
 }
 
-export function scheduleUpdateCallback(state: AppState, map: L.Map): void {
+export function scheduleUpdateCallback(state: AppState, map: L.Map, delayMs = 500): void {
   if (state.timer !== undefined) {
     clearTimeout(state.timer);
   }
-  state.timer = setTimeout(() => updateLocation(state, map), 500);
+  state.timer = setTimeout(() => updateLocation(state, map), delayMs);
 }
 
 function updateLocation(state: AppState, map: L.Map): void {
