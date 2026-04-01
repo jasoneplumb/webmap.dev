@@ -67,7 +67,7 @@ function makeCollapseController(input: HTMLInputElement, wrapper: HTMLElement) {
     wrapper.classList.remove('geocoder-control-expanded');
   }
 
-  // minCharacters matches the value configured in addSearchControl (3).
+  // 3 = MIN_CHARS from addSearchControl — must stay in sync.
   function onEnterKeydown() {
     if (input.value.length >= 3) pendingSearch = true;
   }

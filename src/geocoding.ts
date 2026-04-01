@@ -41,6 +41,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   // collapseAfterResult: false — prevents clear() from collapsing the control
   // immediately when Enter is pressed (before results arrive). We handle collapse
   // ourselves in the results handler and on blur.
+  const MIN_CHARS = 3;
   const searchControl = geosearch({
     placeholder: '',
     title: 'Search for places or addresses',
@@ -49,7 +50,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     useMapBounds: false,
     zoomToResult: false,
     collapseAfterResult: false,
-    minCharacters: 3,
+    minCharacters: MIN_CHARS,
     debounceDelay: 250,
     providers: [arcgisOnlineProvider({ maxResults: 15, apikey })],
   });
@@ -103,9 +104,9 @@ export function addSearchControl(map: L.Map, state: AppState): void {
       // Only mark search as pending if input meets the minimum length threshold.
       // If it doesn't, no request is dispatched and the results handler never fires,
       // which would leave pendingSearch stuck true and prevent future blur-collapses.
-      // 3 = minCharacters configured above; below this threshold the library
-      // does not dispatch a request, so the results event never fires.
-      if (input.value.length >= 3) pendingSearch = true;
+      // Below MIN_CHARS the library does not dispatch a request, so the
+      // results event never fires and pendingSearch would get stuck.
+      if (input.value.length >= MIN_CHARS) pendingSearch = true;
     } else if (e.key === 'Escape') {
       // Cancel in-flight guard and collapse immediately.
       pendingSearch = false;
