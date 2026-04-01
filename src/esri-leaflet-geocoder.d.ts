@@ -65,6 +65,7 @@ export interface GeocodeService {
 export interface GeosearchControl {
   addTo(map: L.Map): this;
   on(event: 'results', fn: (e: SearchResultsEvent) => void): this;
+  getContainer(): HTMLElement | undefined;
 }
 
 declare module 'esri-leaflet-geocoder' {
