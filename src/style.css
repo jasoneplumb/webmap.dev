@@ -181,7 +181,14 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .rec-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-  pointer-events: none;
+}
+
+/* Block touch events on disabled buttons on touch devices.
+   Scoped to touch-primary devices so desktop cursor: not-allowed is preserved. */
+@media (hover: none) and (pointer: coarse) {
+  .rec-btn:disabled {
+    pointer-events: none;
+  }
 }
 
 .rec-btn-start  { background: #22c55e; color: #fff; }

@@ -247,7 +247,9 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     dropPin(e.latlng);
   });
 
-  // Right-click (desktop) and long-press (mobile) both fire contextmenu
+  // Right-click (desktop) and long-press (mobile) both fire contextmenu.
+  // A second contextmenu handler below sets contextmenuFired=true so the iOS
+  // touch-fallback doesn't double-drop on browsers that do fire contextmenu.
   map.on('contextmenu', (e: L.LeafletMouseEvent) => {
     dropPin(e.latlng);
   });
@@ -261,6 +263,8 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   let longPressStartY = 0;
   let contextmenuFired = false;
 
+  // Guard: if contextmenu fired natively, cancel the touch fallback timer
+  // so browsers that do support long-press contextmenu don't double-drop.
   map.on('contextmenu', () => {
     contextmenuFired = true;
     if (longPressTimer !== undefined) {
@@ -287,12 +291,17 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     }, 500);
   }, { passive: true });
 
-  mapContainer.addEventListener('touchend', () => {
+  function cancelLongPress(): void {
     if (longPressTimer !== undefined) {
       clearTimeout(longPressTimer);
       longPressTimer = undefined;
     }
-  }, { passive: true });
+  }
+
+  mapContainer.addEventListener('touchend', cancelLongPress, { passive: true });
+  // touchcancel fires when the OS interrupts a touch (e.g. incoming call);
+  // clear the timer to prevent a spurious pin drop after the interruption.
+  mapContainer.addEventListener('touchcancel', cancelLongPress, { passive: true });
 
   mapContainer.addEventListener('touchmove', (e: TouchEvent) => {
     if (longPressTimer === undefined) return;
