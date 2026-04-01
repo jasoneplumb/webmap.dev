@@ -189,6 +189,7 @@ updateOfflineBanner();
 let pendingSwUpdate: (() => void) | null = null;
 
 function applyUpdateWhenSafe(update: () => void): void {
+  // Apply immediately if idle; defer if recording or paused (paused !== idle)
   if (state.recordingState === 'idle') {
     update();
     return;
@@ -201,7 +202,8 @@ function applyUpdateWhenSafe(update: () => void): void {
       clearInterval(poll);
       const fn = pendingSwUpdate;
       pendingSwUpdate = null;
-      fn();
+      showToast('Recording saved — applying app update…', 2000);
+      setTimeout(fn, 1500); // brief pause so user sees the toast
     }
   }, 2000);
 }
