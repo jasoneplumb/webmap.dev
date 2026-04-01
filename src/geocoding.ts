@@ -25,13 +25,42 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
   const apikey = import.meta.env.VITE_ESRI_API_KEY;
 
-  // Warn if API key is missing at startup
+  // Without an API key the search control is non-functional — skip adding it
+  // entirely so users see no broken UI rather than a silently broken one.
   if (!apikey) {
     console.warn(
       'VITE_ESRI_API_KEY is not configured. ' +
       'Search functionality will not work. ' +
       'Set VITE_ESRI_API_KEY in your .env file.'
     );
+    return;
+  }
+
+  // Wrap a provider so that errors in results() and suggest() are logged and
+  // silenced rather than propagated. Wrapping before construction avoids
+  // accessing private internals of GeosearchCore after the fact.
+  // Both methods must be wrapped: suggest() drives the autocomplete spinner on
+  // each keystroke; results() drives the Enter/select path.
+  function wrapProvider(provider: unknown): unknown {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p = provider as any;
+    for (const method of ['results', 'suggest'] as const) {
+      if (typeof p[method] !== 'function') continue;
+      const orig = p[method].bind(p) as (
+        text: unknown, key: unknown, bounds: unknown,
+        cb: (err: null, results: unknown[]) => void,
+      ) => unknown;
+      p[method] = function (
+        text: unknown, key: unknown, bounds: unknown,
+        cb: (err: null, results: unknown[]) => void,
+      ): unknown {
+        return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
+          if (error) console.warn('Search provider error:', error);
+          cb(null, error ? [] : results);
+        });
+      };
+    }
+    return provider;
   }
 
   // Disable useMapBounds: at low zoom (initial map view), the visible bbox is the
@@ -52,46 +81,31 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
     debounceDelay: 250,
-    providers: [arcgisOnlineProvider({ maxResults: 15, apikey })],
+    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey }))],
   });
   searchControl.addTo(map);
 
-  // Grab internal DOM refs (created in onAdd, so must come after addTo).
-  const input = (searchControl as unknown as { _input: HTMLInputElement })._input;
-  const wrapper = (searchControl as unknown as { _wrapper: HTMLElement })._wrapper;
-
-  // Fix: patch each provider's results() and suggest() so that on error they
-  // call back with an empty array instead of propagating. Without this,
-  // GeosearchCore never fires the completion event on failure and the spinner
-  // stays indefinitely. Both methods must be patched: suggest() drives the
-  // autocomplete spinner on each keystroke; results() drives the Enter/select path.
-  const core = (searchControl as unknown as { _geosearchCore: { _providers: unknown[] } })._geosearchCore;
-  for (const provider of core._providers) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const p = provider as any;
-    for (const method of ['results', 'suggest'] as const) {
-      if (typeof p[method] !== 'function') continue;
-      const orig = p[method].bind(p) as (
-        text: unknown, key: unknown, bounds: unknown,
-        cb: (err: null, results: unknown[]) => void,
-      ) => unknown;
-      p[method] = function (
-        text: unknown, key: unknown, bounds: unknown,
-        cb: (err: null, results: unknown[]) => void,
-      ): unknown {
-        return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
-          cb(null, error ? [] : results);
-        });
-      };
-    }
+  // Resolve DOM refs via the public getContainer() API (created in onAdd, so
+  // must come after addTo). Guard against future library changes that might
+  // restructure the DOM. Re-bind to non-nullable types after the guard so
+  // closures below do not require non-null assertions.
+  const container = searchControl.getContainer();
+  const inputEl = container?.querySelector('input') as HTMLInputElement | null;
+  if (!container || !inputEl) {
+    console.warn('Search control DOM not found — search disabled.');
+    return;
   }
+  const input: HTMLInputElement = inputEl;
+  const wrapper: HTMLElement = container;
 
   // Collapse the search control and clear the input — called after results arrive
-  // or when the input loses focus.
+  // or when the input loses focus. Dispatching a synthetic input event syncs the
+  // library's internal debounce state to the cleared value without accessing
+  // private properties.
   function collapseSearch(): void {
     input.value = '';
-    (searchControl as unknown as { _lastValue: string })._lastValue = '';
     input.placeholder = '';
+    input.dispatchEvent(new Event('input'));
     L.DomUtil.removeClass(wrapper, 'geocoder-control-expanded');
   }
 
