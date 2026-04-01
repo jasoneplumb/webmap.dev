@@ -35,7 +35,11 @@ map.on('locationerror', (e: L.ErrorEvent) => {
   if (e.code === 1 && state.locateState !== 'off') {
     showToast('Location access is denied. Enable it in browser settings.');
     state.locateState = 'off';
-    deactivatePolling();
+    // Force-stop ALL polling regardless of refcount. Without this, an active
+    // recording (refcount > 1) keeps the timer alive — timer fires map.locate()
+    // every 500 ms, which re-triggers this error handler in an infinite loop.
+    state.updateCallback = 0;
+    cancelUpdateCallback(state, map);
     clearLocationMarkers(state, map);
     updateLocateIcon('off');
     updateRecordingButtons();
@@ -48,7 +52,12 @@ map.on('locationerror', (e: L.ErrorEvent) => {
 // Polling refcount helpers — shared by locate and recording
 function activatePolling(): void {
   state.updateCallback += 1;
-  if (state.updateCallback === 1) scheduleUpdateCallback(state, map);
+  // Use a longer initial delay (3 s) so the immediate map.locate() call in
+  // startLocating has time to resolve before the first poll cycle fires and
+  // cancels it with map.stopLocate().  Subsequent activations (recording while
+  // locate is already running) don't reach this branch, so their poll interval
+  // is unaffected.
+  if (state.updateCallback === 1) scheduleUpdateCallback(state, map, 3000);
 }
 
 function deactivatePolling(): void {
