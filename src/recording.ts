@@ -287,6 +287,9 @@ function resumeRecording(state: AppState): void {
   }
   state.recordingPauseStart = null;
   state.recordingState = 'recording';
+  // Start a new GPX segment after pause by clearing trail points.
+  // This prevents a straight-line artifact across the pause in the exported GPX.
+  state.trailPoints = [];
   updateStatsBar(state);
 }
 
@@ -309,20 +312,20 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
 
 // ── GPX export ────────────────────────────────────────────────────────────────
 
-function perfToIso(t: number): string {
-  return new Date(Date.now() - (performance.now() - t)).toISOString();
-}
-
 function buildGpx(state: AppState): string {
-  const startDate = new Date(Date.now() - (performance.now() - state.recordingStartMs));
+  // Capture epoch offset once to avoid timing drift in GPX timestamps.
+  // This ensures each point's wall-clock time is derived from the same epoch.
+  const epochOffset = Date.now() - performance.now();
+  const startDate = new Date(epochOffset + state.recordingStartMs);
   const trackName = startDate
-    .toISOString()
-    .replace('T', ' ')
-    .replace(/:\d{2}\.\d{3}Z$/, '');
+    .toLocaleString()
+    .replace(/,/, '')
+    .substring(0, 16);
 
   const trkpts = state.trailPoints
     .map(({ latlng, t, speedMs }) => {
-      const timeTag = `<time>${perfToIso(t)}</time>`;
+      const pointTime = new Date(epochOffset + t).toISOString();
+      const timeTag = `<time>${pointTime}</time>`;
       const speedTag =
         speedMs > 0
           ? `<extensions><speed>${speedMs.toFixed(4)}</speed></extensions>`
@@ -369,7 +372,8 @@ function downloadGpx(state: AppState): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Defer revokeObjectURL to avoid race condition; download is initiated asynchronously
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── Trail point appending (called from location.ts) ───────────────────────────
