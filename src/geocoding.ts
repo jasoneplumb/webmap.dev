@@ -41,6 +41,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   // collapseAfterResult: false — prevents clear() from collapsing the control
   // immediately when Enter is pressed (before results arrive). We handle collapse
   // ourselves in the results handler and on blur.
+  const MIN_CHARS = 3;
   const searchControl = geosearch({
     placeholder: '',
     title: 'Search for places or addresses',
@@ -49,7 +50,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     useMapBounds: false,
     zoomToResult: false,
     collapseAfterResult: false,
-    minCharacters: 3,
+    minCharacters: MIN_CHARS,
     debounceDelay: 250,
     providers: [arcgisOnlineProvider({ maxResults: 15, apikey })],
   });
@@ -59,27 +60,30 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   const input = (searchControl as unknown as { _input: HTMLInputElement })._input;
   const wrapper = (searchControl as unknown as { _wrapper: HTMLElement })._wrapper;
 
-  // Fix: patch each provider's results() so that on error it calls back with an
-  // empty array instead of propagating the error. Without this, GeosearchCore
-  // never fires the 'load' event on failure and the spinner stays indefinitely.
+  // Fix: patch each provider's results() and suggest() so that on error they
+  // call back with an empty array instead of propagating. Without this,
+  // GeosearchCore never fires the completion event on failure and the spinner
+  // stays indefinitely. Both methods must be patched: suggest() drives the
+  // autocomplete spinner on each keystroke; results() drives the Enter/select path.
   const core = (searchControl as unknown as { _geosearchCore: { _providers: unknown[] } })._geosearchCore;
   for (const provider of core._providers) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p = provider as any;
-    const orig = p.results.bind(p) as (
-      text: unknown, key: unknown, bounds: unknown,
-      cb: (err: unknown, results: unknown[]) => void,
-    ) => unknown;
-    p.results = function (
-      text: unknown, key: unknown, bounds: unknown,
-      cb: (err: null, results: unknown[]) => void,
-    ): unknown {
-      return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
-        // On error, pass empty results so the 'load' event still fires and the
-        // spinner is removed.
-        cb(null, error ? [] : results);
-      });
-    };
+    for (const method of ['results', 'suggest'] as const) {
+      if (typeof p[method] !== 'function') continue;
+      const orig = p[method].bind(p) as (
+        text: unknown, key: unknown, bounds: unknown,
+        cb: (err: null, results: unknown[]) => void,
+      ) => unknown;
+      p[method] = function (
+        text: unknown, key: unknown, bounds: unknown,
+        cb: (err: null, results: unknown[]) => void,
+      ): unknown {
+        return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
+          cb(null, error ? [] : results);
+        });
+      };
+    }
   }
 
   // Collapse the search control and clear the input — called after results arrive
@@ -91,17 +95,39 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     L.DomUtil.removeClass(wrapper, 'geocoder-control-expanded');
   }
 
+  // Fix: track whether a search is in flight so blur (which fires on Enter
+  // keydown) does not collapse the control before results arrive.
+  let pendingSearch = false;
+
+  input.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // Only mark search as pending if input meets the minimum length threshold.
+      // If it doesn't, no request is dispatched and the results handler never fires,
+      // which would leave pendingSearch stuck true and prevent future blur-collapses.
+      // Below MIN_CHARS the library does not dispatch a request, so the
+      // results event never fires and pendingSearch would get stuck.
+      if (input.value.length >= MIN_CHARS) pendingSearch = true;
+    } else if (e.key === 'Escape') {
+      // Cancel in-flight guard and collapse immediately.
+      pendingSearch = false;
+      collapseSearch();
+    }
+  });
+
   // Collapse on blur so clicking away from the field still hides it. Use a
   // short timeout so a mousedown on a suggestion item fires first (matching the
-  // existing library behaviour for suggestion clicks).
+  // existing library behaviour for suggestion clicks). Skip collapse entirely
+  // if a search is in flight — the results handler will collapse when done.
   input.addEventListener('blur', () => {
+    if (pendingSearch) return;
     setTimeout(collapseSearch, 150);
   });
 
   const results = L.layerGroup().addTo(map);
   searchControl.on('results', (data) => {
-    // Remove loading spinner and collapse the control now that results are in.
-    L.DomUtil.removeClass(input, 'geocoder-control-loading');
+    // Search complete — clear pending flag, remove loading spinner, and collapse.
+    pendingSearch = false;
+    L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
     results.clearLayers();
     if (data.results.length) {
