@@ -10,6 +10,7 @@ export type SnapPoint = 'hidden' | 'peek' | 'half' | 'full';
 export interface SheetContent {
   title: string;
   subtitle?: string;
+  /** Pre-escaped HTML string. Callers MUST escape all user-derived content before passing. */
   bodyHtml: string;
 }
 
@@ -94,6 +95,8 @@ function onHandleTouchStart(e: TouchEvent): void {
   _dragStartY = touch.clientY;
   _dragStartSnap = _snap;
   if (_el) _el.style.transition = 'none';
+  // Add non-passive touchmove only while dragging to avoid blocking scroll elsewhere
+  document.addEventListener('touchmove', onDocTouchMove, { passive: false });
 }
 
 function onDocTouchMove(e: TouchEvent): void {
@@ -111,6 +114,7 @@ function onDocTouchMove(e: TouchEvent): void {
 function onDocTouchEnd(e: TouchEvent): void {
   if (!_isDragging) return;
   _isDragging = false;
+  document.removeEventListener('touchmove', onDocTouchMove);
   const touch = e.changedTouches[0];
   if (touch === undefined) {
     snapTo(_dragStartSnap);
@@ -176,8 +180,15 @@ export function initInfoPanel(map: L.Map): void {
   // Drag handle (mobile)
   const handleArea = el.querySelector('.info-panel__handle-area') as HTMLElement;
   handleArea.addEventListener('touchstart', onHandleTouchStart, { passive: true });
-  document.addEventListener('touchmove', onDocTouchMove, { passive: false });
+  // touchmove is registered dynamically in onHandleTouchStart (passive: false, only during drag)
   document.addEventListener('touchend', onDocTouchEnd, { passive: true });
+
+  // On device rotation the sheet height changes; reset the accumulated map offset
+  // so setMapOffset computes the correct delta from the new geometry.
+  window.addEventListener('resize', () => {
+    _mapOffsetPx = 0;
+    snapTo(_snap, false);
+  });
 
   // Keyboard dismiss
   document.addEventListener('keydown', (e: KeyboardEvent) => {
