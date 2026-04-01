@@ -248,4 +248,58 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   map.on('contextmenu', (e: L.LeafletMouseEvent) => {
     dropPin(e.latlng);
   });
+
+  // iOS Safari long-press fallback: contextmenu fires inconsistently on iOS,
+  // so we implement our own long-press via touch events. If the touch holds for
+  // 500ms without moving more than ~10px and contextmenu has not already fired
+  // (to avoid double-drop on browsers that do support it), drop a pin.
+  let longPressTimer: ReturnType<typeof setTimeout> | undefined;
+  let longPressStartX = 0;
+  let longPressStartY = 0;
+  let contextmenuFired = false;
+
+  map.on('contextmenu', () => {
+    contextmenuFired = true;
+    if (longPressTimer !== undefined) {
+      clearTimeout(longPressTimer);
+      longPressTimer = undefined;
+    }
+  });
+
+  const mapContainer = map.getContainer();
+  mapContainer.addEventListener('touchstart', (e: TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    contextmenuFired = false;
+    const touch = e.touches[0];
+    if (!touch) return;
+    longPressStartX = touch.clientX;
+    longPressStartY = touch.clientY;
+    longPressTimer = setTimeout(() => {
+      longPressTimer = undefined;
+      if (contextmenuFired) return;
+      const mapRect = mapContainer.getBoundingClientRect();
+      const point = L.point(longPressStartX - mapRect.left, longPressStartY - mapRect.top);
+      const latlng = map.containerPointToLatLng(point);
+      dropPin(latlng);
+    }, 500);
+  }, { passive: true });
+
+  mapContainer.addEventListener('touchend', () => {
+    if (longPressTimer !== undefined) {
+      clearTimeout(longPressTimer);
+      longPressTimer = undefined;
+    }
+  }, { passive: true });
+
+  mapContainer.addEventListener('touchmove', (e: TouchEvent) => {
+    if (longPressTimer === undefined) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const dx = touch.clientX - longPressStartX;
+    const dy = touch.clientY - longPressStartY;
+    if (dx * dx + dy * dy > 100) { // moved more than ~10px
+      clearTimeout(longPressTimer);
+      longPressTimer = undefined;
+    }
+  }, { passive: true });
 }
