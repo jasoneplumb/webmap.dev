@@ -249,6 +249,7 @@ function startRecording(
   state.lastArrowPoint = null;
   state.lastSpeedMs = 0;
   state.trailPoints = [];
+  state.trailSegments = [];
 
   // Glow layer beneath the main trail line
   state.trailGlow = L.polyline([], {
@@ -287,13 +288,19 @@ function resumeRecording(state: AppState): void {
   }
   state.recordingPauseStart = null;
   state.recordingState = 'recording';
+  // Save current segment and start a new one to avoid straight-line artifact
+  // across the pause gap in the exported GPX (each segment becomes a <trkseg>).
+  if (state.trailPoints.length > 0) {
+    state.trailSegments.push(state.trailPoints);
+  }
+  state.trailPoints = [];
   updateStatsBar(state);
 }
 
 function stopRecording(state: AppState, deactivatePolling: () => void): void {
   if (state.recordingState === 'idle') return;
 
-  if (state.trailPoints.length > 0) {
+  if (state.trailPoints.length > 0 || state.trailSegments.length > 0) {
     downloadGpx(state);
   }
 
@@ -309,29 +316,35 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
 
 // ── GPX export ────────────────────────────────────────────────────────────────
 
-function perfToIso(t: number): string {
-  return new Date(Date.now() - (performance.now() - t)).toISOString();
-}
-
 function buildGpx(state: AppState): string {
-  const startDate = new Date(Date.now() - (performance.now() - state.recordingStartMs));
-  const trackName = startDate
-    .toISOString()
-    .replace('T', ' ')
-    .replace(/:\d{2}\.\d{3}Z$/, '');
+  // Capture epoch offset once to avoid timing drift in GPX timestamps.
+  // This ensures each point's wall-clock time is derived from the same epoch.
+  const epochOffset = Date.now() - performance.now();
+  const startDate = new Date(epochOffset + state.recordingStartMs);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const trackName = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())} ${pad(startDate.getHours())}:${pad(startDate.getMinutes())}`;
 
-  const trkpts = state.trailPoints
-    .map(({ latlng, t, speedMs }) => {
-      const timeTag = `<time>${perfToIso(t)}</time>`;
-      const speedTag =
-        speedMs > 0
-          ? `<extensions><speed>${speedMs.toFixed(4)}</speed></extensions>`
-          : '';
-      return (
-        `      <trkpt lat="${latlng.lat.toFixed(7)}" lon="${latlng.lng.toFixed(7)}">` +
-        `${timeTag}${speedTag}</trkpt>`
-      );
-    })
+  // Collect all segments: completed segments from pause/resume + current active segment
+  const allSegments = [...state.trailSegments];
+  if (state.trailPoints.length > 0) {
+    allSegments.push(state.trailPoints);
+  }
+
+  const formatPoint = ({ latlng, t, speedMs }: { latlng: L.LatLng; t: number; speedMs: number }): string => {
+    const pointTime = new Date(epochOffset + t).toISOString();
+    const timeTag = `<time>${pointTime}</time>`;
+    const speedTag =
+      speedMs > 0
+        ? `<extensions><speed>${speedMs.toFixed(4)}</speed></extensions>`
+        : '';
+    return (
+      `      <trkpt lat="${latlng.lat.toFixed(7)}" lon="${latlng.lng.toFixed(7)}">` +
+      `${timeTag}${speedTag}</trkpt>`
+    );
+  };
+
+  const trksegs = allSegments
+    .map((seg) => '    <trkseg>\n' + seg.map(formatPoint).join('\n') + '\n    </trkseg>')
     .join('\n');
 
   return (
@@ -340,9 +353,7 @@ function buildGpx(state: AppState): string {
     '     xmlns="http://www.topografix.com/GPX/1/1">\n' +
     '  <trk>\n' +
     `    <name>${trackName}</name>\n` +
-    '    <trkseg>\n' +
-    trkpts +
-    '\n    </trkseg>\n' +
+    trksegs + '\n' +
     '  </trk>\n' +
     '</gpx>'
   );
@@ -369,7 +380,8 @@ function downloadGpx(state: AppState): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Defer revokeObjectURL to avoid race condition; download is initiated asynchronously
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── Trail point appending (called from location.ts) ───────────────────────────
