@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.5.1-beta (2026-04-01)
+
+### Fixed
+
+- **GPS** — resolved polling refcount leaks and state machine edge cases (#51)
+- **Search** — replaced private API access with public APIs; added missing-key guard (#52)
+- **Search** — spinner resolves on suggest errors; Enter no longer collapses before results (#42)
+- **Mobile** — disabled button bypass fixed; iOS long-press fallback added; location markers removed when locate turns off (#53)
+
+### Documentation
+
+- Added README, architecture, features, development, and deployment docs (#55)
+
+### Other
+
+- Added MIT license
+- Added Claude Code review CI workflow
+
 ## v0.5.0-beta (2026-03-31)
 
 ### Features
