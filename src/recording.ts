@@ -381,7 +381,7 @@ function downloadGpx(state: AppState): void {
   a.click();
   document.body.removeChild(a);
   // Defer revokeObjectURL to avoid race condition; download is initiated asynchronously
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 // ── Trail point appending (called from location.ts) ───────────────────────────
