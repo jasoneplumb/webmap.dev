@@ -184,3 +184,33 @@ function updateOfflineBanner(): void {
 window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
+
+// ── PWA update — guard against reload during active recording ─────────────────
+// registerType: 'prompt' prevents automatic reload; we apply the update only
+// when it is safe to do so (i.e. no recording in progress).
+import { registerSW } from 'virtual:pwa-register';
+
+let pendingSwUpdate: (() => void) | null = null;
+
+function applyUpdateWhenSafe(update: () => void): void {
+  if (state.recordingState === 'idle') {
+    update();
+    return;
+  }
+  pendingSwUpdate = update;
+  showToast('App update available — will apply after recording stops', 6000);
+  const poll = setInterval(() => {
+    if (state.recordingState === 'idle' && pendingSwUpdate !== null) {
+      clearInterval(poll);
+      const fn = pendingSwUpdate;
+      pendingSwUpdate = null;
+      fn();
+    }
+  }, 2000);
+}
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    applyUpdateWhenSafe(() => updateSW(true));
+  },
+});
