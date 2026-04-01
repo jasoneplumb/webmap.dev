@@ -102,3 +102,15 @@ export function onLocationError(state: AppState): void {
   // Reset prior so next fix is accepted regardless of accuracy change
   state.prior = 1000;
 }
+
+// Remove blue dot and accuracy circle from the map (called when locate is turned off)
+export function clearLocationMarkers(state: AppState, map: L.Map): void {
+  if (state.locationMarker !== null) {
+    map.removeLayer(state.locationMarker);
+    state.locationMarker = null;
+  }
+  if (state.accuracyCircle !== null) {
+    map.removeLayer(state.accuracyCircle);
+    state.accuracyCircle = null;
+  }
+}
