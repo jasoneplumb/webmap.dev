@@ -2,7 +2,7 @@
 // Two bugs fixed:
 //   1. Pressing Enter collapses the control before results arrive (blur fires on Enter)
 //   2. Spinner never resolves when suggest() errors (only results() was patched)
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
 
@@ -35,8 +35,10 @@ function makeProvider(opts: { resultsError?: boolean; suggestError?: boolean } =
   };
 }
 
-// Simulate what addSearchControl does: patch provider methods so errors return
-// empty arrays instead of propagating, then return the patched provider.
+// NOTE: applyProviderPatch and makeCollapseController below re-implement the
+// logic from addSearchControl for unit-testing in isolation. They validate the
+// algorithm (error handling, state transitions) but do not exercise the actual
+// production wiring. Integration correctness is verified by manual browser testing.
 function applyProviderPatch(provider: FakeProvider): FakeProvider {
   const origResults = provider.results.bind(provider);
   provider.results = function (_t, _k, _b, cb) {
@@ -117,6 +119,10 @@ describe('collapse controller', () => {
     input = makeInput();
     wrapper = makeWrapper();
     vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('collapseSearch clears input and removes expanded class', () => {

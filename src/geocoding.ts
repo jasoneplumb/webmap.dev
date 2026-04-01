@@ -69,6 +69,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p = provider as any;
     for (const method of ['results', 'suggest'] as const) {
+      if (typeof p[method] !== 'function') continue;
       const orig = p[method].bind(p) as (
         text: unknown, key: unknown, bounds: unknown,
         cb: (err: null, results: unknown[]) => void,
@@ -98,7 +99,16 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   let pendingSearch = false;
 
   input.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter') pendingSearch = true;
+    if (e.key === 'Enter') {
+      // Only mark search as pending if input meets the minimum length threshold.
+      // If it doesn't, no request is dispatched and the results handler never fires,
+      // which would leave pendingSearch stuck true and prevent future blur-collapses.
+      if (input.value.length >= 3) pendingSearch = true;
+    } else if (e.key === 'Escape') {
+      // Cancel in-flight guard and collapse immediately.
+      pendingSearch = false;
+      collapseSearch();
+    }
   });
 
   // Collapse on blur so clicking away from the field still hides it. Use a
@@ -114,7 +124,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   searchControl.on('results', (data) => {
     // Search complete — clear pending flag, remove loading spinner, and collapse.
     pendingSearch = false;
-    L.DomUtil.removeClass(input, 'geocoder-control-loading');
+    L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
     results.clearLayers();
     if (data.results.length) {
