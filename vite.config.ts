@@ -51,9 +51,6 @@ export default defineConfig({
           {
             urlPattern: /^https:\/\/geocode\.arcgis\.com\/.*/,
             handler: 'NetworkOnly',
-            options: {
-              cacheName: 'geocode-api',
-            },
           },
         ],
         navigateFallback: null,

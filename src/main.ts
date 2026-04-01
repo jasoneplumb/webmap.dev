@@ -22,6 +22,7 @@ import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
 import { createStatsBar, addRecordingControl, updateRecordingButtons } from './recording';
+import { registerSW } from 'virtual:pwa-register';
 
 const state = createInitialState();
 const map = createMap();
@@ -185,11 +186,6 @@ window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
 
-// ── PWA update — guard against reload during active recording ─────────────────
-// registerType: 'prompt' prevents automatic reload; we apply the update only
-// when it is safe to do so (i.e. no recording in progress).
-import { registerSW } from 'virtual:pwa-register';
-
 let pendingSwUpdate: (() => void) | null = null;
 
 function applyUpdateWhenSafe(update: () => void): void {
@@ -197,6 +193,7 @@ function applyUpdateWhenSafe(update: () => void): void {
     update();
     return;
   }
+  if (pendingSwUpdate !== null) return; // already waiting for recording to finish
   pendingSwUpdate = update;
   showToast('App update available — will apply after recording stops', 6000);
   const poll = setInterval(() => {
@@ -209,6 +206,8 @@ function applyUpdateWhenSafe(update: () => void): void {
   }, 2000);
 }
 
+// Note: vite-plugin-pwa also exposes onOfflineReady for first-install caching.
+// Not wired here — silent first-install caching is acceptable.
 const updateSW = registerSW({
   onNeedRefresh() {
     applyUpdateWhenSafe(() => updateSW(true));
