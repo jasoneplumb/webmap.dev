@@ -10,14 +10,12 @@ import { updateLocateIcon } from './controls';
 import { appendTrailPoint } from './recording';
 
 // divIcon HTML for the blue pulsing dot — styled via .blue-dot CSS in style.css
-function createBlueDotIcon(): L.DivIcon {
-  return L.divIcon({
-    className: 'blue-dot',
-    html: '<div class="blue-dot__inner"></div>',
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
-  });
-}
+const BLUE_DOT_ICON = L.divIcon({
+  className: 'blue-dot',
+  html: '<div class="blue-dot__inner"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
 
 // Gray dot shown on GPS signal loss
 function createGrayDotIcon(): L.DivIcon {
@@ -52,14 +50,14 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     // Blue dot: create on first fix, update position on subsequent fixes
     if (state.locationMarker === null) {
       state.locationMarker = L.marker(e.latlng, {
-        icon: createBlueDotIcon(),
+        icon: BLUE_DOT_ICON,
         zIndexOffset: 1000,
         interactive: false,
       }).addTo(map);
     } else {
       state.locationMarker.setLatLng(e.latlng);
       // Restore blue icon in case it was grayed out from a prior signal loss
-      state.locationMarker.setIcon(createBlueDotIcon());
+      state.locationMarker.setIcon(BLUE_DOT_ICON);
     }
 
     // Accuracy circle: translucent blue, no stroke, opacity fades as accuracy improves

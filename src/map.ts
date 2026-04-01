@@ -7,7 +7,7 @@ export function createMap(): L.Map {
   const map = L.map('map', {
     zoomControl: false,
     preferCanvas: true,
-    zoomSnap: 0,
+    zoomSnap: 0.5,
     zoomDelta: 0.5,
   }).fitWorld();
 
