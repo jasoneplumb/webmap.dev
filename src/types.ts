@@ -19,9 +19,8 @@ export interface AppState {
   copyToClipboard: boolean;
   locateState: LocateState; // three-state location button (replaces centering boolean)
 
-  // Timer/polling state
+  // Watch/polling state
   updateCallback: number; // refcount: 0=stopped; each consumer (locate, recording) adds 1
-  timer: ReturnType<typeof setTimeout> | undefined;
   initialZoom: boolean; // true until first GPS fix; zooms to level 16 on first fix
 
   // Persistent location marker refs (updated in place instead of adding new layers)
@@ -54,7 +53,6 @@ export function createInitialState(): AppState {
     copyToClipboard: false,
     locateState: 'off',
     updateCallback: 0,
-    timer: undefined,
     initialZoom: true,
     locationMarker: null,
     accuracyCircle: null,
