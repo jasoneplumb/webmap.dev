@@ -1,7 +1,7 @@
 // Intent: Application entry point — wires all modules together
 // Pattern: Single AppState object threaded through all modules by reference.
 //          updateCallback is a refcount so locate and recording can independently
-//          request/release the GPS polling loop without stepping on each other.
+//          request/release the GPS watch without stepping on each other.
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -20,7 +20,7 @@ import { addClipboardControl, addLocateControl, updateLocateIcon } from './contr
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
-import { scheduleUpdateCallback, cancelUpdateCallback } from './timer';
+import { startWatching, stopWatching } from './timer';
 import { createStatsBar, addRecordingControl, updateRecordingButtons } from './recording';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -36,11 +36,11 @@ map.on('locationerror', (e: L.ErrorEvent) => {
   if (e.code === 1 && state.locateState !== 'off') {
     showToast('Location access is denied. Enable it in browser settings.');
     state.locateState = 'off';
-    // Force-stop ALL polling regardless of refcount. Without this, an active
-    // recording (refcount > 1) keeps the timer alive — timer fires map.locate()
-    // every 500 ms, which re-triggers this error handler in an infinite loop.
+    // Force-stop ALL watching regardless of refcount. Without this, an active
+    // recording (refcount > 1) keeps the watch alive, which re-triggers this
+    // error handler in an infinite loop.
     state.updateCallback = 0;
-    cancelUpdateCallback(state, map);
+    stopWatching(map);
     clearLocationMarkers(state, map);
     updateLocateIcon('off');
     updateRecordingButtons();
@@ -53,18 +53,13 @@ map.on('locationerror', (e: L.ErrorEvent) => {
 // Polling refcount helpers — shared by locate and recording
 function activatePolling(): void {
   state.updateCallback += 1;
-  // Use a longer initial delay (3 s) so the immediate map.locate() call in
-  // startLocating has time to resolve before the first poll cycle fires and
-  // cancels it with map.stopLocate().  Subsequent activations (recording while
-  // locate is already running) don't reach this branch, so their poll interval
-  // is unaffected.
-  if (state.updateCallback === 1) scheduleUpdateCallback(state, map, 3000);
+  if (state.updateCallback === 1) startWatching(map);
 }
 
 function deactivatePolling(): void {
   state.prior = 1000;
   state.updateCallback -= 1;
-  if (state.updateCallback === 0) cancelUpdateCallback(state, map);
+  if (state.updateCallback === 0) stopWatching(map);
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -108,9 +103,6 @@ addClipboardControl(map, () => {
 
 function startLocating(): void {
   state.locateState = 'active';
-  // Request location immediately within the user gesture so iOS Safari
-  // shows the permission prompt (the gesture expires before the 500ms polling timer fires)
-  map.locate({ setView: false, maxZoom: map.getZoom() });
   activatePolling();
   updateLocateIcon('active');
 }

@@ -40,6 +40,12 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
   const R = 6371000; // Earth's radius in meters
   const dist = 2 * R * Math.asin(Math.sqrt(f));
 
+  // On first GPS fix, zoom to street level
+  if (state.initialZoom) {
+    map.setZoom(16);
+    state.initialZoom = false;
+  }
+
   // Accept update if accuracy improved OR we've moved meaningfully
   if (e.accuracy < state.prior || dist > e.accuracy / 2) {
     state.prior = e.accuracy;
