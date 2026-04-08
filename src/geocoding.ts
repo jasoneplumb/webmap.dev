@@ -63,9 +63,9 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     return provider;
   }
 
-  // Disable useMapBounds: at low zoom (initial map view), the visible bbox is the
-  // entire world, causing ESRI to return no results. Instead, rely on ESRI's
-  // location biasing which intelligently prioritizes results near the map center.
+  // useMapBounds accepts a zoom threshold: below this zoom level bounds are not
+  // sent (avoiding the "entire world" bbox that returns no results at initial
+  // view); at or above it, results are constrained to the visible map area.
   //
   // collapseAfterResult: false — prevents clear() from collapsing the control
   // immediately when Enter is pressed (before results arrive). We handle collapse
@@ -76,7 +76,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     title: 'Search for places or addresses',
     position: 'topleft',
     expanded: false,
-    useMapBounds: false,
+    useMapBounds: 7,
     zoomToResult: false,
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
