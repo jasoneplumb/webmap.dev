@@ -19,6 +19,15 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function createNumberedIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div>${n}</div>`,
+    className: 'numbered-marker',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
 export function addSearchControl(map: L.Map, state: AppState): void {
   // state is read in the results callback (for future extensibility)
   void state;
@@ -148,24 +157,28 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     if (data.results.length) {
       document.title = data.text;
 
-      // Add markers (no popup — info panel handles the UI)
+      // Add numbered markers (reverse iteration preserves z-order: #1 on top)
+      // markerRefs is populated here; issue #65 will wire up click handlers
+      const markerRefs: L.Marker[] = [];
       for (let i = data.results.length - 1; i >= 0; i--) {
         const result = data.results[i];
         if (result) {
-          results.addLayer(L.marker(result.latlng));
+          const marker = L.marker(result.latlng, { icon: createNumberedIcon(i + 1) });
+          markerRefs[i] = marker;
+          results.addLayer(marker);
         }
       }
 
       // Build results list for the info panel
       const itemsHtml = data.results
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((r: any) => {
+        .map((r: any, i: number) => {
           if (!r) return '';
           const name = escapeHtml(r.text);
           const lat = r.latlng.lat.toFixed(6);
           const lng = r.latlng.lng.toFixed(6);
           return (
-            `<li class="sheet-result" data-lat="${lat}" data-lng="${lng}">` +
+            `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}">` +
             `  <span class="sheet-result__name">${name}</span>` +
             `  <span class="sheet-result__arrow">&#x203A;</span>` +
             `</li>`
