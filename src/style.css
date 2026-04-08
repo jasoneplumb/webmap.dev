@@ -331,7 +331,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .sheet-result {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 12px 4px;
   border-bottom: 1px solid #f0f0f0;
@@ -349,16 +349,43 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: #f5f5f5;
 }
 
+.sheet-result__main {
+  flex: 1;
+  min-width: 0;
+}
+
 .sheet-result__name {
   font-size: 14px;
   color: #333;
-  flex: 1;
+}
+
+.sheet-result__subtitle {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-result__badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #e8f0fe;
+  color: #4a90d9;
+  margin-left: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .sheet-result__arrow {
   color: #bbb;
   font-size: 18px;
   margin-left: 8px;
+  align-self: center;
 }
 
 /* Active selection state for result list items */

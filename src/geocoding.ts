@@ -99,7 +99,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
     debounceDelay: 250,
-    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey }))],
+    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal' }))],
   });
   searchControl.addTo(map);
 
@@ -225,11 +225,22 @@ export function addSearchControl(map: L.Map, state: AppState): void {
             ? JSON.stringify([[r.bounds.getSouth(), r.bounds.getWest()],
                               [r.bounds.getNorth(), r.bounds.getEast()]])
             : '';
-          const addrType = escapeHtml((r.properties?.Addr_type as string) ?? '');
+          const strProp = (v: unknown): string => (typeof v === 'string' ? v : '');
+          const addrType = escapeHtml(strProp(r.properties?.Addr_type));
+          const subtitle = ['City', 'Region', 'Postal']
+            .map((k) => strProp(r.properties?.[k]))
+            .filter(Boolean)
+            .map(escapeHtml)
+            .join(', ');
+          // data-index is 0-based; the visible marker number is i+1 (see createNumberedIcon)
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
-            `  <span class="sheet-result__name">${name}</span>` +
+            `  <div class="sheet-result__main">` +
+            `    <span class="sheet-result__name">${name}</span>` +
+            (subtitle ? `    <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
+            `  </div>` +
+            (addrType ? `  <span class="sheet-result__badge">${addrType}</span>` : '') +
             `  <span class="sheet-result__arrow">&#x203A;</span>` +
             `</li>`
           );
