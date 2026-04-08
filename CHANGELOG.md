@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.2-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — result list now always visible after search; sheet upgrades from peek to half instead of staying collapsed
+
 ## v0.7.1-beta (2026-04-08)
 
 ### Fixed
