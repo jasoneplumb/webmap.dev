@@ -181,10 +181,10 @@ export function addSearchControl(map: L.Map, state: AppState): void {
             ? JSON.stringify([[r.bounds.getSouth(), r.bounds.getWest()],
                               [r.bounds.getNorth(), r.bounds.getEast()]])
             : '';
-          const addrType = escapeHtml((r.properties?.Addr_type as string) ?? '');
-          const props = (r.properties ?? {}) as Record<string, string>;
+          const strProp = (v: unknown): string => (typeof v === 'string' ? v : '');
+          const addrType = escapeHtml(strProp(r.properties?.Addr_type));
           const subtitle = ['City', 'Region', 'Postal']
-            .map((k) => props[k] ?? '')
+            .map((k) => strProp(r.properties?.[k]))
             .filter(Boolean)
             .map(escapeHtml)
             .join(', ');
