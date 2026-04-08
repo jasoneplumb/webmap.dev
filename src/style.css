@@ -369,7 +369,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   font-size: 12px;
   color: #666;
   margin-top: 2px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -581,11 +580,31 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   font-size: 12px; font-weight: bold;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transition: width 0.15s, height 0.15s, font-size 0.15s;
 }
 .numbered-marker--active div {
   width: 28px; height: 28px;
   background: #d94a4a;
   font-size: 13px;
+}
+
+/* Zoom-responsive marker sizing — driven by applyMapZoomClass() in geocoding.ts */
+/* mid zoom (7–11): compact circle, still readable */
+.map-zoom-mid .numbered-marker div {
+  width: 18px; height: 18px; font-size: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.map-zoom-mid .numbered-marker--active div {
+  width: 22px; height: 22px; font-size: 11px;
+}
+/* far zoom (< 7): dot only — numbers unreadable at world/country scale */
+.map-zoom-far .numbered-marker div {
+  width: 10px; height: 10px; font-size: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.map-zoom-far .numbered-marker--active div {
+  width: 12px; height: 12px;
+  background: #d94a4a;
 }
 
 /* ── Version badge ───────────────────────────────────────────────────────────── */

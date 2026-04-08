@@ -37,6 +37,19 @@ function createActiveNumberedIcon(n: number): L.DivIcon {
   });
 }
 
+// Apply a zoom-level CSS class to the map container so markers can
+// respond to zoom via CSS without per-marker JS icon swaps.
+// far  (zoom  < 7):  dot only — numbers unreadable at world scale
+// mid  (zoom  7–11): medium circle — readable but compact
+// close (zoom >= 12): full-size — default styles apply
+function applyMapZoomClass(map: L.Map): void {
+  const z = map.getZoom();
+  const el = map.getContainer();
+  el.classList.toggle('map-zoom-far',   z < 7);
+  el.classList.toggle('map-zoom-mid',   z >= 7 && z < 12);
+  el.classList.toggle('map-zoom-close', z >= 12);
+}
+
 export function addSearchControl(map: L.Map, state: AppState): void {
   // state is read in the results callback (for future extensibility)
   void state;
@@ -181,6 +194,9 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   registerClearSelection(clearSelection);
   registerActivateSelection(activateSelection);
 
+  // Keep marker size in sync with map zoom level via CSS classes.
+  map.on('zoomend', () => applyMapZoomClass(map));
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchControl.on('results', (data: any) => {
     // Search complete — clear pending flag, remove loading spinner, and collapse.
@@ -254,16 +270,31 @@ export function addSearchControl(map: L.Map, state: AppState): void {
         bodyHtml: `<ul class="sheet-results">${itemsHtml}</ul>`,
       });
 
-      // Fit map to all result bounds — increase bottom padding on mobile
-      // to avoid the bottom sheet obscuring the markers.
-      const bottomPad = window.innerWidth <= 768 ? 300 : 50;
-      map.flyToBounds(results.getBounds(), {
-        padding: [50, bottomPad] as [number, number],
+      // Apply zoom-class immediately so markers render at the right size.
+      applyMapZoomClass(map);
+
+      // Fit map to results. For a single result, prefer its own ESRI extent
+      // (result.bounds) which carries the correct geographic scale — a country
+      // result's bounds spans the whole country, while a PointAddress result's
+      // bounds is small, naturally zooming to street level. For multiple results
+      // use the marker group bounds so all pins are visible.
+      //
+      // Padding: paddingTopLeft/paddingBottomRight instead of the shorthand
+      // `padding` so we can add bottom-only padding on mobile for the bottom
+      // sheet without also adding unwanted horizontal padding.
+      const isMobile = window.innerWidth <= 768;
+      const flyOpts = {
+        paddingTopLeft:     [50, 50] as [number, number],
+        paddingBottomRight: [50, isMobile ? 300 : 50] as [number, number],
         maxZoom: 16,
         animate: true,
         duration: 1.5,
         easeLinearity: 0.25,
-      });
+      };
+      const singleResult = data.results.length === 1 ? data.results[0] : null;
+      const boundsToFly: L.LatLngBounds =
+        (singleResult?.bounds as L.LatLngBounds | undefined) ?? results.getBounds();
+      map.flyToBounds(boundsToFly, flyOpts);
     }
   });
 }
