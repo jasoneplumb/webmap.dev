@@ -81,7 +81,7 @@ export function addClipboardControl(map: L.Map, onClick: (e: Event) => void): vo
 export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void {
   makeToggleControl({
     id: 'locate',
-    disabledSrc: '/centering-lines-v1.1.svg',
+    disabledSrc: '/locate-arrow-lines.svg',
     disabledTitle: 'Locate (Off)',
     position: 'topleft',
     onClick,
@@ -95,15 +95,15 @@ export function updateLocateIcon(locateState: LocateState): void {
   switch (locateState) {
     case 'off':
       img.alt = img.title = 'Locate (Off)';
-      img.src = '/centering-lines-v1.1.svg';
+      img.src = '/locate-arrow-lines.svg';
       break;
     case 'active':
       img.alt = img.title = 'Locate (Following)';
-      img.src = '/centering-color-v1.1.svg';
+      img.src = '/locate-arrow-color.svg';
       break;
     case 'passive':
       img.alt = img.title = 'Locate (Passive — tap to re-center)';
-      img.src = '/centering-bw-v1.1.svg';
+      img.src = '/locate-arrow-bw.svg';
       break;
   }
 }
