@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.1-beta (2026-04-07)
+
+### Fixed
+
+- **Location** — replace GPS polling loop with `watchPosition` to eliminate user-gesture console violations (#60)
+- **UI** — replace locate crosshair icon with angled navigation arrow — the standard location symbol (#62)
+
 ## v0.6.0-beta (2026-04-01)
 
 ### Added
