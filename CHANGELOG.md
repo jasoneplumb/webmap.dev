@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.1-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — zoom-responsive markers: full circle at zoom ≥ 12, compact at 7–11, dot-only below 7
+- **Search** — `flyToBounds` mobile padding was incorrectly adding 300px to top/left; now bottom-only
+- **Search** — single-result zoom uses ESRI extent so country/city results fit the right geographic scale
+- **Search** — result subtitle no longer hard-truncated on narrow screens
+
 ## v0.7.0-beta (2026-04-08)
 
 ### Added
