@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.2-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — constrain search results to visible map area when zoomed in (zoom >= 7)
+
 ## v0.6.1-beta (2026-04-07)
 
 ### Fixed
