@@ -30,6 +30,8 @@ let _mapOffsetPx = 0; // accumulated panBy offset so we can reverse it
 let _isDragging = false;
 let _dragStartY = 0;
 let _dragStartSnap: SnapPoint = 'hidden';
+let _clearSelectionFn: (() => void) | null = null;
+let _activateSelectionFn: ((index: number) => void) | null = null;
 
 function isMobile(): boolean {
   return window.innerWidth <= MOBILE_BREAKPOINT;
@@ -66,7 +68,7 @@ function setMapOffset(targetPx: number): void {
   }
 }
 
-function snapTo(snap: SnapPoint, animated = true): void {
+export function snapTo(snap: SnapPoint, animated = true): void {
   if (_el === null) return;
   _snap = snap;
 
@@ -224,13 +226,18 @@ export function initInfoPanel(map: L.Map): void {
 
   const bodyEl = el.querySelector('.info-panel__body') as HTMLElement;
 
-  // Event delegation: click a result item → fly to its location
+  // Event delegation: click a result item → fly to its location and mark active
   bodyEl.addEventListener('click', (e: MouseEvent) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
     if (target === null || _map === null) return;
     const lat = parseFloat(target.dataset['lat'] ?? '');
     const lng = parseFloat(target.dataset['lng'] ?? '');
     if (isNaN(lat) || isNaN(lng)) return;
+    // Reset all markers and list items, then activate the selected one
+    if (_clearSelectionFn) _clearSelectionFn();
+    target.classList.add('sheet-result--active');
+    const idx = parseInt(target.dataset['index'] ?? '', 10);
+    if (_activateSelectionFn && !isNaN(idx)) _activateSelectionFn(idx);
     const boundsRaw = target.dataset['bounds'] ?? '';
     if (boundsRaw !== '') {
       try {
@@ -247,7 +254,7 @@ export function initInfoPanel(map: L.Map): void {
     } else {
       _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
     }
-    snapTo('peek');
+    snapTo('half');
   });
 
   // Event delegation: click a copy button → write to clipboard
@@ -276,4 +283,12 @@ export function showSheet(content: SheetContent, initialSnap: SnapPoint = 'half'
 
 export function hideSheet(): void {
   snapTo('hidden');
+}
+
+export function registerClearSelection(fn: () => void): void {
+  _clearSelectionFn = fn;
+}
+
+export function registerActivateSelection(fn: (index: number) => void): void {
+  _activateSelectionFn = fn;
 }

@@ -8,7 +8,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { showSheet } from './bottom-sheet';
+import { showSheet, snapTo, registerClearSelection, registerActivateSelection } from './bottom-sheet';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -25,6 +25,15 @@ function createNumberedIcon(n: number): L.DivIcon {
     className: 'numbered-marker',
     iconSize: [24, 24],
     iconAnchor: [12, 12],
+  });
+}
+
+function createActiveNumberedIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div>${n}</div>`,
+    className: 'numbered-marker numbered-marker--active',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
   });
 }
 
@@ -147,6 +156,31 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   });
 
   const results = L.featureGroup().addTo(map);
+  const markerRefs: L.Marker[] = [];
+  // Cached panel body reference — looked up on first use to avoid repeated DOM queries.
+  let panelBody: HTMLElement | null = null;
+
+  function clearSelection(): void {
+    if (panelBody === null) {
+      panelBody = document.querySelector<HTMLElement>('.info-panel__body');
+    }
+    const scope = panelBody ?? document;
+    scope.querySelectorAll<HTMLElement>('.sheet-result--active').forEach(el => {
+      el.classList.remove('sheet-result--active');
+    });
+    markerRefs.forEach((marker, idx) => {
+      marker.setIcon(createNumberedIcon(idx + 1));
+    });
+  }
+
+  function activateSelection(index: number): void {
+    const marker = markerRefs[index];
+    if (marker) marker.setIcon(createActiveNumberedIcon(index + 1));
+  }
+
+  registerClearSelection(clearSelection);
+  registerActivateSelection(activateSelection);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchControl.on('results', (data: any) => {
     // Search complete — clear pending flag, remove loading spinner, and collapse.
@@ -154,18 +188,28 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
     results.clearLayers();
+    markerRefs.length = 0;
     if (data.results.length) {
       document.title = data.text;
 
-      // Add numbered markers (reverse iteration preserves z-order: #1 on top)
-      // markerRefs is populated here; issue #65 will wire up click handlers
-      const markerRefs: L.Marker[] = [];
+      // Add numbered markers in reverse order so marker #1 renders on top.
+      // markerRefs is populated in forward order (index = result position).
       for (let i = data.results.length - 1; i >= 0; i--) {
         const result = data.results[i];
         if (result) {
           const marker = L.marker(result.latlng, { icon: createNumberedIcon(i + 1) });
           markerRefs[i] = marker;
           results.addLayer(marker);
+          marker.on('click', () => {
+            clearSelection();
+            marker.setIcon(createActiveNumberedIcon(i + 1));
+            const li = (panelBody ?? document).querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
+            if (li) {
+              li.classList.add('sheet-result--active');
+              li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            snapTo('half');
+          });
         }
       }
 
