@@ -244,7 +244,11 @@ export function initInfoPanel(map: L.Map): void {
         const parsed = JSON.parse(boundsRaw) as unknown;
         if (Array.isArray(parsed) && parsed.length === 2 &&
             Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
-          _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), { padding: [50, 50], maxZoom: 17 });
+          _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
+              paddingTopLeft: [50, 50],
+              paddingBottomRight: [50, isMobile() ? 300 : 50],
+              maxZoom: 17,
+            });
         } else {
           _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
         }
@@ -268,8 +272,9 @@ export function initInfoPanel(map: L.Map): void {
   });
 }
 
-// Show the panel with new content. If already open, keeps the current snap point.
-// If hidden, opens to `initialSnap` (defaults to 'half').
+// Show the panel with new content.
+// Snaps to at least `initialSnap` — upgrades peek→half when showing a list,
+// but never collapses an already-expanded sheet (half/full stay as-is).
 export function showSheet(content: SheetContent, initialSnap: SnapPoint = 'half'): void {
   if (_el === null) return;
   const titleEl = _el.querySelector('.info-panel__title');
@@ -278,7 +283,12 @@ export function showSheet(content: SheetContent, initialSnap: SnapPoint = 'half'
   if (titleEl) titleEl.textContent = content.title;
   if (subtitleEl) subtitleEl.textContent = content.subtitle ?? '';
   if (bodyEl) bodyEl.innerHTML = content.bodyHtml;
-  snapTo(_snap === 'hidden' ? initialSnap : _snap);
+  // Always open to at least initialSnap so content is visible.
+  // Order: hidden < peek < half < full — upgrade if current is below threshold.
+  const order: SnapPoint[] = ['hidden', 'peek', 'half', 'full'];
+  const current = order.indexOf(_snap);
+  const target = order.indexOf(initialSnap);
+  snapTo(current < target ? initialSnap : _snap);
 }
 
 export function hideSheet(): void {
