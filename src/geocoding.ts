@@ -90,7 +90,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
     debounceDelay: 250,
-    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal,Country' }))],
+    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal' }))],
   });
   searchControl.addTo(map);
 
