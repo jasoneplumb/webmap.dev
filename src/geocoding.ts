@@ -188,6 +188,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
             .filter(Boolean)
             .map(escapeHtml)
             .join(', ');
+          // data-index is 0-based; the visible marker number is i+1 (see createNumberedIcon)
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
