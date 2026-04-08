@@ -235,7 +235,8 @@ export function initInfoPanel(map: L.Map): void {
     if (boundsRaw !== '') {
       try {
         const parsed = JSON.parse(boundsRaw) as unknown;
-        if (Array.isArray(parsed) && parsed.length === 2) {
+        if (Array.isArray(parsed) && parsed.length === 2 &&
+            Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
           _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), { padding: [50, 50], maxZoom: 17 });
         } else {
           _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
