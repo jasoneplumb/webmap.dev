@@ -90,7 +90,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
     debounceDelay: 250,
-    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey }))],
+    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal,Country' }))],
   });
   searchControl.addTo(map);
 
@@ -182,10 +182,20 @@ export function addSearchControl(map: L.Map, state: AppState): void {
                               [r.bounds.getNorth(), r.bounds.getEast()]])
             : '';
           const addrType = escapeHtml((r.properties?.Addr_type as string) ?? '');
+          const props = (r.properties ?? {}) as Record<string, string>;
+          const subtitle = ['City', 'Region', 'Postal']
+            .map((k) => props[k] ?? '')
+            .filter(Boolean)
+            .map(escapeHtml)
+            .join(', ');
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
-            `  <span class="sheet-result__name">${name}</span>` +
+            `  <div class="sheet-result__main">` +
+            `    <span class="sheet-result__name">${name}</span>` +
+            (subtitle ? `    <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
+            `  </div>` +
+            (addrType ? `  <span class="sheet-result__badge">${addrType}</span>` : '') +
             `  <span class="sheet-result__arrow">&#x203A;</span>` +
             `</li>`
           );
