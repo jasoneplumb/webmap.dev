@@ -234,8 +234,12 @@ export function initInfoPanel(map: L.Map): void {
     const boundsRaw = target.dataset['bounds'] ?? '';
     if (boundsRaw !== '') {
       try {
-        const parsed = JSON.parse(boundsRaw) as [[number, number], [number, number]];
-        _map.flyToBounds(L.latLngBounds(parsed), { padding: [50, 50], maxZoom: 17 });
+        const parsed = JSON.parse(boundsRaw) as unknown;
+        if (Array.isArray(parsed) && parsed.length === 2) {
+          _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), { padding: [50, 50], maxZoom: 17 });
+        } else {
+          _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+        }
       } catch {
         _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
       }
