@@ -8,7 +8,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { showSheet } from './bottom-sheet';
+import { showSheet, snapTo, registerClearSelection, registerActivateSelection } from './bottom-sheet';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -17,6 +17,24 @@ function escapeHtml(str: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function createNumberedIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div>${n}</div>`,
+    className: 'numbered-marker',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+function createActiveNumberedIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div>${n}</div>`,
+    className: 'numbered-marker numbered-marker--active',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
 }
 
 export function addSearchControl(map: L.Map, state: AppState): void {
@@ -81,7 +99,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
     debounceDelay: 250,
-    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey }))],
+    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal' }))],
   });
   searchControl.addTo(map);
 
@@ -137,7 +155,32 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     setTimeout(collapseSearch, 150);
   });
 
-  const results = L.layerGroup().addTo(map);
+  const results = L.featureGroup().addTo(map);
+  const markerRefs: L.Marker[] = [];
+  // Cached panel body reference — looked up on first use to avoid repeated DOM queries.
+  let panelBody: HTMLElement | null = null;
+
+  function clearSelection(): void {
+    if (panelBody === null) {
+      panelBody = document.querySelector<HTMLElement>('.info-panel__body');
+    }
+    const scope = panelBody ?? document;
+    scope.querySelectorAll<HTMLElement>('.sheet-result--active').forEach(el => {
+      el.classList.remove('sheet-result--active');
+    });
+    markerRefs.forEach((marker, idx) => {
+      marker.setIcon(createNumberedIcon(idx + 1));
+    });
+  }
+
+  function activateSelection(index: number): void {
+    const marker = markerRefs[index];
+    if (marker) marker.setIcon(createActiveNumberedIcon(index + 1));
+  }
+
+  registerClearSelection(clearSelection);
+  registerActivateSelection(activateSelection);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchControl.on('results', (data: any) => {
     // Search complete — clear pending flag, remove loading spinner, and collapse.
@@ -145,28 +188,59 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
     results.clearLayers();
+    markerRefs.length = 0;
     if (data.results.length) {
       document.title = data.text;
 
-      // Add markers (no popup — info panel handles the UI)
+      // Add numbered markers in reverse order so marker #1 renders on top.
+      // markerRefs is populated in forward order (index = result position).
       for (let i = data.results.length - 1; i >= 0; i--) {
         const result = data.results[i];
         if (result) {
-          results.addLayer(L.marker(result.latlng));
+          const marker = L.marker(result.latlng, { icon: createNumberedIcon(i + 1) });
+          markerRefs[i] = marker;
+          results.addLayer(marker);
+          marker.on('click', () => {
+            clearSelection();
+            marker.setIcon(createActiveNumberedIcon(i + 1));
+            const li = (panelBody ?? document).querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
+            if (li) {
+              li.classList.add('sheet-result--active');
+              li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            snapTo('half');
+          });
         }
       }
 
       // Build results list for the info panel
       const itemsHtml = data.results
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((r: any) => {
+        .map((r: any, i: number) => {
           if (!r) return '';
           const name = escapeHtml(r.text);
           const lat = r.latlng.lat.toFixed(6);
           const lng = r.latlng.lng.toFixed(6);
+          const boundsJson = r.bounds
+            ? JSON.stringify([[r.bounds.getSouth(), r.bounds.getWest()],
+                              [r.bounds.getNorth(), r.bounds.getEast()]])
+            : '';
+          const strProp = (v: unknown): string => (typeof v === 'string' ? v : '');
+          const addrType = escapeHtml(strProp(r.properties?.Addr_type));
+          const subtitle = ['City', 'Region', 'Postal']
+            .map((k) => strProp(r.properties?.[k]))
+            .filter(Boolean)
+            .map(escapeHtml)
+            .join(', ');
+          // data-index is 0-based; the visible marker number is i+1 (see createNumberedIcon)
           return (
-            `<li class="sheet-result" data-lat="${lat}" data-lng="${lng}">` +
-            `  <span class="sheet-result__name">${name}</span>` +
+            `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
+            ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
+            `  <div class="sheet-result__main">` +
+            `    <span class="sheet-result__name">${name}</span>` +
+            (subtitle ? `    <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
+            `  </div>` +
+            (addrType ? `  <span class="sheet-result__badge">${addrType}</span>` : '') +
             `  <span class="sheet-result__arrow">&#x203A;</span>` +
             `</li>`
           );
@@ -180,15 +254,16 @@ export function addSearchControl(map: L.Map, state: AppState): void {
         bodyHtml: `<ul class="sheet-results">${itemsHtml}</ul>`,
       });
 
-      // Smooth flyTo animation to the first result
-      const firstResult = data.results[0];
-      if (firstResult) {
-        map.flyTo(firstResult.latlng, Math.max(map.getZoom(), 13), {
-          animate: true,
-          duration: 1.5,
-          easeLinearity: 0.25,
-        });
-      }
+      // Fit map to all result bounds — increase bottom padding on mobile
+      // to avoid the bottom sheet obscuring the markers.
+      const bottomPad = window.innerWidth <= 768 ? 300 : 50;
+      map.flyToBounds(results.getBounds(), {
+        padding: [50, bottomPad] as [number, number],
+        maxZoom: 16,
+        animate: true,
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
     }
   });
 }

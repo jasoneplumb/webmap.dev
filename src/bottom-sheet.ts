@@ -30,6 +30,8 @@ let _mapOffsetPx = 0; // accumulated panBy offset so we can reverse it
 let _isDragging = false;
 let _dragStartY = 0;
 let _dragStartSnap: SnapPoint = 'hidden';
+let _clearSelectionFn: (() => void) | null = null;
+let _activateSelectionFn: ((index: number) => void) | null = null;
 
 function isMobile(): boolean {
   return window.innerWidth <= MOBILE_BREAKPOINT;
@@ -66,7 +68,7 @@ function setMapOffset(targetPx: number): void {
   }
 }
 
-function snapTo(snap: SnapPoint, animated = true): void {
+export function snapTo(snap: SnapPoint, animated = true): void {
   if (_el === null) return;
   _snap = snap;
 
@@ -141,6 +143,33 @@ function onDocTouchEnd(e: TouchEvent): void {
   snapTo(target);
 }
 
+// ── Zoom heuristics ──────────────────────────────────────────────────────────
+
+function zoomForAddrType(addrType: string): number {
+  switch (addrType) {
+    case 'PointAddress':
+    case 'StreetAddress':
+    case 'SubAddress':
+    case 'StreetInt':
+      return 17;
+    case 'Locality':
+    case 'Neighborhood':
+    case 'Sublocality':
+      return 14;
+    case 'City':
+    case 'Municipal':
+      return 12;
+    case 'Region':
+    case 'State':
+    case 'Province':
+      return 8;
+    case 'Country':
+      return 5;
+    default:
+      return 15;
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function initInfoPanel(map: L.Map): void {
@@ -197,16 +226,35 @@ export function initInfoPanel(map: L.Map): void {
 
   const bodyEl = el.querySelector('.info-panel__body') as HTMLElement;
 
-  // Event delegation: click a result item → fly to its location
+  // Event delegation: click a result item → fly to its location and mark active
   bodyEl.addEventListener('click', (e: MouseEvent) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
     if (target === null || _map === null) return;
     const lat = parseFloat(target.dataset['lat'] ?? '');
     const lng = parseFloat(target.dataset['lng'] ?? '');
-    if (!isNaN(lat) && !isNaN(lng)) {
-      _map.flyTo(L.latLng(lat, lng), _map.getZoom());
-      snapTo('peek');
+    if (isNaN(lat) || isNaN(lng)) return;
+    // Reset all markers and list items, then activate the selected one
+    if (_clearSelectionFn) _clearSelectionFn();
+    target.classList.add('sheet-result--active');
+    const idx = parseInt(target.dataset['index'] ?? '', 10);
+    if (_activateSelectionFn && !isNaN(idx)) _activateSelectionFn(idx);
+    const boundsRaw = target.dataset['bounds'] ?? '';
+    if (boundsRaw !== '') {
+      try {
+        const parsed = JSON.parse(boundsRaw) as unknown;
+        if (Array.isArray(parsed) && parsed.length === 2 &&
+            Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+          _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), { padding: [50, 50], maxZoom: 17 });
+        } else {
+          _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+        }
+      } catch {
+        _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+      }
+    } else {
+      _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
     }
+    snapTo('half');
   });
 
   // Event delegation: click a copy button → write to clipboard
@@ -235,4 +283,12 @@ export function showSheet(content: SheetContent, initialSnap: SnapPoint = 'half'
 
 export function hideSheet(): void {
   snapTo('hidden');
+}
+
+export function registerClearSelection(fn: () => void): void {
+  _clearSelectionFn = fn;
+}
+
+export function registerActivateSelection(fn: (index: number) => void): void {
+  _activateSelectionFn = fn;
 }
