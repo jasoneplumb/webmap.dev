@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.7.0-beta (2026-04-08)
+
+### Added
+
+- **Search** — fit map to all result bounds on search so all pins are visible (#69)
+- **Search** — numbered markers (1, 2, 3…) linking map pins to the result list (#71)
+- **Search** — richer result detail: address subtitle and type badge per result (#72)
+- **Search** — smart zoom using result bounds or Addr_type heuristics on click (#70)
+- **Search** — bidirectional selection between result list and map markers (#73)
+- **Map** — red dropped-pin marker renders above blue search result pins
+
 ## v0.6.2-beta (2026-04-08)
 
 ### Fixed
