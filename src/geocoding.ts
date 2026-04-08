@@ -138,7 +138,8 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   });
 
   const results = L.layerGroup().addTo(map);
-  searchControl.on('results', (data) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  searchControl.on('results', (data: any) => {
     // Search complete — clear pending flag, remove loading spinner, and collapse.
     pendingSearch = false;
     L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
@@ -157,7 +158,8 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
       // Build results list for the info panel
       const itemsHtml = data.results
-        .map((r) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((r: any) => {
           if (!r) return '';
           const name = escapeHtml(r.text);
           const lat = r.latlng.lat.toFixed(6);
