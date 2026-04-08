@@ -12,6 +12,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   filter: none;
 }
 
+/* ── Red dropped-pin marker ───────────────────────────────────────────────── */
+.marker-red {
+  filter: hue-rotate(140deg) saturate(1.5);
+}
+
 /* ── Blue dot location marker ─────────────────────────────────────────────── */
 
 /* Clear Leaflet's default divIcon styles */

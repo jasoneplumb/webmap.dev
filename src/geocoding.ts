@@ -233,9 +233,20 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
       });
   }
 
+  const redIcon = new L.Icon({
+    iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize:    [25, 41],
+    iconAnchor:  [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize:  [41, 41],
+    className:   'marker-red',
+  });
+
   function dropPin(latlng: L.LatLng): void {
     pinLayer.clearLayers();
-    const pin = L.marker(latlng, { draggable: true });
+    const pin = L.marker(latlng, { draggable: true, icon: redIcon });
     pinLayer.addLayer(pin);
 
     // Copy coordinates to clipboard immediately within the user gesture.
