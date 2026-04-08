@@ -137,7 +137,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     setTimeout(collapseSearch, 150);
   });
 
-  const results = L.layerGroup().addTo(map);
+  const results = L.featureGroup().addTo(map);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchControl.on('results', (data: any) => {
     // Search complete — clear pending flag, remove loading spinner, and collapse.
@@ -180,15 +180,16 @@ export function addSearchControl(map: L.Map, state: AppState): void {
         bodyHtml: `<ul class="sheet-results">${itemsHtml}</ul>`,
       });
 
-      // Smooth flyTo animation to the first result
-      const firstResult = data.results[0];
-      if (firstResult) {
-        map.flyTo(firstResult.latlng, Math.max(map.getZoom(), 13), {
-          animate: true,
-          duration: 1.5,
-          easeLinearity: 0.25,
-        });
-      }
+      // Fit map to all result bounds — increase bottom padding on mobile
+      // to avoid the bottom sheet obscuring the markers.
+      const bottomPad = window.innerWidth <= 768 ? 300 : 50;
+      map.flyToBounds(results.getBounds(), {
+        padding: [50, bottomPad] as [number, number],
+        maxZoom: 16,
+        animate: true,
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
     }
   });
 }
