@@ -361,6 +361,13 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin-left: 8px;
 }
 
+/* Active selection state for result list items */
+.sheet-result--active {
+  background: #e8f0fe;
+  border-left: 3px solid #4a90d9;
+  padding-left: calc(12px - 3px); /* compensate for border */
+}
+
 /* ── Reverse geocode address view ── */
 .sheet-address {
   margin-bottom: 16px;
@@ -542,6 +549,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   font-size: 12px; font-weight: bold;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.numbered-marker--active div {
+  width: 28px; height: 28px;
+  background: #d94a4a;
+  font-size: 13px;
 }
 
 /* ── Version badge ───────────────────────────────────────────────────────────── */
