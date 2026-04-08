@@ -141,6 +141,33 @@ function onDocTouchEnd(e: TouchEvent): void {
   snapTo(target);
 }
 
+// ── Zoom heuristics ──────────────────────────────────────────────────────────
+
+function zoomForAddrType(addrType: string): number {
+  switch (addrType) {
+    case 'PointAddress':
+    case 'StreetAddress':
+    case 'SubAddress':
+    case 'StreetInt':
+      return 17;
+    case 'Locality':
+    case 'Neighborhood':
+    case 'Sublocality':
+      return 14;
+    case 'City':
+    case 'Municipal':
+      return 12;
+    case 'Region':
+    case 'State':
+    case 'Province':
+      return 8;
+    case 'Country':
+      return 5;
+    default:
+      return 15;
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export function initInfoPanel(map: L.Map): void {
@@ -203,10 +230,19 @@ export function initInfoPanel(map: L.Map): void {
     if (target === null || _map === null) return;
     const lat = parseFloat(target.dataset['lat'] ?? '');
     const lng = parseFloat(target.dataset['lng'] ?? '');
-    if (!isNaN(lat) && !isNaN(lng)) {
-      _map.flyTo(L.latLng(lat, lng), _map.getZoom());
-      snapTo('peek');
+    if (isNaN(lat) || isNaN(lng)) return;
+    const boundsRaw = target.dataset['bounds'] ?? '';
+    if (boundsRaw !== '') {
+      try {
+        const parsed = JSON.parse(boundsRaw) as [[number, number], [number, number]];
+        _map.flyToBounds(L.latLngBounds(parsed), { padding: [50, 50], maxZoom: 17 });
+      } catch {
+        _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+      }
+    } else {
+      _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
     }
+    snapTo('peek');
   });
 
   // Event delegation: click a copy button → write to clipboard

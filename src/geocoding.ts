@@ -177,8 +177,14 @@ export function addSearchControl(map: L.Map, state: AppState): void {
           const name = escapeHtml(r.text);
           const lat = r.latlng.lat.toFixed(6);
           const lng = r.latlng.lng.toFixed(6);
+          const boundsJson = r.bounds
+            ? JSON.stringify([[r.bounds.getSouth(), r.bounds.getWest()],
+                              [r.bounds.getNorth(), r.bounds.getEast()]])
+            : '';
+          const addrType = escapeHtml((r.properties?.Addr_type as string) ?? '');
           return (
-            `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}">` +
+            `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
+            ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
             `  <span class="sheet-result__name">${name}</span>` +
             `  <span class="sheet-result__arrow">&#x203A;</span>` +
             `</li>`
