@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.12.0-beta (2026-04-09)
+
+### Added
+
+- **UI** — recording stats bar uses locale-appropriate units (miles/mph in US, km/h elsewhere)
+- **UI** — Copy button turns green with "✓ Copied" confirmation for 1.5s after clipboard write
+- **UI** — selecting a search result now shows the geocode bar with the address and coordinates for copying
+- **UI** — recording control buttons are larger (48px min-height) with Stop separated from Pause/Resume to prevent accidental taps
+- **UI** — recording stats bar has larger text and higher contrast
+
+### Changed
+
+- **Docs** — source file headers migrated to JSDoc style matching tiles- project convention (Intent/Context/Pattern/Future)
+
+
 ## v0.11.0-beta (2026-04-09)
 
 ### Added
