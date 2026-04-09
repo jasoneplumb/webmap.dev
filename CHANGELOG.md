@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.11.0-beta (2026-04-09)
+
+### Added
+
+- **UI** — version badge (upper right) is now a button that toggles a scrollable changelog panel; click again or press Escape to dismiss
+
+
 ## v0.10.0-beta (2026-04-09)
 
 ### Added
