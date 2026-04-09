@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.3-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — dropdown now dismisses only via the × close button in its header, eliminating all spurious auto-dismiss behaviour when clicking results or markers
+
 ## v0.8.2-beta (2026-04-08)
 
 ### Fixed
