@@ -61,6 +61,9 @@ function zoomForAddrType(addrType: string): number {
   }
 }
 
+// Shared reference so addSearchControl can clear the drop pin on marker click.
+let _pinLayer: L.LayerGroup | null = null;
+
 export function addSearchControl(map: L.Map, state: AppState): void {
   // state is read in the results callback (for future extensibility)
   void state;
@@ -150,7 +153,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
   function hideDropdown(): void {
     dropdownEl.style.display = 'none';
-    dropdownEl.innerHTML = '';
+    // Preserve innerHTML so it can be restored when clicking a marker.
   }
 
   function showDropdown(): void {
@@ -265,9 +268,17 @@ export function addSearchControl(map: L.Map, state: AppState): void {
           const marker = L.marker(result.latlng, { icon: createNumberedIcon(i + 1) });
           markerRefs[i] = marker;
           results.addLayer(marker);
-          marker.on('click', () => {
+          marker.on('click', (e: L.LeafletMouseEvent) => {
+            // Stop propagation so the map click handler doesn't immediately re-hide the dropdown.
+            L.DomEvent.stopPropagation(e);
             clearSelection();
             marker.setIcon(createActiveNumberedIcon(i + 1));
+            // Restore dropdown if the user had dismissed it.
+            if (dropdownEl.innerHTML !== '') showDropdown();
+            // Clear any dropped pin.
+            _pinLayer?.clearLayers();
+            // Update page title.
+            document.title = result.text;
             const li = dropdownEl.querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
             if (li) {
               li.classList.add('sheet-result--active');
@@ -341,6 +352,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   const apikey = import.meta.env.VITE_ESRI_API_KEY;
   const geocoder = geocodeService({ apikey });
   const pinLayer = L.layerGroup().addTo(map);
+  _pinLayer = pinLayer;
 
   // Disable double-click zoom so dblclick can drop a pin instead
   map.doubleClickZoom.disable();
