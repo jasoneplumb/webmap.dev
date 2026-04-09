@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.4-beta (2026-04-09)
+
+### Fixed
+
+- **Location** — "Location access is denied" toast now persists until dismissed (×) and includes iOS settings path: Settings > Privacy & Security > Location Services > Safari Websites > Allow
+
+
 ## v0.9.3-beta (2026-04-09)
 
 ### Fixed
