@@ -8,7 +8,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { showSheet, snapTo, registerClearSelection, registerActivateSelection } from './bottom-sheet';
+import { showSheet } from './bottom-sheet';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -48,6 +48,17 @@ function applyMapZoomClass(map: L.Map): void {
   el.classList.toggle('map-zoom-far',   z < 7);
   el.classList.toggle('map-zoom-mid',   z >= 7 && z < 12);
   el.classList.toggle('map-zoom-close', z >= 12);
+}
+
+function zoomForAddrType(addrType: string): number {
+  switch (addrType) {
+    case 'PointAddress': case 'StreetAddress': case 'SubAddress': case 'StreetInt': return 17;
+    case 'Locality': case 'Neighborhood': case 'Sublocality': return 14;
+    case 'City': case 'Municipal': return 12;
+    case 'Region': case 'State': case 'Province': return 8;
+    case 'Country': return 5;
+    default: return 15;
+  }
 }
 
 export function addSearchControl(map: L.Map, state: AppState): void {
@@ -129,10 +140,35 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   const input: HTMLInputElement = inputEl;
   const wrapper: HTMLElement = container;
 
+  // Floating search results dropdown — appended to document.body so it can
+  // overflow the Leaflet map container without being clipped. Positioned via
+  // showDropdown() using the control's bounding rect at the time results arrive.
+  const dropdownEl = document.createElement('div');
+  dropdownEl.className = 'search-dropdown';
+  dropdownEl.style.display = 'none';
+  document.body.appendChild(dropdownEl);
+
+  function hideDropdown(): void {
+    dropdownEl.style.display = 'none';
+    dropdownEl.innerHTML = '';
+  }
+
+  function showDropdown(): void {
+    const rect = wrapper.getBoundingClientRect();
+    dropdownEl.style.top = `${rect.bottom + 2}px`;
+    dropdownEl.style.left = `${Math.max(4, rect.left)}px`;
+    dropdownEl.style.display = 'block';
+  }
+
+  // Dismiss dropdown when clicking outside the search control or the dropdown itself.
+  document.addEventListener('click', (e: MouseEvent) => {
+    const t = e.target as Node;
+    if (!wrapper.contains(t) && !dropdownEl.contains(t)) hideDropdown();
+  });
+  map.on('click', hideDropdown);
+
   // Collapse the search control and clear the input — called after results arrive
-  // or when the input loses focus. Dispatching a synthetic input event syncs the
-  // library's internal debounce state to the cleared value without accessing
-  // private properties.
+  // or when the input loses focus. Does not close the dropdown (results stay visible).
   function collapseSearch(): void {
     input.value = '';
     input.placeholder = '';
@@ -140,29 +176,20 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     L.DomUtil.removeClass(wrapper, 'geocoder-control-expanded');
   }
 
-  // Fix: track whether a search is in flight so blur (which fires on Enter
-  // keydown) does not collapse the control before results arrive.
+  // Track whether a search is in flight so blur does not collapse the control
+  // before results arrive.
   let pendingSearch = false;
 
   input.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
-      // Only mark search as pending if input meets the minimum length threshold.
-      // If it doesn't, no request is dispatched and the results handler never fires,
-      // which would leave pendingSearch stuck true and prevent future blur-collapses.
-      // Below MIN_CHARS the library does not dispatch a request, so the
-      // results event never fires and pendingSearch would get stuck.
       if (input.value.length >= MIN_CHARS) pendingSearch = true;
     } else if (e.key === 'Escape') {
-      // Cancel in-flight guard and collapse immediately.
       pendingSearch = false;
       collapseSearch();
+      hideDropdown();
     }
   });
 
-  // Collapse on blur so clicking away from the field still hides it. Use a
-  // short timeout so a mousedown on a suggestion item fires first (matching the
-  // existing library behaviour for suggestion clicks). Skip collapse entirely
-  // if a search is in flight — the results handler will collapse when done.
   input.addEventListener('blur', () => {
     if (pendingSearch) return;
     setTimeout(collapseSearch, 150);
@@ -170,15 +197,9 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
   const results = L.featureGroup().addTo(map);
   const markerRefs: L.Marker[] = [];
-  // Cached panel body reference — looked up on first use to avoid repeated DOM queries.
-  let panelBody: HTMLElement | null = null;
 
   function clearSelection(): void {
-    if (panelBody === null) {
-      panelBody = document.querySelector<HTMLElement>('.info-panel__body');
-    }
-    const scope = panelBody ?? document;
-    scope.querySelectorAll<HTMLElement>('.sheet-result--active').forEach(el => {
+    dropdownEl.querySelectorAll<HTMLElement>('.sheet-result--active').forEach(el => {
       el.classList.remove('sheet-result--active');
     });
     markerRefs.forEach((marker, idx) => {
@@ -191,15 +212,44 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     if (marker) marker.setIcon(createActiveNumberedIcon(index + 1));
   }
 
-  registerClearSelection(clearSelection);
-  registerActivateSelection(activateSelection);
+  // Event delegation on dropdown — wired once; fires for any result-item click.
+  dropdownEl.addEventListener('click', (e: MouseEvent) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
+    if (target === null) return;
+    const lat = parseFloat(target.dataset['lat'] ?? '');
+    const lng = parseFloat(target.dataset['lng'] ?? '');
+    if (isNaN(lat) || isNaN(lng)) return;
+    clearSelection();
+    target.classList.add('sheet-result--active');
+    const idx = parseInt(target.dataset['index'] ?? '', 10);
+    if (!isNaN(idx)) activateSelection(idx);
+    const boundsRaw = target.dataset['bounds'] ?? '';
+    if (boundsRaw !== '') {
+      try {
+        const parsed = JSON.parse(boundsRaw) as unknown;
+        if (Array.isArray(parsed) && parsed.length === 2 &&
+            Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+          map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
+            paddingTopLeft:     [50, 50],
+            paddingBottomRight: [50, 50],
+            maxZoom: 17,
+          });
+        } else {
+          map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+        }
+      } catch {
+        map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+      }
+    } else {
+      map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+    }
+  });
 
   // Keep marker size in sync with map zoom level via CSS classes.
   map.on('zoomend', () => applyMapZoomClass(map));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   searchControl.on('results', (data: any) => {
-    // Search complete — clear pending flag, remove loading spinner, and collapse.
     pendingSearch = false;
     L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
@@ -209,7 +259,6 @@ export function addSearchControl(map: L.Map, state: AppState): void {
       document.title = data.text;
 
       // Add numbered markers in reverse order so marker #1 renders on top.
-      // markerRefs is populated in forward order (index = result position).
       for (let i = data.results.length - 1; i >= 0; i--) {
         const result = data.results[i];
         if (result) {
@@ -219,17 +268,16 @@ export function addSearchControl(map: L.Map, state: AppState): void {
           marker.on('click', () => {
             clearSelection();
             marker.setIcon(createActiveNumberedIcon(i + 1));
-            const li = (panelBody ?? document).querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
+            const li = dropdownEl.querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
             if (li) {
               li.classList.add('sheet-result--active');
               li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-            snapTo('half');
           });
         }
       }
 
-      // Build results list for the info panel
+      // Build results list HTML
       const itemsHtml = data.results
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((r: any, i: number) => {
@@ -248,7 +296,6 @@ export function addSearchControl(map: L.Map, state: AppState): void {
             .filter(Boolean)
             .map(escapeHtml)
             .join(', ');
-          // data-index is 0-based; the visible marker number is i+1 (see createNumberedIcon)
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
@@ -263,38 +310,29 @@ export function addSearchControl(map: L.Map, state: AppState): void {
         })
         .join('');
 
+      // Populate the dropdown (replaces showSheet for search results).
       const count = data.results.length;
-      showSheet({
-        title: escapeHtml(data.text),
-        subtitle: count === 1 ? '1 result' : `${count} results`,
-        bodyHtml: `<ul class="sheet-results">${itemsHtml}</ul>`,
-      });
+      const countLabel = count === 1 ? '1 result' : `${count} results`;
+      dropdownEl.innerHTML =
+        `<div class="search-dropdown__header">${escapeHtml(data.text)} &mdash; ${countLabel}</div>` +
+        `<ul class="sheet-results">${itemsHtml}</ul>`;
+      showDropdown();
 
-      // Apply zoom-class immediately so markers render at the right size.
       applyMapZoomClass(map);
 
-      // Fit map to results. For a single result, prefer its own ESRI extent
-      // (result.bounds) which carries the correct geographic scale — a country
-      // result's bounds spans the whole country, while a PointAddress result's
-      // bounds is small, naturally zooming to street level. For multiple results
-      // use the marker group bounds so all pins are visible.
-      //
-      // Padding: paddingTopLeft/paddingBottomRight instead of the shorthand
-      // `padding` so we can add bottom-only padding on mobile for the bottom
-      // sheet without also adding unwanted horizontal padding.
-      const isMobile = window.innerWidth <= 768;
-      const flyOpts = {
+      // Fit map to results. Single result uses its ESRI extent for geographic
+      // scale; multiple results use the marker group bounds.
+      const singleResult = data.results.length === 1 ? data.results[0] : null;
+      const boundsToFly: L.LatLngBounds =
+        (singleResult?.bounds as L.LatLngBounds | undefined) ?? results.getBounds();
+      map.flyToBounds(boundsToFly, {
         paddingTopLeft:     [50, 50] as [number, number],
-        paddingBottomRight: [50, isMobile ? 300 : 50] as [number, number],
+        paddingBottomRight: [50, 50] as [number, number],
         maxZoom: 16,
         animate: true,
         duration: 1.5,
         easeLinearity: 0.25,
-      };
-      const singleResult = data.results.length === 1 ? data.results[0] : null;
-      const boundsToFly: L.LatLngBounds =
-        (singleResult?.bounds as L.LatLngBounds | undefined) ?? results.getBounds();
-      map.flyToBounds(boundsToFly, flyOpts);
+      });
     }
   });
 }
