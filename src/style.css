@@ -399,43 +399,65 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding-left: calc(12px - 3px); /* compensate for border */
 }
 
-/* ── Reverse geocode address view ── */
-.sheet-address {
-  margin-bottom: 16px;
-}
-
-.sheet-address__line {
-  font-size: 15px;
-  color: #222;
-  line-height: 1.4;
-  margin-bottom: 6px;
-}
-
-.sheet-address__coords {
-  font-size: 12px;
-  color: #888;
-  font-family: monospace;
-}
-
-.sheet-actions {
+/* ── Reverse geocode compact bar ── */
+.geocode-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: min(480px, calc(100vw - 24px));
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  padding: 0 6px 0 4px;
+  height: 36px;
+  z-index: 1500;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
 }
 
-.sheet-btn {
+.geocode-bar__copy {
+  flex: none;
   background: #007aff;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  cursor: pointer;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 12px;
   font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.sheet-btn:hover {
+.geocode-bar__copy:hover {
   background: #0066dd;
+}
+
+.geocode-bar__addr {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #222;
+  min-width: 0;
+}
+
+.geocode-bar__close {
+  flex: none;
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 0 2px;
+}
+
+.geocode-bar__close:hover {
+  color: #222;
 }
 
 /* ── Offline banner ───────────────────────────────────────────────────────── */

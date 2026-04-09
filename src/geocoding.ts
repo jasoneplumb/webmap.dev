@@ -3,12 +3,11 @@
 // Context: geosearch provides the search UI; geocodeService powers reverse geocode.
 //          Both use the VITE_ESRI_API_KEY env var for authentication.
 //          contextmenu fires on right-click (desktop) and long-press (most mobile browsers).
-//          Results are displayed in the bottom sheet (mobile) / side panel (desktop)
-//          rather than Leaflet popups.
+//          Search results appear in a floating dropdown; reverse geocode shows a compact
+//          one-line bar (geocode-bar) at the bottom of the viewport.
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { showSheet, hideSheet } from './bottom-sheet';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -61,9 +60,10 @@ function zoomForAddrType(addrType: string): number {
   }
 }
 
-// Shared reference so addSearchControl can clear the drop pin on marker click.
+// Shared references so addSearchControl can clear the drop pin / geocode bar on marker click.
 let _pinLayer: L.LayerGroup | null = null;
 let _clearSearchSelection: (() => void) | null = null;
+let _hideGeocodeBar: (() => void) | null = null;
 
 export function addSearchControl(map: L.Map, state: AppState): void {
   // state is read in the results callback (for future extensibility)
@@ -235,9 +235,9 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     const lat = parseFloat(target.dataset['lat'] ?? '');
     const lng = parseFloat(target.dataset['lng'] ?? '');
     if (isNaN(lat) || isNaN(lng)) return;
-    // Clear dropped pin and its info panel when selecting a search result.
+    // Clear dropped pin and its geocode bar when selecting a search result.
     _pinLayer?.clearLayers();
-    hideSheet();
+    _hideGeocodeBar?.();
     clearSelection();
     target.classList.add('sheet-result--active');
     const idx = parseInt(target.dataset['index'] ?? '', 10);
@@ -375,38 +375,70 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   const pinLayer = L.layerGroup().addTo(map);
   _pinLayer = pinLayer;
 
+  // Compact one-line bar shown below the map when a pin is dropped.
+  const geocodeBar = document.createElement('div');
+  geocodeBar.className = 'geocode-bar';
+  geocodeBar.style.display = 'none';
+  geocodeBar.innerHTML =
+    '<button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
+    '<span class="geocode-bar__addr"></span>' +
+    '<button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>';
+  document.body.appendChild(geocodeBar);
+
+  const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
+  const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
+
+  function showGeocodeBar(label: string, copyText: string): void {
+    barAddrEl.textContent = label;
+    barCopyBtn.dataset['copy'] = copyText;
+    geocodeBar.style.display = 'flex';
+  }
+
+  function hideGeocodeBar(): void {
+    geocodeBar.style.display = 'none';
+  }
+
+  _hideGeocodeBar = hideGeocodeBar;
+
+  geocodeBar.addEventListener('click', (e: MouseEvent) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('.geocode-bar__close')) {
+      hideGeocodeBar();
+      pinLayer.clearLayers();
+      return;
+    }
+    const copyBtn = t.closest<HTMLElement>('.geocode-bar__copy');
+    if (copyBtn) {
+      const text = copyBtn.dataset['copy'] ?? '';
+      navigator.clipboard.writeText(text).catch((err: unknown) => {
+        console.warn('Clipboard write failed:', err);
+      });
+    }
+  });
+
   // Disable double-click zoom so dblclick can drop a pin instead
   map.doubleClickZoom.disable();
 
   function reverseGeocode(latlng: L.LatLng): void {
+    const lat = latlng.lat;
+    const lng = latlng.lng;
+    const latStr = `${Math.abs(lat).toFixed(5)}\u00b0\u00a0${lat >= 0 ? 'N' : 'S'}`;
+    const lngStr = `${Math.abs(lng).toFixed(5)}\u00b0\u00a0${lng >= 0 ? 'E' : 'W'}`;
+    const coordLabel = `${latStr},  ${lngStr}`;
+
     geocoder
       .reverse()
       .latlng(latlng)
       .run((error, result) => {
-        if (error || !result) return;
+        if (error || !result) {
+          // Geocoding failed — fall back to coordinates.
+          if (state.recordingState === 'idle') document.title = coordLabel;
+          showGeocodeBar(coordLabel, coordLabel);
+          return;
+        }
         const addr = result.address.Match_addr;
-
         if (state.recordingState === 'idle') document.title = addr;
-
-        // Format coordinates for display
-        const lat = latlng.lat;
-        const lng = latlng.lng;
-        const latStr = `${Math.abs(lat).toFixed(6)}\u00b0\u00a0${lat >= 0 ? 'N' : 'S'}`;
-        const lngStr = `${Math.abs(lng).toFixed(6)}\u00b0\u00a0${lng >= 0 ? 'E' : 'W'}`;
-        const addrEsc = escapeHtml(addr);
-
-        showSheet({
-          title: addrEsc,
-          subtitle: `${latStr},  ${lngStr}`,
-          bodyHtml:
-            `<div class="sheet-address">` +
-            `  <div class="sheet-address__line">${addrEsc}</div>` +
-            `  <div class="sheet-address__coords">${latStr} &nbsp; ${lngStr}</div>` +
-            `</div>` +
-            `<div class="sheet-actions">` +
-            `  <button class="sheet-btn" data-copy="${escapeHtml(addr)}">Copy address</button>` +
-            `</div>`,
-        });
+        showGeocodeBar(addr, addr);
       });
   }
 
