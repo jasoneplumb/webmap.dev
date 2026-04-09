@@ -163,12 +163,10 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     dropdownEl.style.display = 'block';
   }
 
-  // Dismiss dropdown when clicking outside the search control or the dropdown itself.
-  document.addEventListener('click', (e: MouseEvent) => {
-    const t = e.target as Node;
-    if (!wrapper.contains(t) && !dropdownEl.contains(t)) hideDropdown();
+  // Dropdown is dismissed only via the close button inside it.
+  dropdownEl.addEventListener('click', (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.search-dropdown__close')) hideDropdown();
   });
-  map.on('click', hideDropdown);
 
   // Collapse the search control and clear the input — called after results arrive
   // or when the input loses focus. Does not close the dropdown (results stay visible).
@@ -216,10 +214,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   }
 
   // Event delegation on dropdown — wired once; fires for any result-item click.
-  // stopPropagation prevents the document-level outside-click handler from
-  // dismissing the dropdown for clicks that originate inside it.
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
-    e.stopPropagation();
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
     if (target === null) return;
     const lat = parseFloat(target.dataset['lat'] ?? '');
@@ -330,7 +325,10 @@ export function addSearchControl(map: L.Map, state: AppState): void {
       const count = data.results.length;
       const countLabel = count === 1 ? '1 result' : `${count} results`;
       dropdownEl.innerHTML =
-        `<div class="search-dropdown__header">${escapeHtml(data.text)} &mdash; ${countLabel}</div>` +
+        `<div class="search-dropdown__header">` +
+        `  <span>${escapeHtml(data.text)} &mdash; ${countLabel}</span>` +
+        `  <button class="search-dropdown__close" aria-label="Close">\u00d7</button>` +
+        `</div>` +
         `<ul class="sheet-results">${itemsHtml}</ul>`;
       showDropdown();
 
