@@ -29,6 +29,10 @@ function makeToggleControl(config: ToggleControlConfig): L.Control {
 
       container.appendChild(img);
 
+      // Prevent click, dblclick, and touchstart from bubbling to the map,
+      // so button interactions don't accidentally trigger map handlers (e.g. pin drop on dblclick).
+      L.DomEvent.disableClickPropagation(container);
+
       // touchend + preventDefault prevents the browser from synthesizing a click event,
       // which would fire the handler twice on mobile. click alone handles desktop.
       L.DomEvent.on(container, 'touchend', (e: Event) => {
