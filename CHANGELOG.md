@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.2-beta (2026-04-08)
+
+### Fixed
+
+- **UI** — replaced the reverse geocode bottom sheet with a compact single-line bar (Copy | address | ×) centred at the bottom of the viewport; coordinates omitted when geocoding succeeds, shown as fallback on failure
+
 ## v0.9.1-beta (2026-04-08)
 
 ### Fixed
