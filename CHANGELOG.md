@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.9.0-beta (2026-04-08)
+
+### Added
+
+- **UI** — toggle controls (locate, track) now match Leaflet zoom button width: 36 px on desktop, 44 px on mobile
+
+### Removed
+
+- **UI** — removed "copy dropped pin to clipboard" toggle button and feature
+
+### Fixed
+
+- **UI** — standardized overlay shadows across map controls, panels, dropdown, and version badge for visual consistency
+
 ## v0.8.6-beta (2026-04-08)
 
 ### Fixed
