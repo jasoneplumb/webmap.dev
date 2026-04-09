@@ -161,6 +161,20 @@ There's a **Clipboard toggle button** (copy icon) in the top-left toolbar that y
 
 ---
 
+## Changelog
+
+**What it does:** Shows the full release history inline without leaving the app.
+
+**How to use:**
+1. Tap the **version badge** (e.g., `v0.11.0-beta`) in the upper-right corner of the map.
+2. A scrollable panel slides in listing all past releases with their changes.
+3. Dismiss by tapping the badge again, pressing the **✕** button, or pressing **Escape**.
+
+**Known limitations:**
+- Changelog content is bundled at build time; it reflects the version of the app you have installed.
+
+---
+
 ## Offline Mode
 
 **What it does:** Caches map tiles and app code so you can use the app without internet (limited functionality).

@@ -216,7 +216,7 @@ Contains all app styles:
 - Info panel / bottom sheet (responsive breakpoints)
 - Offline banner
 - Toast notifications
-- Version badge
+- Version badge (button) + changelog panel
 
 **Key classes:**
 - `.blue-dot`, `.blue-dot--gray` — pulsing location dot
