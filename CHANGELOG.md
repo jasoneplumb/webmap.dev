@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0-beta (2026-04-08)
+
+### Changed
+
+- **Search** — results now appear in a floating dropdown anchored below the search bar, overlaying the map where the user typed; the bottom sheet / side panel is retained only for reverse-geocode (drop-pin) results
+
 ## v0.7.2-beta (2026-04-08)
 
 ### Fixed
