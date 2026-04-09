@@ -400,6 +400,8 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   function showGeocodeBar(label: string, copyText: string): void {
     barAddrEl.textContent = label;
     barCopyBtn.dataset['copy'] = copyText;
+    barCopyBtn.textContent = 'Copy';
+    barCopyBtn.classList.remove('geocode-bar__copy--copied');
     geocodeBar.style.display = 'flex';
   }
 
@@ -416,10 +418,17 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
       pinLayer.clearLayers();
       return;
     }
-    const copyBtn = t.closest<HTMLElement>('.geocode-bar__copy');
+    const copyBtn = t.closest<HTMLButtonElement>('.geocode-bar__copy');
     if (copyBtn) {
       const text = copyBtn.dataset['copy'] ?? '';
-      navigator.clipboard.writeText(text).catch((err: unknown) => {
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = '✓ Copied';
+        copyBtn.classList.add('geocode-bar__copy--copied');
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy';
+          copyBtn.classList.remove('geocode-bar__copy--copied');
+        }, 1500);
+      }).catch((err: unknown) => {
         console.warn('Clipboard write failed:', err);
       });
     }

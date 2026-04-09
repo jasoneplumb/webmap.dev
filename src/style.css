@@ -471,6 +471,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: #0066dd;
 }
 
+.geocode-bar__copy--copied {
+  background: #22c55e;
+  cursor: default;
+}
+
+.geocode-bar__copy--copied:hover {
+  background: #22c55e;
+}
+
 .geocode-bar__addr {
   flex: 1;
   overflow: hidden;
