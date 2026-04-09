@@ -577,15 +577,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    Position is set programmatically in geocoding.ts (showDropdown).             */
 .search-dropdown {
   position: fixed;
-  display: flex;
-  flex-direction: column;
   min-width: 280px;
   max-width: 420px;
   max-height: 360px;
+  overflow-y: auto;
   background: #fff;
   border-radius: 0 0 8px 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   z-index: 2000;
+  -webkit-overflow-scrolling: touch;
   font-family: system-ui, sans-serif;
 }
 
@@ -615,13 +615,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .search-dropdown__close:hover {
   color: #333;
   background: #f0f0f0;
-}
-
-/* List scrolls independently; header stays pinned */
-.search-dropdown .sheet-results {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  flex: 1;
 }
 
 /* Tighten sheet-result padding inside the dropdown */

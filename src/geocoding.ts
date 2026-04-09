@@ -184,14 +184,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
   input.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (input.value.length >= MIN_CHARS) {
-        pendingSearch = true;
-        // Clear previous results immediately so old pins/dropdown don't linger
-        // while the new request is in flight.
-        hideDropdown();
-        results.clearLayers();
-        markerRefs.length = 0;
-      }
+      if (input.value.length >= MIN_CHARS) pendingSearch = true;
     } else if (e.key === 'Escape') {
       pendingSearch = false;
       collapseSearch();
@@ -206,6 +199,19 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
   const results = L.featureGroup().addTo(map);
   const markerRefs: L.Marker[] = [];
+
+  // When the search icon is clicked to expand the control, dismiss the old
+  // dropdown and clear previous result pins so the user starts fresh.
+  let _wasExpanded = false;
+  new MutationObserver(() => {
+    const isExpanded = wrapper.classList.contains('geocoder-control-expanded');
+    if (isExpanded && !_wasExpanded) {
+      hideDropdown();
+      results.clearLayers();
+      markerRefs.length = 0;
+    }
+    _wasExpanded = isExpanded;
+  }).observe(wrapper, { attributes: true, attributeFilter: ['class'] });
 
   function clearSelection(): void {
     dropdownEl.querySelectorAll<HTMLElement>('.sheet-result--active').forEach(el => {
