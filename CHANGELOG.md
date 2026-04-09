@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.2-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — clicking a result in the dropdown no longer spuriously dismisses it (stopPropagation prevents the outside-click handler from treating result clicks as outside-clicks)
+- **Search** — result items now show a native tooltip (name · location · type · coordinates) on hover
+
 ## v0.8.1-beta (2026-04-08)
 
 ### Fixed
