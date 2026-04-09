@@ -28,22 +28,44 @@ const state = createInitialState();
 const map = createMap();
 
 // Wire GPS location callbacks
-map.on('locationfound', (e: L.LocationEvent) => onLocationFound(e, state, map));
+// iOS Safari sometimes fires a transient PERMISSION_DENIED (code 1) when
+// watchPosition is first called, even when permission is already granted,
+// before delivering the first fix. Debounce it: if locationfound arrives
+// within 3s of the error, the error was spurious and we discard it.
+let permissionDeniedTimer: ReturnType<typeof setTimeout> | undefined;
+
+function cancelPermissionDeniedTimer(): void {
+  if (permissionDeniedTimer !== undefined) {
+    clearTimeout(permissionDeniedTimer);
+    permissionDeniedTimer = undefined;
+  }
+}
+
+map.on('locationfound', (e: L.LocationEvent) => {
+  cancelPermissionDeniedTimer();
+  onLocationFound(e, state, map);
+});
 map.on('locationerror', (e: L.ErrorEvent) => {
   // Leaflet error code 1 = PERMISSION_DENIED (browser or OS blocked access)
   // On iOS Safari the permissions API is unreliable, so this event is the
   // only trustworthy signal that location was actually denied.
   if (e.code === 1 && state.locateState !== 'off') {
-    showToast('Location access is denied. Enable it in browser settings.');
-    state.locateState = 'off';
-    // Force-stop ALL watching regardless of refcount. Without this, an active
-    // recording (refcount > 1) keeps the watch alive, which re-triggers this
-    // error handler in an infinite loop.
-    state.updateCallback = 0;
-    stopWatching(map);
-    clearLocationMarkers(state, map);
-    updateLocateIcon('off');
-    updateRecordingButtons();
+    // Defer acting on the denial — if a fix arrives first, this was spurious.
+    cancelPermissionDeniedTimer();
+    permissionDeniedTimer = setTimeout(() => {
+      permissionDeniedTimer = undefined;
+      if (state.locateState === 'off') return; // already handled
+      showToast('Location access is denied. Enable it in browser settings.');
+      state.locateState = 'off';
+      // Force-stop ALL watching regardless of refcount. Without this, an active
+      // recording (refcount > 1) keeps the watch alive, which re-triggers this
+      // error handler in an infinite loop.
+      state.updateCallback = 0;
+      stopWatching(map);
+      clearLocationMarkers(state, map);
+      updateLocateIcon('off');
+      updateRecordingButtons();
+    }, 3000);
     return;
   }
   onLocationError(state);
