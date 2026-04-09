@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.1-beta (2026-04-09)
+
+### Fixed
+
+- **UI** — all edge-pinned controls, buttons, and overlays now respect Safari iPhone safe areas (notch, home indicator, side bezels) via `env(safe-area-inset-*)` and `viewport-fit=cover`
+
+
 ## v0.12.0-beta (2026-04-09)
 
 ### Added
