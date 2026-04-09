@@ -141,15 +141,15 @@
 
 **On Desktop:**
 1. Right-click (context menu) on any location on the map.
-2. The info panel opens showing the address and coordinates.
+2. The info panel opens showing the address.
 
 **On Mobile:**
 1. Long-press (2–3 seconds) on any location on the map.
-2. The info panel slides up showing the address and coordinates.
+2. The info panel slides up showing the address.
 
 **What appears in the info panel:**
 - **Address**: Human-readable address (street, city, region, postal code)
-- **Coordinates**: Latitude and longitude (6 decimal places)
+- **Coordinates**: Latitude and longitude (6 decimal places) — shown as a fallback when geocoding fails or returns no result
 
 **Clipboard copy:**
 There's a **Clipboard toggle button** (copy icon) in the top-left toolbar that you can enable to automatically copy dropped-pin coordinates to your clipboard when you drop a pin.
