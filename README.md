@@ -10,6 +10,7 @@
 - **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete
 - **Reverse Geocoding** — Double-click or long-press to drop a pin and look up the address
 - **Offline Support** — Maps, tiles, and app UI cached via service worker; search requires internet
+- **Changelog** — Tap the version badge (upper right) to view the full release history inline
 
 ## Tech Stack
 
