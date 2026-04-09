@@ -63,6 +63,7 @@ function zoomForAddrType(addrType: string): number {
 
 // Shared reference so addSearchControl can clear the drop pin on marker click.
 let _pinLayer: L.LayerGroup | null = null;
+let _clearSearchSelection: (() => void) | null = null;
 
 export function addSearchControl(map: L.Map, state: AppState): void {
   // state is read in the results callback (for future extensibility)
@@ -207,6 +208,7 @@ export function addSearchControl(map: L.Map, state: AppState): void {
       marker.setIcon(createNumberedIcon(idx + 1));
     });
   }
+  _clearSearchSelection = clearSelection;
 
   function activateSelection(index: number): void {
     const marker = markerRefs[index];
@@ -405,6 +407,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
 
   function dropPin(latlng: L.LatLng): void {
     pinLayer.clearLayers();
+    _clearSearchSelection?.();
     const pin = L.marker(latlng, { draggable: true, icon: redIcon });
     pinLayer.addLayer(pin);
 
