@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.6-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — reverted sticky-header dropdown layout; scrollbar restored to original behaviour
+- **Search** — clicking the search icon now immediately dismisses the previous dropdown and clears result pins so each search starts clean
+
 ## v0.8.5-beta (2026-04-08)
 
 ### Fixed
