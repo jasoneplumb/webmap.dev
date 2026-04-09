@@ -13,6 +13,7 @@ L.Icon.Default.mergeOptions({
 });
 import 'esri-leaflet-geocoder/dist/esri-leaflet-geocoder.css';
 import './style.css';
+import changelogRaw from '../CHANGELOG.md?raw';
 
 import { createInitialState } from './types';
 import { createMap } from './map';
@@ -183,11 +184,61 @@ initInfoPanel(map);
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state);
 
-// ── Version badge ─────────────────────────────────────────────────────────────
-const versionBadge = document.createElement('div');
+// ── Version badge + changelog panel ───────────────────────────────────────────
+const versionBadge = document.createElement('button');
 versionBadge.id = 'version-badge';
 versionBadge.textContent = `v${__APP_VERSION__}`;
+versionBadge.setAttribute('aria-expanded', 'false');
+versionBadge.setAttribute('aria-controls', 'changelog-panel');
 document.getElementById('map')?.appendChild(versionBadge);
+
+const changelogPanel = document.createElement('div');
+changelogPanel.id = 'changelog-panel';
+changelogPanel.setAttribute('role', 'dialog');
+changelogPanel.setAttribute('aria-label', 'Changelog');
+changelogPanel.setAttribute('aria-hidden', 'true');
+
+function renderChangelog(md: string): string {
+  return md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(line => {
+      if (/^## /.test(line)) return `<h2>${line.slice(3)}</h2>`;
+      if (/^### /.test(line)) return `<h3>${line.slice(4)}</h3>`;
+      if (/^- /.test(line)) {
+        return `<li>${line.slice(2).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</li>`;
+      }
+      if (line.trim() === '') return '<br>';
+      return `<p>${line}</p>`;
+    })
+    .join('');
+}
+
+changelogPanel.innerHTML = `<div id="changelog-panel__inner"><button id="changelog-panel__close" aria-label="Close changelog">✕</button><div id="changelog-panel__body">${renderChangelog(changelogRaw)}</div></div>`;
+document.getElementById('map')?.appendChild(changelogPanel);
+
+function openChangelog(): void {
+  changelogPanel.classList.add('visible');
+  changelogPanel.setAttribute('aria-hidden', 'false');
+  versionBadge.setAttribute('aria-expanded', 'true');
+}
+function closeChangelog(): void {
+  changelogPanel.classList.remove('visible');
+  changelogPanel.setAttribute('aria-hidden', 'true');
+  versionBadge.setAttribute('aria-expanded', 'false');
+}
+
+versionBadge.addEventListener('click', () => {
+  if (changelogPanel.classList.contains('visible')) closeChangelog();
+  else openChangelog();
+});
+document.getElementById('changelog-panel__close')?.addEventListener('click', closeChangelog);
+changelogPanel.addEventListener('click', (e) => {
+  if (e.target === changelogPanel) closeChangelog();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && changelogPanel.classList.contains('visible')) closeChangelog();
+});
 
 // Focus map for keyboard zoom shortcuts
 document.getElementById('map')?.focus();

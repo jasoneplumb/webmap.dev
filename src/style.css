@@ -764,6 +764,105 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding: 2px 6px;
   border-radius: 3px;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
-  pointer-events: none;
+  border: none;
+  cursor: pointer;
   user-select: none;
+}
+
+#version-badge:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Changelog panel ─────────────────────────────────────────────────────────── */
+
+#changelog-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: none;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 40px 8px 8px;
+  pointer-events: none;
+}
+
+#changelog-panel.visible {
+  display: flex;
+  pointer-events: auto;
+}
+
+#changelog-panel__inner {
+  position: relative;
+  width: 320px;
+  max-height: calc(100vh - 52px);
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#changelog-panel__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: #888;
+  padding: 2px 4px;
+  z-index: 1;
+}
+
+#changelog-panel__close:hover {
+  color: #333;
+}
+
+#changelog-panel__body {
+  overflow-y: auto;
+  padding: 16px 16px 16px;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #222;
+  -webkit-overflow-scrolling: touch;
+}
+
+#changelog-panel__body h2 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 16px 0 6px;
+  color: #111;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 4px;
+}
+
+#changelog-panel__body h2:first-child {
+  margin-top: 0;
+}
+
+#changelog-panel__body h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 10px 0 4px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#changelog-panel__body li {
+  margin: 3px 0 3px 12px;
+  line-height: 1.5;
+  list-style: disc;
+}
+
+#changelog-panel__body br {
+  display: none;
+}
+
+#changelog-panel__body p {
+  margin: 2px 0;
 }
