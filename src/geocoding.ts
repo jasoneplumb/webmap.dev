@@ -216,7 +216,10 @@ export function addSearchControl(map: L.Map, state: AppState): void {
   }
 
   // Event delegation on dropdown — wired once; fires for any result-item click.
+  // stopPropagation prevents the document-level outside-click handler from
+  // dismissing the dropdown for clicks that originate inside it.
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
+    e.stopPropagation();
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
     if (target === null) return;
     const lat = parseFloat(target.dataset['lat'] ?? '');
@@ -307,9 +310,11 @@ export function addSearchControl(map: L.Map, state: AppState): void {
             .filter(Boolean)
             .map(escapeHtml)
             .join(', ');
+          const tooltipParts = [name, subtitle, addrType, `${lat}, ${lng}`].filter(Boolean);
+          const tooltip = escapeHtml(tooltipParts.join(' · '));
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
-            ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}">` +
+            ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}" title="${tooltip}">` +
             `  <div class="sheet-result__main">` +
             `    <span class="sheet-result__name">${name}</span>` +
             (subtitle ? `    <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
