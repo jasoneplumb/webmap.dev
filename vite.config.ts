@@ -36,6 +36,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // After skipWaiting activates the new SW, claim all open clients so
+        // workbox-window's 'controlling' event fires and triggers location.reload().
+        // Without this, onNeedRefresh sends SKIP_WAITING but the page never reloads
+        // automatically — users see a blank/stale page until they manually refresh.
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
