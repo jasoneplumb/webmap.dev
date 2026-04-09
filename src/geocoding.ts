@@ -63,6 +63,7 @@ function zoomForAddrType(addrType: string): number {
 let _pinLayer: L.LayerGroup | null = null;
 let _clearSearchSelection: (() => void) | null = null;
 let _hideGeocodeBar: (() => void) | null = null;
+let _showGeocodeBar: ((label: string, copyText: string) => void) | null = null;
 
 export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
   // state is read in the results callback (for future extensibility)
@@ -248,7 +249,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     const label = resultName !== '' ? resultName : coordText;
     const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
-    showGeocodeBar(label, copyText);
+    _showGeocodeBar?.(label, copyText);
     clearSelection();
     target.classList.add('sheet-result--active');
     const idx = parseInt(target.dataset['index'] ?? '', 10);
@@ -414,6 +415,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   }
 
   _hideGeocodeBar = hideGeocodeBar;
+  _showGeocodeBar = showGeocodeBar;
 
   geocodeBar.addEventListener('click', (e: MouseEvent) => {
     const t = e.target as HTMLElement;
