@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.4-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — dropping a reverse-geocode pin now clears the search result selection (all numbered markers reset to blue)
+
 ## v0.8.3-beta (2026-04-08)
 
 ### Fixed
