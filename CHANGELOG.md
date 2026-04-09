@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.10.0-beta (2026-04-09)
+
+### Added
+
+- **Search** — toast notification when geocoder returns no results, with suggestions to zoom out or reword the search
+
+### Fixed
+
+- **Search** — iOS keyboard "Done" / checkmark button now submits the search instead of cancelling it
+
+
 ## v0.9.4-beta (2026-04-09)
 
 ### Fixed
