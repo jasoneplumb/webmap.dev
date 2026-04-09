@@ -424,14 +424,6 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     const pin = L.marker(latlng, { draggable: true, icon: redIcon });
     pinLayer.addLayer(pin);
 
-    // Copy coordinates to clipboard immediately within the user gesture.
-    // The address (resolved async via geocode) can be copied from the info
-    // sheet's "Copy address" button which provides its own user gesture.
-    if (state.copyToClipboard) {
-      const coords = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
-      navigator.clipboard.writeText(coords).catch(() => {});
-    }
-
     reverseGeocode(latlng);
 
     // Debounced reverse geocode as pin is dragged to a new location

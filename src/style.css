@@ -234,7 +234,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     right: 0;
     height: 90vh;
     border-radius: 12px 12px 0 0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.2);
     /* JS sets transform directly; this is just a safe CSS fallback */
     transform: translateY(110%);
     overflow: hidden;
@@ -248,7 +248,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     left: -380px;
     bottom: 0;
     width: 360px;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
     transition: left 0.3s ease;
     overflow-y: auto;
   }
@@ -471,6 +471,37 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   animation: tile-loading-spin 1s linear infinite;
 }
 
+/* ── Custom toggle controls (locate, track) ──────────────────────────────────
+   Sized to match Leaflet zoom buttons: 36px desktop, 44px mobile.             */
+.leaflet-control-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  user-select: none;
+}
+
+.leaflet-control-toggle img {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 768px) {
+  .leaflet-control-toggle {
+    width: 44px;
+    height: 44px;
+  }
+  .leaflet-control-toggle img {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 /* ── Mobile-optimized Control Layout ──────────────────────────────────────── */
 
 /* Stack controls vertically at bottom-right, grouped for mobile thumb reach */
@@ -505,7 +536,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     height: 44px;
     background: rgba(255, 255, 255, 0.85);
     border-radius: 4px;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
     font-size: 18px;
     line-height: 44px;
     color: #333;
@@ -522,7 +553,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   .leaflet-control-layers {
     background: rgba(255, 255, 255, 0.85);
     border-radius: 4px;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
   }
 
   /* Scale control stays at bottom-left, slightly smaller on mobile */
@@ -555,7 +586,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     height: 36px;
     background: rgba(255, 255, 255, 0.85);
     border-radius: 4px;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
     margin: 0 !important;
   }
 
@@ -583,7 +614,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   overflow-y: auto;
   background: #fff;
   border-radius: 0 0 8px 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   z-index: 2000;
   -webkit-overflow-scrolling: touch;
   font-family: system-ui, sans-serif;
@@ -664,12 +695,13 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   top: 8px;
   right: 8px;
   z-index: 500;
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.85);
   color: #333;
   font-size: 10px;
   font-family: monospace;
   padding: 2px 6px;
   border-radius: 3px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
   pointer-events: none;
   user-select: none;
 }

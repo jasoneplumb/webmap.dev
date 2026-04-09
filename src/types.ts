@@ -16,7 +16,6 @@ export interface AppState {
   prior: number; // last known accuracy in meters; used to filter redundant GPS updates
 
   // Control toggle states
-  copyToClipboard: boolean;
   locateState: LocateState; // three-state location button (replaces centering boolean)
 
   // Watch/polling state
@@ -50,7 +49,6 @@ export function createInitialState(): AppState {
     youAreHereLocationlat: 0,
     youAreHereLocationlng: 0,
     prior: 1000,
-    copyToClipboard: false,
     locateState: 'off',
     updateCallback: 0,
     initialZoom: true,

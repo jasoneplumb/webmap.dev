@@ -20,22 +20,10 @@ interface ToggleControlConfig {
 function makeToggleControl(config: ToggleControlConfig): L.Control {
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
-      const container = L.DomUtil.create('div') as HTMLDivElement;
-      container.style.display = 'flex';
-      container.style.alignItems = 'center';
-      container.style.justifyContent = 'center';
-      container.style.minWidth = '44px';
-      container.style.minHeight = '44px';
-      container.style.background = 'rgba(255, 255, 255, 0.85)';
-      container.style.borderRadius = '4px';
-      container.style.boxShadow = '0 1px 5px rgba(0, 0, 0, 0.65)';
-      container.style.cursor = 'pointer';
-      container.style.userSelect = 'none';
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
 
       const img = L.DomUtil.create('img') as HTMLImageElement;
       img.id = config.id;
-      img.style.width = '30px';
-      img.style.height = '30px';
       img.alt = img.title = config.disabledTitle;
       img.src = config.disabledSrc;
 
@@ -64,16 +52,6 @@ function makeToggleControl(config: ToggleControlConfig): L.Control {
   return new (Ctrl as new (opts: L.ControlOptions) => L.Control)({
     position: config.position,
   });
-}
-
-export function addClipboardControl(map: L.Map, onClick: (e: Event) => void): void {
-  makeToggleControl({
-    id: 'clip',
-    disabledSrc: '/copy-pin-to-clipboard-lines-v1.1.svg',
-    disabledTitle: 'Copy dropped pin to clipboard (Disabled)',
-    position: 'topleft',
-    onClick,
-  }).addTo(map);
 }
 
 // Three-state locate button: Off → Active (following) → Passive (dot only)

@@ -16,7 +16,7 @@ import './style.css';
 
 import { createInitialState } from './types';
 import { createMap } from './map';
-import { addClipboardControl, addLocateControl, updateLocateIcon } from './controls';
+import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
@@ -81,21 +81,6 @@ function showToast(message: string, durationMs = 3000): void {
     toastTimer = undefined;
   }, durationMs);
 }
-
-// ── Clipboard ────────────────────────────────────────────────────────────────
-
-addClipboardControl(map, () => {
-  state.copyToClipboard = !state.copyToClipboard;
-  const img = document.getElementById('clip') as HTMLImageElement | null;
-  if (img) {
-    img.alt = img.title = state.copyToClipboard
-      ? 'Copy dropped pin to clipboard (Enabled)'
-      : 'Copy dropped pin to clipboard (Disabled)';
-    img.src = state.copyToClipboard
-      ? '/copy-pin-to-clipboard-color-v1.1.svg'
-      : '/copy-pin-to-clipboard-lines-v1.1.svg';
-  }
-});
 
 // ── Three-state locate button ─────────────────────────────────────────────────
 // States: off → active (following) → passive (dot visible, not following)
