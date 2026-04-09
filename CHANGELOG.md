@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.3-beta (2026-04-09)
+
+### Fixed
+
+- **Controls** — double-clicking a toolbar button no longer drops a pin on the map
+- **PWA** — app now auto-reloads after a service worker update without requiring a manual refresh
+- **UI** — scale bar raised to match the Record button's bottom offset, no longer obscured by the Safari toolbar
+- **Location** — iOS no longer falsely reports "Location access is denied" after permission has been granted
+
+
 ## v0.9.2-beta (2026-04-08)
 
 ### Fixed
