@@ -55,7 +55,7 @@ map.on('locationerror', (e: L.ErrorEvent) => {
     permissionDeniedTimer = setTimeout(() => {
       permissionDeniedTimer = undefined;
       if (state.locateState === 'off') return; // already handled
-      showToast('Location access is denied. Enable it in browser settings.');
+      showToast('Location access is denied. On iPhone: Settings > Privacy & Security > Location Services > Safari Websites > Allow', 0);
       state.locateState = 'off';
       // Force-stop ALL watching regardless of refcount. Without this, an active
       // recording (refcount > 1) keeps the watch alive, which re-triggers this
@@ -88,6 +88,7 @@ function deactivatePolling(): void {
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
+// durationMs = 0 → sticky: persists until the user taps ×
 function showToast(message: string, durationMs = 3000): void {
   let toast = document.getElementById('locate-toast');
   if (!toast) {
@@ -95,13 +96,35 @@ function showToast(message: string, durationMs = 3000): void {
     toast.id = 'locate-toast';
     document.getElementById('map')?.appendChild(toast);
   }
-  toast.textContent = message;
-  toast.classList.add('visible');
-  if (toastTimer !== undefined) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast?.classList.remove('visible');
+  if (toastTimer !== undefined) {
+    clearTimeout(toastTimer);
     toastTimer = undefined;
-  }, durationMs);
+  }
+  toast.classList.remove('dismissible');
+  toast.innerHTML = '';
+
+  if (durationMs === 0) {
+    toast.classList.add('dismissible');
+    const span = document.createElement('span');
+    span.textContent = message;
+    const btn = document.createElement('button');
+    btn.className = 'toast-close';
+    btn.setAttribute('aria-label', 'Dismiss');
+    btn.textContent = '×';
+    btn.addEventListener('click', () => {
+      toast?.classList.remove('visible', 'dismissible');
+    });
+    toast.appendChild(span);
+    toast.appendChild(btn);
+  } else {
+    toast.textContent = message;
+    toastTimer = setTimeout(() => {
+      toast?.classList.remove('visible');
+      toastTimer = undefined;
+    }, durationMs);
+  }
+
+  toast.classList.add('visible');
 }
 
 // ── Three-state locate button ─────────────────────────────────────────────────
