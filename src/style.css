@@ -542,6 +542,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     right: 10px;
   }
 
+  /* Bottom-left control group: scale — match bottom offset of right group */
+  .leaflet-bottom.leaflet-left {
+    bottom: 10px;
+    left: 10px;
+  }
+
   /* Ensure controls are thumb-sized (min 44×44px) */
   .leaflet-control {
     margin: 0 !important;
@@ -595,6 +601,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     gap: 8px;
     bottom: 10px;
     right: 10px;
+  }
+
+  /* Bottom-left control group: scale — match bottom offset of right group */
+  .leaflet-bottom.leaflet-left {
+    bottom: 10px;
+    left: 10px;
   }
 
   .leaflet-control-zoom {
