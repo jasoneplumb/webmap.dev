@@ -1,10 +1,9 @@
-// Intent: ESRI geocoding — throttled autocomplete search and reverse geocode via
-//         double-click, right-click (desktop), and long-press (mobile)
-// Context: geosearch provides the search UI; geocodeService powers reverse geocode.
-//          Both use the VITE_ESRI_API_KEY env var for authentication.
-//          contextmenu fires on right-click (desktop) and long-press (most mobile browsers).
-//          Search results appear in a floating dropdown; reverse geocode shows a compact
-//          one-line bar (geocode-bar) at the bottom of the viewport.
+/**
+ * Intent: ESRI geocoding — throttled autocomplete search and reverse geocode via right-click / long-press
+ * Context: geosearch provides the search UI widget; geocodeService powers reverse geocode; both authenticate via VITE_ESRI_API_KEY
+ * Pattern: User input → debounced ESRI API call → results rendered into floating dropdown (search) or compact geocode-bar (reverse)
+ * Future: No offline fallback for search or reverse geocode; both silently fail without internet
+ */
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';

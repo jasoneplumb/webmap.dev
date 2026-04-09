@@ -1,12 +1,16 @@
-// Intent: Map initialization — creates the Leaflet map, tile layers, and controls
-// Pattern: Returns the configured map instance; all tile layers stay local to avoid
-//          leaking references that callers don't need
+/**
+ * Intent: Map initialization — creates the Leaflet map, tile layers, and controls
+ * Context: Called once from main.ts on startup; returns the configured L.Map instance used everywhere
+ * Pattern: All tile layer refs stay local to this module — callers only need the map, not the layers
+ * Future: Tile layer config (tokens, URLs, zoom limits) is hardcoded; no runtime layer switching beyond the built-in layer control
+ */
 import L from 'leaflet';
 
 export function createMap(): L.Map {
   const map = L.map('map', {
     zoomControl: false,
     preferCanvas: true,
+    // constraint: fractional zoom (0.5 steps) required for smooth pinch-to-zoom on mobile; integer steps feel jarring
     zoomSnap: 0.5,
     zoomDelta: 0.5,
   }).fitWorld();

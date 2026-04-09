@@ -1,7 +1,9 @@
-// Intent: Application entry point — wires all modules together
-// Pattern: Single AppState object threaded through all modules by reference.
-//          updateCallback is a refcount so locate and recording can independently
-//          request/release the GPS watch without stepping on each other.
+/**
+ * Intent: Application entry point — wires all modules together and owns the GPS watch refcount
+ * Context: Browser entry point; imports all feature modules and passes AppState + map by reference; no framework
+ * Pattern: Single AppState object threaded through all modules; updateCallback refcount lets locate and recording independently request/release GPS watching without stepping on each other
+ * Future: Refcount pattern breaks silently if any module activates without a matching deactivate (e.g., on error path) — no guard or assertion currently exists
+ */
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 

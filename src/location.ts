@@ -1,9 +1,9 @@
-// Intent: Handle GPS location events — apply haversine distance filter, draw/update
-//         blue dot marker and accuracy circle, recenter the map when in active state,
-//         and append points to the active recording trail
-// Context: map.locate() fires 'locationfound' for every GPS fix. The haversine filter
-//          ignores updates where we haven't moved more than half the accuracy radius
-//          AND accuracy hasn't improved — reduces jitter when standing still.
+/**
+ * Intent: Handle GPS location events — filter jitter, update blue dot + accuracy circle, pan map, feed recording trail
+ * Context: Called by main.ts on each Leaflet 'locationfound' event; also handles 'locationerror' and locate-off cleanup
+ * Pattern: Filter → mutate state → update DOM markers → conditionally pan → conditionally append trail point
+ * Future: Haversine jitter threshold (accuracy/2) is fixed; an adaptive threshold based on recent fix variance could be more accurate in dense urban canyons
+ */
 import L from 'leaflet';
 import type { AppState } from './types';
 import { updateLocateIcon } from './controls';
@@ -27,6 +27,11 @@ function createGrayDotIcon(): L.DivIcon {
   });
 }
 
+/**
+ * intent: Accept or reject a GPS fix based on whether we moved meaningfully or accuracy improved
+ * method: Haversine distance from last accepted fix vs. current accuracy radius; accept if dist > accuracy/2 OR accuracy improved
+ * effect: Eliminates stationary GPS jitter without introducing lag when the user actually moves
+ */
 export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map): void {
   // Haversine formula: great-circle distance between previous and current position
   const p = Math.PI / 180;

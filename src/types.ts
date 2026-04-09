@@ -1,6 +1,9 @@
-// Intent: Shared mutable application state passed to all modules
-// Pattern: Single state object created in main.ts and passed by reference;
-//          modules mutate it directly (no event bus needed for this size app)
+/**
+ * Intent: Shared mutable application state passed to all modules
+ * Context: Created once in main.ts and threaded by reference through every module; no store or event bus
+ * Pattern: Single state object mutated directly — works because this is a single-page app with no concurrent writers
+ * Future: Will become unwieldy if state grows significantly; consider splitting into domain sub-objects
+ */
 import type L from 'leaflet';
 
 // Three-state location button: off → active (following) → passive (dot visible, not following)

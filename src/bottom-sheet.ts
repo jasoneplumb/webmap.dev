@@ -1,8 +1,9 @@
-// Intent: Mobile bottom sheet / desktop side panel for displaying location info.
-// Pattern: Module-level state; call initInfoPanel(map) once from main.ts before
-//          showSheet() can be used. On mobile (≤768px), renders as a three-snap-point
-//          bottom sheet with drag gesture support. On desktop (>768px), renders as a
-//          left-side slide-in panel.
+/**
+ * Intent: Mobile bottom sheet / desktop side panel for displaying location info and search results
+ * Context: Initialized once by main.ts; shown/hidden by geocoding.ts on search results and reverse geocode
+ * Pattern: Module-level singleton state; mobile uses three snap points (peek/half/full) with touch drag; desktop uses CSS slide-in transition
+ * Future: No landscape-phone layout handling — at small portrait widths the sheet can obscure the map entirely at full snap
+ */
 import L from 'leaflet';
 
 export type SnapPoint = 'hidden' | 'peek' | 'half' | 'full';
@@ -18,7 +19,8 @@ const MOBILE_BREAKPOINT = 768;
 // Sheet occupies 90vh on mobile (partially revealed via translateY)
 const SHEET_VH = 0.9;
 const HALF_VH = 0.45;
-const PEEK_PX = 72; // visible px at peek snap
+// constraint: 72px matches the approximate height of mobile browser bottom nav bars; peek must clear them or the handle is unreachable
+const PEEK_PX = 72;
 
 // Module state
 let _map: L.Map | null = null;

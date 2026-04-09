@@ -1,8 +1,9 @@
-// Intent: Reusable toggle control for map toolbar icons
-// Context: The original code redefined L.Control.Watermark three times (each definition
-//          overwrote the previous one). This replaces that with a single parameterized factory.
-// Pattern: Factory function creates a fresh L.Control subclass per control instance,
-//          capturing config in a closure to avoid shared state between controls.
+/**
+ * Intent: Reusable toggle control for map toolbar icons
+ * Context: The original code redefined L.Control.Watermark three times, each overwriting the previous; replaced with a single parameterized factory
+ * Pattern: Factory function creates a fresh L.Control subclass per call, capturing config in a closure to avoid shared state between controls
+ * Future: Only supports toggle-style icon buttons; would need extension for controls with text labels or multi-state visuals beyond icon swaps
+ */
 import L from 'leaflet';
 import type { LocateState } from './types';
 

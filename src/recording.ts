@@ -1,10 +1,14 @@
-// Intent: Track recording state machine, trail visualization, and real-time stats overlay
-// Pattern: Plugs into AppState; exposes initRecording for main.ts wiring and
-//          appendTrailPoint for location.ts to call on each GPS fix.
+/**
+ * Intent: Trail recording state machine, real-time stats overlay, and GPX export
+ * Context: appendTrailPoint is called by location.ts on every accepted GPS fix; recording controls are mounted by main.ts
+ * Pattern: State machine (idle → recording → paused → idle) with refcount-based GPS polling; stats bar updates on a 1s interval
+ * Future: GPX export has no pause segment markers — paused sections appear as continuous track; very long trails (1000+ points) may affect map render performance
+ */
 import L from 'leaflet';
 import type { AppState } from './types';
 
-const MIN_TRAIL_DIST_M = 5;   // minimum metres between trail points (GPS jitter filter)
+// tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
+const MIN_TRAIL_DIST_M = 5;
 const MIN_ARROW_DIST_M = 50;  // minimum metres between direction-arrow markers
 
 // ── Geometry helpers ─────────────────────────────────────────────────────────
@@ -48,8 +52,12 @@ function formatElapsed(ms: number): string {
   return h > 0 ? `${String(h)}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-// Detect whether the user's locale uses imperial units (miles/mph).
-// measurementSystem is not yet in all TypeScript lib defs, so we use a cast.
+/**
+ * intent: Detect whether the user's locale uses imperial units (miles/mph) at module load time
+ * method: Intl.Locale.measurementSystem where supported; region tag fallback (US/LR/MM) otherwise
+ * effect: Single boolean used by formatDistance and formatSpeed — avoids per-call locale parsing
+ */
+// constraint: measurementSystem is not yet in all TypeScript lib defs, so we use an unknown cast
 function usesImperial(): boolean {
   try {
     const locale = new Intl.Locale(navigator.language);
@@ -341,9 +349,13 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
 
 // ── GPX export ────────────────────────────────────────────────────────────────
 
+/**
+ * intent: Serialize the recorded trail to a GPX 1.1 XML string for download
+ * method: Compute a single epoch offset (Date.now() - performance.now()) at call time; apply it to each performance.now() timestamp to get wall-clock ISO times
+ * effect: All GPX timestamps are consistent relative to each other regardless of clock drift during the recording session
+ */
 function buildGpx(state: AppState): string {
-  // Capture epoch offset once to avoid timing drift in GPX timestamps.
-  // This ensures each point's wall-clock time is derived from the same epoch.
+  // tradeoff: epoch offset captured once per export, not per point — avoids per-point Date.now() calls and keeps timestamps monotonically consistent
   const epochOffset = Date.now() - performance.now();
   const startDate = new Date(epochOffset + state.recordingStartMs);
   const pad = (n: number): string => String(n).padStart(2, '0');
