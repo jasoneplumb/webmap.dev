@@ -65,7 +65,7 @@ let _pinLayer: L.LayerGroup | null = null;
 let _clearSearchSelection: (() => void) | null = null;
 let _hideGeocodeBar: (() => void) | null = null;
 
-export function addSearchControl(map: L.Map, state: AppState): void {
+export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
   // state is read in the results callback (for future extensibility)
   void state;
 
@@ -365,6 +365,8 @@ export function addSearchControl(map: L.Map, state: AppState): void {
         duration: 1.5,
         easeLinearity: 0.25,
       });
+    } else {
+      onNoResults('No results found. Try zooming out or rewording your search.');
     }
   });
 }

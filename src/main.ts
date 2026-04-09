@@ -180,7 +180,7 @@ createStatsBar();
 addRecordingControl(map, state, activatePolling, deactivatePolling);
 
 initInfoPanel(map);
-addSearchControl(map, state);
+addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state);
 
 // ── Version badge ─────────────────────────────────────────────────────────────
