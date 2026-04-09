@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.5-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — dropdown header (search string + × button) is now sticky and always visible regardless of scroll position; only the results list scrolls
+- **Search** — pressing Enter to start a new search immediately dismisses the previous dropdown and removes old result pins from the map
+
 ## v0.8.4-beta (2026-04-08)
 
 ### Fixed
