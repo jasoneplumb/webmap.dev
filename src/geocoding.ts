@@ -8,7 +8,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { showSheet } from './bottom-sheet';
+import { showSheet, hideSheet } from './bottom-sheet';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -235,6 +235,9 @@ export function addSearchControl(map: L.Map, state: AppState): void {
     const lat = parseFloat(target.dataset['lat'] ?? '');
     const lng = parseFloat(target.dataset['lng'] ?? '');
     if (isNaN(lat) || isNaN(lng)) return;
+    // Clear dropped pin and its info panel when selecting a search result.
+    _pinLayer?.clearLayers();
+    hideSheet();
     clearSelection();
     target.classList.add('sheet-result--active');
     const idx = parseInt(target.dataset['index'] ?? '', 10);
