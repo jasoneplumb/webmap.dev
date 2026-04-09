@@ -184,7 +184,14 @@ export function addSearchControl(map: L.Map, state: AppState): void {
 
   input.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (input.value.length >= MIN_CHARS) pendingSearch = true;
+      if (input.value.length >= MIN_CHARS) {
+        pendingSearch = true;
+        // Clear previous results immediately so old pins/dropdown don't linger
+        // while the new request is in flight.
+        hideDropdown();
+        results.clearLayers();
+        markerRefs.length = 0;
+      }
     } else if (e.key === 'Escape') {
       pendingSearch = false;
       collapseSearch();
