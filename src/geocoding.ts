@@ -194,6 +194,14 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
 
   input.addEventListener('blur', () => {
     if (pendingSearch) return;
+    // iOS keyboard accessory "Done" button fires blur without a keydown Enter.
+    // If there is enough text to search, treat the blur as a submit by firing a
+    // synthetic Enter so the library's own geocode path runs.
+    if (input.value.length >= MIN_CHARS) {
+      pendingSearch = true;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+      return;
+    }
     setTimeout(collapseSearch, 150);
   });
 
