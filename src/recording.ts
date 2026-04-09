@@ -48,11 +48,36 @@ function formatElapsed(ms: number): string {
   return h > 0 ? `${String(h)}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+// Detect whether the user's locale uses imperial units (miles/mph).
+// measurementSystem is not yet in all TypeScript lib defs, so we use a cast.
+function usesImperial(): boolean {
+  try {
+    const locale = new Intl.Locale(navigator.language);
+    const ms = (locale as unknown as { measurementSystem?: string }).measurementSystem;
+    if (ms) return ms === 'ussystem' || ms === 'uksystem';
+  } catch { /* ignore */ }
+  // Fallback: check region from language tag (e.g. "en-US" → "US")
+  const region = navigator.language.split('-')[1]?.toUpperCase();
+  return region === 'US' || region === 'LR' || region === 'MM';
+}
+
+const IMPERIAL = usesImperial();
+const M_PER_MI = 1609.344;
+const M_PER_FT = 0.3048;
+
 function formatDistance(m: number): string {
+  if (IMPERIAL) {
+    const miles = m / M_PER_MI;
+    return miles >= 0.1 ? `${miles.toFixed(2)} mi` : `${Math.round(m / M_PER_FT)} ft`;
+  }
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
 function formatSpeed(ms: number): string {
+  if (IMPERIAL) {
+    const mph = ms * 3600 / M_PER_MI;
+    return mph < 0.3 ? '-- mph' : `${mph.toFixed(1)} mph`;
+  }
   const kmh = ms * 3.6;
   return kmh < 0.5 ? '-- km/h' : `${kmh.toFixed(1)} km/h`;
 }
@@ -80,7 +105,7 @@ export function createStatsBar(): void {
     '</div>' +
     '<div class="stat-item">' +
     '<span class="stat-label">Speed</span>' +
-    '<span class="stat-value" id="stat-speed">-- km/h</span>' +
+    `<span class="stat-value" id="stat-speed">-- ${IMPERIAL ? 'mph' : 'km/h'}</span>` +
     '</div>';
 
   document.getElementById('map')?.appendChild(bar);
