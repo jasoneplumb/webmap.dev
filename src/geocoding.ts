@@ -242,9 +242,13 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     const lat = parseFloat(target.dataset['lat'] ?? '');
     const lng = parseFloat(target.dataset['lng'] ?? '');
     if (isNaN(lat) || isNaN(lng)) return;
-    // Clear dropped pin and its geocode bar when selecting a search result.
+    // Clear dropped pin markers; show geocode bar with the selected result's address and coordinates.
     _pinLayer?.clearLayers();
-    _hideGeocodeBar?.();
+    const resultName = target.dataset['name'] ?? '';
+    const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const label = resultName !== '' ? resultName : coordText;
+    const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
+    showGeocodeBar(label, copyText);
     clearSelection();
     target.classList.add('sheet-result--active');
     const idx = parseInt(target.dataset['index'] ?? '', 10);
@@ -334,7 +338,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
           const tooltip = escapeHtml(tooltipParts.join(' · '));
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
-            ` data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}" title="${tooltip}">` +
+            ` data-name="${escapeHtml(name)}" data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}" title="${tooltip}">` +
             `  <div class="sheet-result__main">` +
             `    <span class="sheet-result__name">${name}</span>` +
             (subtitle ? `    <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
