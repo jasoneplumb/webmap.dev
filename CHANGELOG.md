@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.1-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — selecting a result in the floating dropdown now clears the dropped pin marker and closes the reverse-geocode info panel
+
 ## v0.9.0-beta (2026-04-08)
 
 ### Added
