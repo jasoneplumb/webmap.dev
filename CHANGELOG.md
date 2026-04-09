@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.1-beta (2026-04-08)
+
+### Fixed
+
+- **Search** — clicking a map marker now restores the floating dropdown if dismissed, clears any dropped reverse-geocode pin, and updates the page title to the selected result
+
 ## v0.8.0-beta (2026-04-08)
 
 ### Changed
