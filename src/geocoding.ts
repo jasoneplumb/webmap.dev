@@ -62,7 +62,6 @@ function zoomForAddrType(addrType: string): number {
 // Shared references so addSearchControl can clear the drop pin / geocode bar on marker click.
 let _pinLayer: L.LayerGroup | null = null;
 let _clearSearchSelection: (() => void) | null = null;
-let _hideGeocodeBar: (() => void) | null = null;
 let _showGeocodeBar: ((label: string, copyText: string) => void) | null = null;
 
 export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
@@ -414,7 +413,6 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     geocodeBar.style.display = 'none';
   }
 
-  _hideGeocodeBar = hideGeocodeBar;
   _showGeocodeBar = showGeocodeBar;
 
   geocodeBar.addEventListener('click', (e: MouseEvent) => {
