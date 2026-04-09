@@ -5,7 +5,7 @@
 **What it does:** Shows your real-time location on the map as a blue pulsing dot with an accuracy circle.
 
 **How to use:**
-1. Tap the **Locate button** (crosshairs icon) in the top-left toolbar.
+1. Tap the **Locate button** (arrow icon) in the top-left toolbar.
 2. Your location appears as a blue dot; the gray circle around it shows the GPS accuracy (wider circle = less accurate).
 3. The map automatically centers on your position and keeps following you as you move.
 
