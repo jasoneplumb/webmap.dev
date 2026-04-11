@@ -6,10 +6,16 @@
  */
 import L from 'leaflet';
 import type { AppState } from './types';
+import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup } from './trail-backup';
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
 const MIN_TRAIL_DIST_M = 5;
 const MIN_ARROW_DIST_M = 50;  // minimum metres between direction-arrow markers
+
+// Shared polyline options — used in both startRecording and maybeRestoreTrailBackup
+// to avoid style drift between the two code paths.
+const TRAIL_LINE_OPTS: L.PolylineOptions = { color: '#4287f5', weight: 4, smoothFactor: 2, interactive: false };
+const TRAIL_GLOW_OPTS: L.PolylineOptions = { color: 'rgba(66,135,245,0.25)', weight: 14, smoothFactor: 2, interactive: false };
 
 // ── Geometry helpers ─────────────────────────────────────────────────────────
 
@@ -285,20 +291,10 @@ function startRecording(
   state.trailSegments = [];
 
   // Glow layer beneath the main trail line
-  state.trailGlow = L.polyline([], {
-    color: 'rgba(66,135,245,0.25)',
-    weight: 14,
-    smoothFactor: 2,
-    interactive: false,
-  }).addTo(map);
+  state.trailGlow = L.polyline([], TRAIL_GLOW_OPTS).addTo(map);
 
   // Main trail line
-  state.trail = L.polyline([], {
-    color: '#4287f5',
-    weight: 4,
-    smoothFactor: 2,
-    interactive: false,
-  }).addTo(map);
+  state.trail = L.polyline([], TRAIL_LINE_OPTS).addTo(map);
 
   activatePolling(); // recording refcount
 
@@ -339,6 +335,8 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
 
   state.recordingState = 'idle';
   deactivatePolling(); // recording refcount
+
+  clearTrailBackup();
 
   if (state.statsTimer !== null) {
     clearInterval(state.statsTimer);
@@ -444,6 +442,9 @@ export function appendTrailPoint(
   state.lastTrailPoint = latlng;
   state.trailPoints.push({ latlng, t: performance.now(), speedMs });
 
+  // Persist to localStorage so a page reload doesn't lose the in-progress trail
+  saveTrailBackup(state);
+
   // Direction arrow: add between lastArrowPoint and current point when far enough apart
   if (state.lastArrowPoint !== null) {
     const arrowDist = haversineM(state.lastArrowPoint, latlng);
@@ -472,4 +473,60 @@ function addArrowMarker(
   const mid = L.latLng((from.lat + to.lat) / 2, (from.lng + to.lng) / 2);
   const marker = L.marker(mid, { icon, interactive: false }).addTo(map);
   state.arrowMarkers.push(marker);
+}
+
+// ── Trail backup restore (called from main.ts on startup) ─────────────────────
+
+/**
+ * Check for a persisted trail backup and, if found, prompt the user to restore it.
+ * Restores recording state and redraws the trail on the map; starts the stats bar timer.
+ * Returns true if a backup was applied, false otherwise.
+ */
+export function maybeRestoreTrailBackup(
+  state: AppState,
+  map: L.Map,
+  activatePolling: () => void,
+): boolean {
+  const backup = loadTrailBackup();
+  if (!backup) return false;
+
+  const totalPoints =
+    backup.trailPoints.length +
+    backup.trailSegments.reduce((n, s) => n + s.length, 0);
+  if (totalPoints === 0) {
+    clearTrailBackup();
+    return false;
+  }
+
+  // window.confirm() is intentional here: it fires synchronously at app startup
+  // before any recording state is live, so blocking the event loop is harmless.
+  // The rest of the app uses showToast() for non-blocking feedback, but a restore
+  // prompt must block initialization until the user decides — a toast action button
+  // would require async startup machinery that isn't worth the complexity.
+  //
+  // Known limitation: some browsers (Firefox on Android, certain PWA installations on
+  // Chromium) suppress confirm() without user interaction and silently return false.
+  // To prevent silent discard in these cases, we intentionally do NOT call
+  // clearTrailBackup() here — the backup persists and will be offered again on the next
+  // page load. If the user genuinely cancels, the backup remains until recording stops
+  // normally (which calls clearTrailBackup()). This is a minor annoyance vs. the
+  // alternative of silently losing a hike's worth of GPS data.
+  if (!confirm(`Restore interrupted recording? (${totalPoints} GPS points recovered)`)) {
+    return false;
+  }
+
+  // Recreate polylines so applyTrailBackup can populate them
+  state.trailGlow = L.polyline([], TRAIL_GLOW_OPTS).addTo(map);
+  state.trail = L.polyline([], TRAIL_LINE_OPTS).addTo(map);
+
+  applyTrailBackup(backup, state);
+  state.recordingState = 'recording';
+
+  activatePolling(); // recording refcount
+
+  setStatsBarVisible(true);
+  if (state.statsTimer !== null) clearInterval(state.statsTimer);
+  state.statsTimer = setInterval(() => updateStatsBar(state), 1000);
+
+  return true;
 }
