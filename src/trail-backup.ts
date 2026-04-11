@@ -1,6 +1,6 @@
 /**
  * Intent: Persist in-progress trail data to localStorage so a page reload during recording doesn't lose the track
- * Context: Called by recording.ts on each trail point append (debounced); cleared when recording stops; checked on startup in main.ts
+ * Context: Called by recording.ts on each trail point append (throttled); cleared when recording stops; checked on startup in main.ts
  * Pattern: Convert performance.now() timestamps to wall-clock milliseconds before serializing; reverse on restore
  * Future: If trail grows beyond localStorage quota (~5MB), silently degrade to memory-only (no data loss during the session)
  */
@@ -8,6 +8,7 @@ import L from 'leaflet';
 import type { AppState } from './types';
 
 const BACKUP_KEY = 'webmap-trail-backup';
+const DISMISSED_KEY = 'webmap-trail-backup-dismissed';
 const CURRENT_VERSION = 1;
 
 interface SerializedPoint {
@@ -57,12 +58,15 @@ function serializeSegment(
   return seg.map((p) => toSerializedPoint(p, epochOffset));
 }
 
-// ── Debounced write ───────────────────────────────────────────────────────────
+// ── Throttled write ───────────────────────────────────────────────────────────
 // Serialize the whole trail on the first point of a burst, then at most once
-// every 5 seconds. This avoids O(n²) total serialization work on long hikes.
+// every 5 seconds. Timer is NOT reset on each call — resetting would turn this
+// into a debounce and the trailing flush would never fire under continuous GPS input.
 
 let _backupDirty = false;
 let _backupTimer: ReturnType<typeof setTimeout> | null = null;
+// Stashed state ref so the beforeunload handler can flush without a closure over state.
+let _currentState: AppState | null = null;
 
 function flushBackup(state: AppState): void {
   const epochOffset = Date.now() - performance.now();
@@ -81,22 +85,34 @@ function flushBackup(state: AppState): void {
   }
 }
 
+function beforeUnloadHandler(): void {
+  // Flush any dirty points on intentional tab close so the trailing-edge timer
+  // (which won't fire after unload) doesn't leave up to 5s of data unpersisted.
+  if (_backupDirty && _currentState !== null) {
+    flushBackup(_currentState);
+    _backupDirty = false;
+  }
+}
+
 /**
  * Write the current recording state to localStorage, throttled to at most once per 5s.
  * Leading-edge write fires immediately on the first call; trailing flush catches any
- * points that arrived during the 5s window. Timer is NOT reset on each call — that
- * would make it a debounce and the trailing flush would never fire under continuous GPS input.
+ * points that arrived during the 5s window. A beforeunload handler ensures intentional
+ * tab-close also flushes any dirty state.
  */
 export function saveTrailBackup(state: AppState): void {
+  _currentState = state;
   if (_backupTimer === null) {
-    // First call of a burst — write immediately for fast initial persistence
+    // First call — write immediately for fast initial persistence, then arm the timer
     flushBackup(state);
     _backupDirty = false;
     _backupTimer = setTimeout(() => {
-      if (_backupDirty) flushBackup(state);
+      if (_backupDirty && _currentState !== null) flushBackup(_currentState);
       _backupDirty = false;
       _backupTimer = null;
     }, 5000);
+    // Register beforeunload flush once per recording session
+    window.addEventListener('beforeunload', beforeUnloadHandler);
   } else {
     // Timer already running — mark dirty so the trailing flush picks up the latest points
     _backupDirty = true;
@@ -126,7 +142,8 @@ export function loadTrailBackup(): TrailBackup | null {
       localStorage.removeItem(BACKUP_KEY);
       return null;
     }
-    // Per-point spot check: validate first element of each array to catch truncated/corrupt data
+    // Intentional spot-check: validates only the first element of each array.
+    // Full-scan would be O(n) on load; self-written data makes deep corruption unlikely.
     function isValidPoint(pt: unknown): boolean {
       return (
         typeof pt === 'object' && pt !== null &&
@@ -153,21 +170,48 @@ export function loadTrailBackup(): TrailBackup | null {
   }
 }
 
-/** Remove the trail backup from localStorage (call after recording stops). */
+/**
+ * Mark a backup as dismissed by the user so the restore prompt is not shown again
+ * for this specific recording session. The backup itself is kept intact in case
+ * confirm() was suppressed by the browser (PWA mode) rather than genuinely cancelled.
+ * Call when the user declines the restore prompt.
+ */
+export function dismissTrailBackup(recordingStartWallMs: number): void {
+  try {
+    localStorage.setItem(DISMISSED_KEY, String(recordingStartWallMs));
+  } catch { /* ignore */ }
+}
+
+/**
+ * Returns true if the user has already dismissed the restore prompt for this backup.
+ * Used to prevent the prompt from re-appearing on every page load after a genuine cancel.
+ */
+export function isTrailBackupDismissed(recordingStartWallMs: number): boolean {
+  try {
+    const stored = localStorage.getItem(DISMISSED_KEY);
+    return stored !== null && Number(stored) === recordingStartWallMs;
+  } catch {
+    return false;
+  }
+}
+
+/** Remove the trail backup and dismissed marker from localStorage (call after recording stops). */
 export function clearTrailBackup(): void {
   if (_backupTimer !== null) {
     clearTimeout(_backupTimer);
     _backupTimer = null;
   }
   _backupDirty = false;
+  _currentState = null;
+  window.removeEventListener('beforeunload', beforeUnloadHandler);
   try {
     localStorage.removeItem(BACKUP_KEY);
+    localStorage.removeItem(DISMISSED_KEY);
   } catch { /* ignore */ }
 }
 
 /**
  * Restore a persisted trail backup into AppState and redraw the trail on the map.
- * Returns the number of total points restored, or 0 if backup was empty/unusable.
  *
  * Known limitation: direction-arrow markers are NOT restored — the trail line appears
  * correct but has no chevrons for the pre-reload portion. Arrow markers are cheap to
@@ -181,7 +225,7 @@ export function clearTrailBackup(): void {
 export function applyTrailBackup(
   backup: TrailBackup,
   state: AppState,
-): number {
+): void {
   // Convert wall-clock timestamps back to performance.now()-relative offsets
   const epochOffset = Date.now() - performance.now();
 
@@ -221,6 +265,4 @@ export function applyTrailBackup(
       state.lastArrowPoint = last;
     }
   }
-
-  return allLatLngs.length;
 }
