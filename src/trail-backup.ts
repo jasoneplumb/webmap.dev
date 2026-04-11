@@ -1,6 +1,6 @@
 /**
  * Intent: Persist in-progress trail data to localStorage so a page reload during recording doesn't lose the track
- * Context: Called by recording.ts on each trail point append; cleared when recording stops; checked on startup in main.ts
+ * Context: Called by recording.ts on each trail point append (debounced); cleared when recording stops; checked on startup in main.ts
  * Pattern: Convert performance.now() timestamps to wall-clock milliseconds before serializing; reverse on restore
  * Future: If trail grows beyond localStorage quota (~5MB), silently degrade to memory-only (no data loss during the session)
  */
@@ -8,6 +8,7 @@ import L from 'leaflet';
 import type { AppState } from './types';
 
 const BACKUP_KEY = 'webmap-trail-backup';
+const CURRENT_VERSION = 1;
 
 interface SerializedPoint {
   lat: number;
@@ -18,6 +19,8 @@ interface SerializedPoint {
 }
 
 interface TrailBackup {
+  /** Schema version — bump when fields change so stale backups can be discarded cleanly */
+  version: 1;
   /** Wall-clock epoch ms when recording started */
   recordingStartWallMs: number;
   /** Accumulated pause duration in ms */
@@ -47,11 +50,17 @@ function serializeSegment(
   return seg.map((p) => toSerializedPoint(p, epochOffset));
 }
 
-/** Write the current recording state to localStorage. Silently ignores quota errors. */
-export function saveTrailBackup(state: AppState): void {
-  // epochOffset = wall-clock equivalent of performance.now() == 0
+// ── Debounced write ───────────────────────────────────────────────────────────
+// Serialize the whole trail on the first point of a burst, then at most once
+// every 5 seconds. This avoids O(n²) total serialization work on long hikes.
+
+let _backupDirty = false;
+let _backupTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushBackup(state: AppState): void {
   const epochOffset = Date.now() - performance.now();
   const backup: TrailBackup = {
+    version: CURRENT_VERSION,
     recordingStartWallMs: epochOffset + state.recordingStartMs,
     recordingPauseMs: state.recordingPauseMs,
     trailSegments: state.trailSegments.map((seg) => serializeSegment(seg, epochOffset)),
@@ -65,12 +74,42 @@ export function saveTrailBackup(state: AppState): void {
   }
 }
 
-/** Read a previously persisted trail backup, or null if none exists. */
+/** Write the current recording state to localStorage, debounced to at most once per 5s. */
+export function saveTrailBackup(state: AppState): void {
+  if (_backupTimer === null) {
+    // First call of a burst — write immediately for fast initial persistence
+    flushBackup(state);
+    _backupDirty = false;
+  } else {
+    _backupDirty = true;
+  }
+  if (_backupTimer !== null) clearTimeout(_backupTimer);
+  _backupTimer = setTimeout(() => {
+    if (_backupDirty) flushBackup(state);
+    _backupDirty = false;
+    _backupTimer = null;
+  }, 5000);
+}
+
+/** Read a previously persisted trail backup, or null if none exists or shape is invalid. */
 export function loadTrailBackup(): TrailBackup | null {
   try {
     const raw = localStorage.getItem(BACKUP_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as TrailBackup;
+    const parsed: unknown = JSON.parse(raw);
+    // Runtime shape guard: discard stale/partial data from schema changes or other apps
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      (parsed as Record<string, unknown>)['version'] !== CURRENT_VERSION ||
+      !Array.isArray((parsed as Record<string, unknown>)['trailPoints']) ||
+      !Array.isArray((parsed as Record<string, unknown>)['trailSegments']) ||
+      typeof (parsed as Record<string, unknown>)['totalDistance'] !== 'number'
+    ) {
+      localStorage.removeItem(BACKUP_KEY);
+      return null;
+    }
+    return parsed as TrailBackup;
   } catch {
     return null;
   }
@@ -78,6 +117,11 @@ export function loadTrailBackup(): TrailBackup | null {
 
 /** Remove the trail backup from localStorage (call after recording stops). */
 export function clearTrailBackup(): void {
+  if (_backupTimer !== null) {
+    clearTimeout(_backupTimer);
+    _backupTimer = null;
+  }
+  _backupDirty = false;
   try {
     localStorage.removeItem(BACKUP_KEY);
   } catch { /* ignore */ }
@@ -86,6 +130,15 @@ export function clearTrailBackup(): void {
 /**
  * Restore a persisted trail backup into AppState and redraw the trail on the map.
  * Returns the number of total points restored, or 0 if backup was empty/unusable.
+ *
+ * Known limitation: direction-arrow markers are NOT restored — the trail line appears
+ * correct but has no chevrons for the pre-reload portion. Arrow markers are cheap to
+ * lose (purely decorative) and expensive to reconstruct without re-running the full
+ * append loop. Acceptable trade-off for now.
+ *
+ * Known limitation: pause-segment boundaries are merged into a single flat polyline
+ * for the restored visual. The per-segment data is preserved in state.trailSegments,
+ * so GPX export will still emit correct <trkseg> splits.
  */
 export function applyTrailBackup(
   backup: TrailBackup,
@@ -114,7 +167,8 @@ export function applyTrailBackup(
   state.trailSegments = allSegs;
   state.trailPoints = activeSeg;
 
-  // Rebuild polyline from all points
+  // Rebuild polyline from all points (segments merged into one visual line —
+  // see "Known limitation" above for why segment gaps are not preserved visually)
   const allLatLngs: L.LatLng[] = [
     ...allSegs.flatMap((s) => s.map((p) => p.latlng)),
     ...activeSeg.map((p) => p.latlng),

@@ -503,6 +503,11 @@ export function maybeRestoreTrailBackup(
     return false;
   }
 
+  // window.confirm() is intentional here: it fires synchronously at app startup
+  // before any recording state is live, so blocking the event loop is harmless.
+  // The rest of the app uses showToast() for non-blocking feedback, but a restore
+  // prompt must block initialization until the user decides — a toast action button
+  // would require async startup machinery that isn't worth the complexity.
   if (!confirm(`Restore interrupted recording? (${totalPoints} GPS points recovered)`)) {
     clearTrailBackup();
     return false;
