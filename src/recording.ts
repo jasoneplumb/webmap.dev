@@ -97,10 +97,11 @@ export function createStatsBar(): void {
   bar.id = 'recording-stats';
   bar.style.display = 'none';
   bar.innerHTML =
-    '<div class="stat-item">' +
+    '<div class="stat-item stat-item--full">' +
     '<span class="stat-label">Duration</span>' +
     '<span class="stat-value" id="stat-time">00:00</span>' +
     '</div>' +
+    '<div class="stats-row">' +
     '<div class="stat-item">' +
     '<span class="stat-label">Dist</span>' +
     '<span class="stat-value" id="stat-dist">0 m</span>' +
@@ -108,6 +109,7 @@ export function createStatsBar(): void {
     '<div class="stat-item">' +
     '<span class="stat-label">Ascent</span>' +
     '<span class="stat-value" id="stat-ascent">-- m</span>' +
+    '</div>' +
     '</div>' +
     '<div class="rec-indicator">' +
     '<span class="rec-dot"></span>' +
