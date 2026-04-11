@@ -457,7 +457,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   font-size: 13px;
   display: flex;
   flex-direction: column;
-  will-change: transform;
   overflow: hidden;
 }
 

@@ -431,9 +431,16 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   }
 
   function applyTransform(offsetPx: number, animate: boolean): void {
-    geocodeBar.style.transition = animate
-      ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-      : 'none';
+    if (animate) {
+      geocodeBar.style.willChange = 'transform';
+      geocodeBar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      geocodeBar.addEventListener('transitionend', () => {
+        geocodeBar.style.willChange = '';
+      }, { once: true });
+    } else {
+      geocodeBar.style.willChange = 'transform';
+      geocodeBar.style.transition = 'none';
+    }
     geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
   }
 
@@ -525,10 +532,20 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     snapTo(currentOffset < peekOffset / 2 ? 'full' : 'peek');
   }, { passive: true });
 
-  // Click on handle bar toggles peek ↔ full
-  barHandle.addEventListener('click', () => {
+  // Click and keyboard (Enter / Space) on handle bar toggle peek ↔ full.
+  // Both are required: click fires from pointer devices; keydown covers
+  // keyboard and assistive-technology users (role="button" + tabindex="0").
+  function handleToggle(): void {
     if (sheetState === 'peek') snapTo('full');
     else if (sheetState === 'full') snapTo('peek');
+  }
+
+  barHandle.addEventListener('click', handleToggle);
+  barHandle.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleToggle();
+    }
   });
 
   geocodeBar.addEventListener('click', (e: MouseEvent) => {
