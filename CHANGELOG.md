@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.13.0-beta (2026-04-11)
+
+### Added
+
+- **Trail Recording** — start, pause, resume, and stop GPS trail recording; real-time polyline rendered on the map during recording
+- **GPX Export** — stop recording to auto-download a GPX 1.1 file importable by Strava, AllTrails, and Garmin Connect
+- **Offline Resilience** — trail recording continues without network; GPS points persist to localStorage so a page reload mid-hike restores the session with a prompt to resume
+- **Offline Tile Warnings** — toast notification when offline tiles are unavailable at the current zoom level (debounced, max once per 10s); lower-resolution canvas fallback renders instead of blank tiles
+
+### Fixed
+
+- **GPS Accuracy** — fixes with accuracy > 30m are discarded before being added to the trail, eliminating noise from weak satellite lock
+- **Bottom Sheet** — reverse geocode bar upgraded to a draggable bottom sheet with peek/full snap points, drag-to-dismiss, peek-state map pass-through, haptic feedback on Copy, and keyboard accessibility
+- **Offline Data Safety** — `beforeunload` handler flushes the trail backup to localStorage if the tab closes mid-recording; restore prompt shown once per session
+
+
 ## v0.12.1-beta (2026-04-09)
 
 ### Fixed
