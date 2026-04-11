@@ -18,7 +18,7 @@ import './style.css';
 import changelogRaw from '../CHANGELOG.md?raw';
 
 import { createInitialState } from './types';
-import { createMap } from './map';
+import { createMap, initOfflineTileFallback } from './map';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
@@ -260,6 +260,8 @@ function updateOfflineBanner(): void {
 window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
+
+initOfflineTileFallback(showToast);
 
 let pendingSwUpdate: (() => void) | null = null;
 

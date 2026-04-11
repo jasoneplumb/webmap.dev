@@ -1,10 +1,134 @@
 /**
  * Intent: Map initialization — creates the Leaflet map, tile layers, and controls
  * Context: Called once from main.ts on startup; returns the configured L.Map instance used everywhere
- * Pattern: All tile layer refs stay local to this module — callers only need the map, not the layers
+ * Pattern: Tile layer refs are module-level so initOfflineTileFallback can attach error handlers
  * Future: Tile layer config (tokens, URLs, zoom limits) is hardcoded; no runtime layer switching beyond the built-in layer control
  */
 import L from 'leaflet';
+import { OSM_TILE_CACHE_NAME } from './sw-constants';
+
+// Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
+let osmTileLayer: L.TileLayer | null = null;
+let mapboxTileLayer: L.TileLayer | null = null;
+let googleTileLayer: L.TileLayer | null = null;
+
+// Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
+interface TileErrorEvent extends L.LeafletEvent {
+  tile: HTMLImageElement;
+  coords: { x: number; y: number; z: number };
+  error: Error;
+}
+
+// Single cooldown shared across all layers — intentional: one toast per 10 s regardless
+// of which layer fired, so a Mapbox error followed immediately by an OSM error doesn't
+// show two toasts. The per-layer message is set when the cooldown first trips.
+let tileWarnCooldown = false;
+
+// Opened once on first use; reused for every subsequent tile error lookup.
+let osmCachePromise: Promise<Cache> | null = null;
+
+/** Wire up offline tile warnings and canvas-based lower-zoom fallback.
+ *  Must be called after createMap(). Attaches tileerror handlers to all tile layers.
+ *  Only the OSM layer (cached by the service worker) attempts canvas fallback;
+ *  Mapbox/Google layers show the warning but serve no fallback (not SW-cached).
+ */
+export function initOfflineTileFallback(
+  showToast: (msg: string, durationMs?: number) => void,
+): void {
+  const layers = [osmTileLayer, mapboxTileLayer, googleTileLayer].filter(
+    (l): l is L.TileLayer => l !== null,
+  );
+  if (layers.length === 0) {
+    console.warn('initOfflineTileFallback: no tile layers found — call createMap() first');
+    return;
+  }
+  if ('caches' in window) {
+    osmCachePromise = caches.open(OSM_TILE_CACHE_NAME);
+  }
+  for (const layer of layers) {
+    layer.on('tileerror', (e: L.LeafletEvent) => {
+      void handleTileError(e as TileErrorEvent, layer === osmTileLayer, showToast);
+    });
+  }
+}
+
+async function handleTileError(
+  e: TileErrorEvent,
+  isOsmLayer: boolean,
+  showToast: (msg: string, durationMs?: number) => void,
+): Promise<void> {
+  if (!navigator.onLine && !tileWarnCooldown) {
+    tileWarnCooldown = true;
+    const msg = isOsmLayer
+      ? 'Some map tiles aren\u2019t cached for this area \u2014 zoom out for cached coverage. (Safari limits offline cache to ~50\u00a0MB.)'
+      : 'Tiles unavailable offline \u2014 switch to Structures layer for offline coverage.';
+    showToast(msg, 7000);
+    setTimeout(() => {
+      tileWarnCooldown = false;
+    }, 10000);
+  }
+
+  if (!isOsmLayer || navigator.onLine || osmCachePromise === null || e.tile.src.startsWith('data:')) return;
+
+  const tile = e.tile;
+  const coords = e.coords;
+  const cache = await osmCachePromise;
+
+  for (let dz = 1; dz <= 3; dz++) {
+    const parentZ = coords.z - dz;
+    if (parentZ < 1) break;
+    const scale = Math.pow(2, dz);
+    const parentX = Math.floor(coords.x / scale);
+    const parentY = Math.floor(coords.y / scale);
+
+    // Check all three subdomains in parallel — parent tile is on exactly one of them
+    const subUrls = ['a', 'b', 'c'].map(
+      sub => `https://${sub}.tile.openstreetmap.org/${parentZ}/${parentX}/${parentY}.png`,
+    );
+    const responses = await Promise.all(subUrls.map(url => cache.match(url)));
+    const response = responses.find(Boolean);
+    if (response !== undefined) {
+      try {
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        await new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            // OSM tiles are 256×256; the layer uses tileSize:512 so Leaflet stretches
+            // the img element to 512 CSS px — fallback tiles will look blurrier than
+            // normal tiles, which is expected and acceptable for degraded offline UX.
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              URL.revokeObjectURL(objectUrl);
+              reject(new Error('no 2d context'));
+              return;
+            }
+            const subX = coords.x % scale;
+            const subY = coords.y % scale;
+            const srcSize = 256 / scale;
+            ctx.drawImage(img, subX * srcSize, subY * srcSize, srcSize, srcSize, 0, 0, 256, 256);
+            tile.src = canvas.toDataURL('image/png');
+            URL.revokeObjectURL(objectUrl);
+            resolve();
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('img load failed'));
+          };
+          img.src = objectUrl;
+        });
+        return; // success — stop searching
+      } catch {
+        // blob or canvas failed — try next zoom level
+      }
+    }
+  }
+}
 
 export function createMap(): L.Map {
   const map = L.map('map', {
@@ -81,7 +205,7 @@ export function createMap(): L.Map {
   // updateWhenZooming: false defers tile loads during pinch-zoom animation
   const tilePerf = { keepBuffer: 3, updateWhenZooming: false } as const;
 
-  const elevationWithTrails = L.tileLayer(
+  mapboxTileLayer = L.tileLayer(
     `https://api.mapbox.com/styles/v1/mapbox/outdoors-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
     {
       tileSize: 512,
@@ -94,7 +218,7 @@ export function createMap(): L.Map {
     },
   );
 
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     tileSize: 512,
     zoomOffset: -1,
     maxZoom: 18,
@@ -104,7 +228,7 @@ export function createMap(): L.Map {
     ...tilePerf,
   }).addTo(map);
 
-  const gsi = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+  googleTileLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
     tileSize: 512,
     zoomOffset: -1,
@@ -115,7 +239,7 @@ export function createMap(): L.Map {
     ...tilePerf,
   });
 
-  const baseMaps = { Imagery: gsi, Structures: osm, Topo: elevationWithTrails };
+  const baseMaps = { Imagery: googleTileLayer, Structures: osmTileLayer, Topo: mapboxTileLayer };
   L.control.layers(baseMaps, undefined, { position: 'topleft' }).addTo(map);
 
   return map;
