@@ -6,7 +6,7 @@
  */
 import L from 'leaflet';
 import type { AppState } from './types';
-import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup } from './trail-backup';
+import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup, dismissTrailBackup, isTrailBackupDismissed } from './trail-backup';
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
 const MIN_TRAIL_DIST_M = 5;
@@ -500,6 +500,13 @@ export function maybeRestoreTrailBackup(
     return false;
   }
 
+  // If the user already dismissed this backup on a previous page load, skip the prompt
+  // without clearing the backup (preserves it in case the earlier dismiss was a
+  // browser-suppressed confirm() rather than a genuine user cancel).
+  if (isTrailBackupDismissed(backup.recordingStartWallMs)) {
+    return false;
+  }
+
   // window.confirm() is intentional here: it fires synchronously at app startup
   // before any recording state is live, so blocking the event loop is harmless.
   // The rest of the app uses showToast() for non-blocking feedback, but a restore
@@ -508,12 +515,13 @@ export function maybeRestoreTrailBackup(
   //
   // Known limitation: some browsers (Firefox on Android, certain PWA installations on
   // Chromium) suppress confirm() without user interaction and silently return false.
-  // To prevent silent discard in these cases, we intentionally do NOT call
-  // clearTrailBackup() here — the backup persists and will be offered again on the next
-  // page load. If the user genuinely cancels, the backup remains until recording stops
-  // normally (which calls clearTrailBackup()). This is a minor annoyance vs. the
-  // alternative of silently losing a hike's worth of GPS data.
+  // To prevent silent discard in these cases, we do NOT call clearTrailBackup() on
+  // cancel — the backup stays intact. Instead we write a dismissed marker keyed to this
+  // backup's start time so the prompt won't re-appear on subsequent loads. If confirm()
+  // was truly suppressed (not a genuine cancel), the marker won't match on a new
+  // session's backup, so data from a new recording won't be silently skipped.
   if (!confirm(`Restore interrupted recording? (${totalPoints} GPS points recovered)`)) {
+    dismissTrailBackup(backup.recordingStartWallMs);
     return false;
   }
 
