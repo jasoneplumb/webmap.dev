@@ -388,32 +388,136 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   const pinLayer = L.layerGroup().addTo(map);
   _pinLayer = pinLayer;
 
-  // Compact one-line bar shown below the map when a pin is dropped.
+  // Bottom sheet shown below the map when a pin is dropped.
+  // Supports two snap points (peek / full) and drag-to-dismiss.
   const geocodeBar = document.createElement('div');
   geocodeBar.className = 'geocode-bar';
   geocodeBar.style.display = 'none';
   geocodeBar.innerHTML =
-    '<button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
-    '<span class="geocode-bar__addr"></span>' +
-    '<button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>';
+    '<div class="geocode-bar__handle" role="button" aria-label="Drag to resize sheet" tabindex="0">' +
+    '  <div class="geocode-bar__handle-pill"></div>' +
+    '</div>' +
+    '<div class="geocode-bar__body">' +
+    '  <button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
+    '  <span class="geocode-bar__addr"></span>' +
+    '  <button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>' +
+    '</div>';
   document.body.appendChild(geocodeBar);
 
   const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
+  const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
+
+  // Height of the sheet visible in peek state (px).
+  const PEEK_HEIGHT = 130;
+
+  type SheetState = 'hidden' | 'peek' | 'full';
+  let sheetState: SheetState = 'hidden';
+
+  function getPeekOffset(): number {
+    return geocodeBar.offsetHeight - PEEK_HEIGHT;
+  }
+
+  function applyTransform(offsetPx: number, animate: boolean): void {
+    geocodeBar.style.transition = animate
+      ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      : 'none';
+    geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
+  }
+
+  function setPointerEvents(state: SheetState): void {
+    // In peek state the sheet sits over the map — disable pointer events on the
+    // sheet background so map interactions (pan / zoom) pass through. Only the
+    // handle and action buttons remain interactive.
+    geocodeBar.classList.toggle('geocode-bar--peek', state === 'peek');
+  }
+
+  function snapTo(target: SheetState): void {
+    if (target === 'hidden') {
+      applyTransform(geocodeBar.offsetHeight + 20, true);
+      geocodeBar.addEventListener('transitionend', () => {
+        geocodeBar.style.display = 'none';
+        geocodeBar.style.transform = '';
+        sheetState = 'hidden';
+      }, { once: true });
+      geocodeBar.classList.remove('geocode-bar--peek');
+    } else {
+      sheetState = target;
+      applyTransform(target === 'peek' ? getPeekOffset() : 0, true);
+      setPointerEvents(target);
+    }
+  }
 
   function showGeocodeBar(label: string, copyText: string): void {
     barAddrEl.textContent = label;
     barCopyBtn.dataset['copy'] = copyText;
     barCopyBtn.textContent = 'Copy';
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
-    geocodeBar.style.display = 'flex';
+
+    if (sheetState === 'hidden') {
+      // Render off-screen first so offsetHeight is available, then animate in.
+      geocodeBar.style.display = 'flex';
+      geocodeBar.style.transition = 'none';
+      geocodeBar.style.transform = `translateX(-50%) translateY(${geocodeBar.offsetHeight}px)`;
+      requestAnimationFrame(() => { snapTo('peek'); });
+    } else {
+      // Already visible — just refresh content and snap back to peek.
+      snapTo('peek');
+    }
   }
 
   function hideGeocodeBar(): void {
-    geocodeBar.style.display = 'none';
+    snapTo('hidden');
   }
 
   _showGeocodeBar = showGeocodeBar;
+
+  // ── Drag-to-snap on handle ───────────────────────────────────────────────
+  let dragStartY = 0;
+  let dragStartOffset = 0;
+  let isDragging = false;
+
+  barHandle.addEventListener('touchstart', (e: TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    isDragging = true;
+    dragStartY = touch.clientY;
+    dragStartOffset = sheetState === 'full' ? 0 : getPeekOffset();
+    geocodeBar.style.transition = 'none';
+  }, { passive: true });
+
+  barHandle.addEventListener('touchmove', (e: TouchEvent) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const delta = touch.clientY - dragStartY;
+    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + 20, dragStartOffset + delta));
+    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+  }, { passive: true });
+
+  barHandle.addEventListener('touchend', (e: TouchEvent) => {
+    if (!isDragging) return;
+    isDragging = false;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const delta = touch.clientY - dragStartY;
+    const currentOffset = dragStartOffset + delta;
+    const peekOffset = getPeekOffset();
+    // Dragged more than 80px below peek → dismiss
+    if (currentOffset > peekOffset + 80) {
+      hideGeocodeBar();
+      pinLayer.clearLayers();
+      return;
+    }
+    // Snap to nearest: below midpoint between full(0) and peek → full; above → peek
+    snapTo(currentOffset < peekOffset / 2 ? 'full' : 'peek');
+  }, { passive: true });
+
+  // Click on handle bar toggles peek ↔ full
+  barHandle.addEventListener('click', () => {
+    if (sheetState === 'peek') snapTo('full');
+    else if (sheetState === 'full') snapTo('peek');
+  });
 
   geocodeBar.addEventListener('click', (e: MouseEvent) => {
     const t = e.target as HTMLElement;
@@ -424,6 +528,8 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     }
     const copyBtn = t.closest<HTMLButtonElement>('.geocode-bar__copy');
     if (copyBtn) {
+      // Haptic feedback on supported devices (Android Chrome)
+      if ('vibrate' in navigator) navigator.vibrate(50);
       const text = copyBtn.dataset['copy'] ?? '';
       navigator.clipboard.writeText(text).then(() => {
         copyBtn.textContent = '✓ Copied';

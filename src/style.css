@@ -434,24 +434,75 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding-left: calc(12px - 3px); /* compensate for border */
 }
 
-/* ── Reverse geocode compact bar ── */
+/* ── Reverse geocode bottom sheet ── */
 .geocode-bar {
   position: fixed;
-  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  bottom: 0;
   left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: min(480px, calc(100vw - 24px));
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 6px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
-  padding: 0 6px 0 4px;
-  height: 36px;
+  transform: translateX(-50%) translateY(0);
+  width: min(480px, 100vw);
+  height: 60vh;
+  min-height: 130px;
+  background: #fff;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.18);
   z-index: 1500;
   font-family: system-ui, sans-serif;
   font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+  overflow: hidden;
+}
+
+/* In peek state the sheet sits over the map — let touches pass through to
+   the map for everything except the handle and action buttons. */
+.geocode-bar--peek {
+  pointer-events: none;
+}
+
+.geocode-bar--peek .geocode-bar__handle,
+.geocode-bar--peek .geocode-bar__copy,
+.geocode-bar--peek .geocode-bar__close {
+  pointer-events: auto;
+}
+
+/* Drag handle */
+.geocode-bar__handle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0 8px;
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.geocode-bar__handle:active {
+  cursor: grabbing;
+}
+
+.geocode-bar__handle-pill {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.25);
+  transition: background 0.15s;
+}
+
+.geocode-bar__handle:hover .geocode-bar__handle-pill {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Content row */
+.geocode-bar__body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .geocode-bar__copy {
