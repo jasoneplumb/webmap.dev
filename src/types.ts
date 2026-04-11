@@ -40,8 +40,8 @@ export interface AppState {
   lastSpeedMs: number;
   trail: L.Polyline | null;
   trailGlow: L.Polyline | null;
-  trailPoints: Array<{ latlng: L.LatLng; t: number; speedMs: number }>;
-  trailSegments: Array<Array<{ latlng: L.LatLng; t: number; speedMs: number }>>;
+  trailPoints: Array<{ latlng: L.LatLng; t: number; speedMs: number; altM?: number }>;
+  trailSegments: Array<Array<{ latlng: L.LatLng; t: number; speedMs: number; altM?: number }>>;
   arrowMarkers: L.Marker[];
   statsTimer: ReturnType<typeof setInterval> | null;
 }
