@@ -88,9 +88,10 @@ function flushBackup(state: AppState): void {
 function beforeUnloadHandler(): void {
   // Flush any dirty points on intentional tab close so the trailing-edge timer
   // (which won't fire after unload) doesn't leave up to 5s of data unpersisted.
+  // _backupDirty is intentionally NOT reset here: if the user cancels the unload
+  // ("stay on page"), the timer is still running and will flush correctly on expiry.
   if (_backupDirty && _currentState !== null) {
     flushBackup(_currentState);
-    _backupDirty = false;
   }
 }
 
@@ -111,7 +112,8 @@ export function saveTrailBackup(state: AppState): void {
       _backupDirty = false;
       _backupTimer = null;
     }, 5000);
-    // Register beforeunload flush once per recording session
+    // addEventListener deduplicates same-reference listeners per the spec, so calling
+    // this on every leading-edge burst is safe — it effectively registers once per session.
     window.addEventListener('beforeunload', beforeUnloadHandler);
   } else {
     // Timer already running — mark dirty so the trailing flush picks up the latest points
