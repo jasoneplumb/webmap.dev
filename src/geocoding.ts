@@ -430,18 +430,23 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     return geocodeBar.offsetHeight - getPeekHeight();
   }
 
-  function applyTransform(offsetPx: number, animate: boolean): void {
-    if (animate) {
-      geocodeBar.style.willChange = 'transform';
-      geocodeBar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-      geocodeBar.addEventListener('transitionend', () => {
-        geocodeBar.style.willChange = '';
-      }, { once: true });
-    } else {
-      geocodeBar.style.willChange = 'transform';
-      geocodeBar.style.transition = 'none';
-    }
+  // Read the current rendered translateY so drag-start is always correct even
+  // if the user grabs the handle mid-transition (sheetState is set to the
+  // target before the CSS animation completes, so reading state would jump).
+  function getCurrentOffset(): number {
+    const matrix = new DOMMatrix(getComputedStyle(geocodeBar).transform);
+    return matrix.m42; // translateY component
+  }
+
+  // Animate to offsetPx with a CSS transition. willChange is enabled for the
+  // duration of the animation only, then cleared to avoid pinning a GPU layer.
+  function animateTo(offsetPx: number): void {
+    geocodeBar.style.willChange = 'transform';
+    geocodeBar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
     geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
+    geocodeBar.addEventListener('transitionend', () => {
+      geocodeBar.style.willChange = '';
+    }, { once: true });
   }
 
   function snapTo(target: SheetState): void {
@@ -451,19 +456,21 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
       // during the outgoing transition and having this transitionend listener
       // fire at the end of the NEW transition, hiding the freshly-opened sheet.
       sheetState = 'hidden';
-      applyTransform(geocodeBar.offsetHeight + 20, true);
+      animateTo(geocodeBar.offsetHeight + 20);
       geocodeBar.addEventListener('transitionend', () => {
         if (sheetState !== 'hidden') return; // re-opened before transition ended
         geocodeBar.style.display = 'none';
         geocodeBar.style.transform = '';
       }, { once: true });
       geocodeBar.classList.remove('geocode-bar--peek');
+      barHandle.setAttribute('aria-expanded', 'false');
     } else {
       sheetState = target;
-      applyTransform(target === 'peek' ? getPeekOffset() : 0, true);
+      animateTo(target === 'peek' ? getPeekOffset() : 0);
       // In peek state the sheet overlay is pointer-events:none so map
       // interactions pass through; only handle and buttons remain interactive.
       geocodeBar.classList.toggle('geocode-bar--peek', target === 'peek');
+      barHandle.setAttribute('aria-expanded', target === 'full' ? 'true' : 'false');
     }
   }
 
@@ -474,11 +481,16 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
 
     if (sheetState === 'hidden') {
-      // Render off-screen first so offsetHeight is available, then animate in.
+      // Render off-screen first so offsetHeight is available, then use double-rAF
+      // to guarantee the browser renders the initial off-screen position before
+      // starting the transition (single-rAF can batch both into one paint frame).
       geocodeBar.style.display = 'flex';
       geocodeBar.style.transition = 'none';
       geocodeBar.style.transform = `translateX(-50%) translateY(${geocodeBar.offsetHeight}px)`;
-      requestAnimationFrame(() => { snapTo('peek'); });
+      barHandle.setAttribute('aria-expanded', 'false');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { snapTo('peek'); });
+      });
     } else {
       // Already visible — just refresh content and snap back to peek.
       snapTo('peek');
@@ -501,7 +513,10 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     if (!touch) return;
     isDragging = true;
     dragStartY = touch.clientY;
-    dragStartOffset = sheetState === 'full' ? 0 : getPeekOffset();
+    // Read the actual rendered position so drag start is correct even if the
+    // user grabs mid-transition (sheetState already reflects the target).
+    dragStartOffset = getCurrentOffset();
+    geocodeBar.style.willChange = 'transform';
     geocodeBar.style.transition = 'none';
   }, { passive: true });
 
@@ -517,6 +532,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   barHandle.addEventListener('touchend', (e: TouchEvent) => {
     if (!isDragging) return;
     isDragging = false;
+    geocodeBar.style.willChange = ''; // animateTo will re-enable for transition duration
     const touch = e.changedTouches[0];
     if (!touch) return;
     const delta = touch.clientY - dragStartY;
