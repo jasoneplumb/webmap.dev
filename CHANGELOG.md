@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.14.1-beta (2026-04-11)
+
+### Fixed
+
+- **UI** — recording stats bar no longer overlaps Pause/Resume buttons on Safari iPhone; bottom offset raised to `145px + safe-area-inset-bottom` to clear the button panel
+- **UI** — stats bar layout changed to vertical stack: Duration (top) / Dist + Ascent row / Recording indicator (bottom) — narrower footprint on small screens
+- **UI** — recording buttons are no longer full-width; `width: auto` with `min-width: 80px` and symmetrical horizontal padding gives a more compact, well-padded appearance
+
+
 ## v0.14.0-beta (2026-04-11)
 
 ### Changed
