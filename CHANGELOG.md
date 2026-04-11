@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.14.2-beta (2026-04-11)
+
+### Fixed
+
+- **UI** — top-left controls (zoom, locate, track, layers) resized to match the geocoder search button: 26px on desktop, 34px on touch devices
+
+
 ## v0.14.1-beta (2026-04-11)
 
 ### Fixed
