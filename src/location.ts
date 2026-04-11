@@ -87,8 +87,9 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
       state.accuracyCircle.setStyle({ fillOpacity });
     }
 
-    // Append to the recording trail when actively recording
-    if (state.recordingState === 'recording') {
+    // Append to the recording trail when actively recording.
+    // Discard fixes with accuracy > 30m — noisy fixes inflate trail distance and create zigzag artifacts.
+    if (state.recordingState === 'recording' && e.accuracy <= 30) {
       const speedMs = isNaN(e.speed) ? 0 : e.speed;
       appendTrailPoint(e.latlng, speedMs, state, map);
     }
