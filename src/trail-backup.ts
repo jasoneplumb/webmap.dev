@@ -9,7 +9,7 @@ import type { AppState } from './types';
 
 const BACKUP_KEY = 'webmap-trail-backup';
 const DISMISSED_KEY = 'webmap-trail-backup-dismissed';
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 interface SerializedPoint {
   lat: number;
@@ -21,7 +21,7 @@ interface SerializedPoint {
 
 interface TrailBackup {
   /** Schema version — bump when fields change so stale backups can be discarded cleanly */
-  version: 1;
+  version: 2;
   /** Wall-clock epoch ms when recording started */
   recordingStartWallMs: number;
   /**
@@ -37,6 +37,7 @@ interface TrailBackup {
   /** Current (active) segment points */
   trailPoints: SerializedPoint[];
   totalDistance: number;
+  totalAscent: number;
 }
 
 function toSerializedPoint(
@@ -77,6 +78,7 @@ function flushBackup(state: AppState): void {
     trailSegments: state.trailSegments.map((seg) => serializeSegment(seg, epochOffset)),
     trailPoints: serializeSegment(state.trailPoints, epochOffset),
     totalDistance: state.totalDistance,
+    totalAscent: state.totalAscent,
   };
   try {
     localStorage.setItem(BACKUP_KEY, JSON.stringify(backup));
@@ -138,6 +140,7 @@ export function loadTrailBackup(): TrailBackup | null {
       !Array.isArray(trailPoints) ||
       !Array.isArray(trailSegments) ||
       typeof p['totalDistance'] !== 'number' ||
+      typeof p['totalAscent'] !== 'number' ||
       typeof p['recordingStartWallMs'] !== 'number' ||
       typeof p['recordingPauseMs'] !== 'number'
     ) {
@@ -248,6 +251,7 @@ export function applyTrailBackup(
   state.recordingStartMs = backup.recordingStartWallMs - epochOffset;
   state.recordingPauseMs = backup.recordingPauseMs;
   state.totalDistance = backup.totalDistance;
+  state.totalAscent = backup.totalAscent;
   state.trailSegments = allSegs;
   state.trailPoints = activeSeg;
 

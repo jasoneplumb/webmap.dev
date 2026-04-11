@@ -35,9 +35,11 @@ export interface AppState {
   recordingPauseMs: number;
   recordingPauseStart: number | null;
   totalDistance: number;
+  totalAscent: number;
   lastTrailPoint: L.LatLng | null;
   lastArrowPoint: L.LatLng | null;
   lastSpeedMs: number;
+  lastAltM: number | undefined;
   trail: L.Polyline | null;
   trailGlow: L.Polyline | null;
   trailPoints: Array<{ latlng: L.LatLng; t: number; speedMs: number; altM?: number }>;
@@ -62,9 +64,11 @@ export function createInitialState(): AppState {
     recordingPauseMs: 0,
     recordingPauseStart: null,
     totalDistance: 0,
+    totalAscent: 0,
     lastTrailPoint: null,
     lastArrowPoint: null,
     lastSpeedMs: 0,
+    lastAltM: undefined,
     trail: null,
     trailGlow: null,
     trailPoints: [],

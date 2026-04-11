@@ -105,12 +105,8 @@ export function createStatsBar(): void {
   bar.id = 'recording-stats';
   bar.style.display = 'none';
   bar.innerHTML =
-    '<div class="rec-indicator">' +
-    '<span class="rec-dot"></span>' +
-    '<span id="rec-status-label">RECORDING</span>' +
-    '</div>' +
     '<div class="stat-item">' +
-    '<span class="stat-label">Time</span>' +
+    '<span class="stat-label">Duration</span>' +
     '<span class="stat-value" id="stat-time">00:00</span>' +
     '</div>' +
     '<div class="stat-item">' +
@@ -118,8 +114,12 @@ export function createStatsBar(): void {
     '<span class="stat-value" id="stat-dist">0 m</span>' +
     '</div>' +
     '<div class="stat-item">' +
-    '<span class="stat-label">Speed</span>' +
-    `<span class="stat-value" id="stat-speed">-- ${IMPERIAL ? 'mph' : 'km/h'}</span>` +
+    '<span class="stat-label">Ascent</span>' +
+    '<span class="stat-value" id="stat-ascent">-- m</span>' +
+    '</div>' +
+    '<div class="rec-indicator">' +
+    '<span class="rec-dot"></span>' +
+    '<span id="rec-status-label">RECORDING</span>' +
     '</div>';
 
   document.getElementById('map')?.appendChild(bar);
@@ -128,13 +128,13 @@ export function createStatsBar(): void {
 function updateStatsBar(state: AppState): void {
   const timeEl = document.getElementById('stat-time');
   const distEl = document.getElementById('stat-dist');
-  const speedEl = document.getElementById('stat-speed');
+  const ascentEl = document.getElementById('stat-ascent');
   const labelEl = document.getElementById('rec-status-label');
   const dotEl = document.querySelector<HTMLElement>('.rec-dot');
 
   if (timeEl) timeEl.textContent = formatElapsed(elapsedMs(state));
   if (distEl) distEl.textContent = formatDistance(state.totalDistance);
-  if (speedEl) speedEl.textContent = formatSpeed(state.lastSpeedMs);
+  if (ascentEl) ascentEl.textContent = state.totalAscent > 0 ? `${Math.round(state.totalAscent)} m` : '-- m';
   if (labelEl) labelEl.textContent = state.recordingState === 'paused' ? 'PAUSED' : 'RECORDING';
   if (dotEl) {
     if (state.recordingState === 'paused') {
@@ -284,6 +284,8 @@ function startRecording(
   state.recordingPauseMs = 0;
   state.recordingPauseStart = null;
   state.totalDistance = 0;
+  state.totalAscent = 0;
+  state.lastAltM = undefined;
   state.lastTrailPoint = null;
   state.lastArrowPoint = null;
   state.lastSpeedMs = 0;
@@ -438,6 +440,11 @@ export function appendTrailPoint(
     if (dist < MIN_TRAIL_DIST_M) return; // jitter filter
     state.totalDistance += dist;
   }
+
+  if (altM !== undefined && state.lastAltM !== undefined && altM > state.lastAltM) {
+    state.totalAscent += altM - state.lastAltM;
+  }
+  if (altM !== undefined) state.lastAltM = altM;
 
   state.trail?.addLatLng(latlng);
   state.trailGlow?.addLatLng(latlng);
