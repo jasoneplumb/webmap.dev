@@ -408,14 +408,26 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
   const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
 
-  // Height of the sheet visible in peek state (px).
-  const PEEK_HEIGHT = 130;
+  // Height of the sheet visible in peek state (px), augmented by safe-area-inset-bottom
+  // so the handle + action row remain fully above the home-indicator on notched phones.
+  const PEEK_HEIGHT_BASE = 130;
+
+  function getSafeAreaBottom(): number {
+    // Read env(safe-area-inset-bottom) via a CSS custom property set in :root.
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--sai-bottom').trim();
+    return parseInt(raw, 10) || 0;
+  }
+
+  function getPeekHeight(): number {
+    return PEEK_HEIGHT_BASE + getSafeAreaBottom();
+  }
 
   type SheetState = 'hidden' | 'peek' | 'full';
   let sheetState: SheetState = 'hidden';
 
   function getPeekOffset(): number {
-    return geocodeBar.offsetHeight - PEEK_HEIGHT;
+    return geocodeBar.offsetHeight - getPeekHeight();
   }
 
   function applyTransform(offsetPx: number, animate: boolean): void {
@@ -425,26 +437,26 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
   }
 
-  function setPointerEvents(state: SheetState): void {
-    // In peek state the sheet sits over the map — disable pointer events on the
-    // sheet background so map interactions (pan / zoom) pass through. Only the
-    // handle and action buttons remain interactive.
-    geocodeBar.classList.toggle('geocode-bar--peek', state === 'peek');
-  }
-
   function snapTo(target: SheetState): void {
     if (target === 'hidden') {
+      // Update sheetState immediately so any concurrent showGeocodeBar call
+      // takes the correct 'hidden' branch rather than calling snapTo('peek')
+      // during the outgoing transition and having this transitionend listener
+      // fire at the end of the NEW transition, hiding the freshly-opened sheet.
+      sheetState = 'hidden';
       applyTransform(geocodeBar.offsetHeight + 20, true);
       geocodeBar.addEventListener('transitionend', () => {
+        if (sheetState !== 'hidden') return; // re-opened before transition ended
         geocodeBar.style.display = 'none';
         geocodeBar.style.transform = '';
-        sheetState = 'hidden';
       }, { once: true });
       geocodeBar.classList.remove('geocode-bar--peek');
     } else {
       sheetState = target;
       applyTransform(target === 'peek' ? getPeekOffset() : 0, true);
-      setPointerEvents(target);
+      // In peek state the sheet overlay is pointer-events:none so map
+      // interactions pass through; only handle and buttons remain interactive.
+      geocodeBar.classList.toggle('geocode-bar--peek', target === 'peek');
     }
   }
 

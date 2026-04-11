@@ -1,3 +1,9 @@
+:root {
+  /* Expose safe-area-inset-bottom as a custom property so JS can read it
+     via getComputedStyle without injecting a throw-away DOM element. */
+  --sai-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 html { height: 100%; width: 100%; padding: 0; margin: 0; }
 body { height: 100%; width: 100%; padding: 0; margin: 0; }
 #map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
@@ -442,7 +448,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   transform: translateX(-50%) translateY(0);
   width: min(480px, 100vw);
   height: 60vh;
-  min-height: 130px;
+  min-height: calc(130px + var(--sai-bottom, 0px));
   background: #fff;
   border-radius: 12px 12px 0 0;
   box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.18);
