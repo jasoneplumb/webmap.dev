@@ -5,6 +5,7 @@
  * Future: Tile layer config (tokens, URLs, zoom limits) is hardcoded; no runtime layer switching beyond the built-in layer control
  */
 import L from 'leaflet';
+import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmTileLayer: L.TileLayer | null = null;
@@ -49,11 +50,10 @@ async function handleTileError(
 ): Promise<void> {
   if (!navigator.onLine && !tileWarnCooldown) {
     tileWarnCooldown = true;
-    showToast(
-      'Some map tiles aren\u2019t cached for this area \u2014 zoom out for cached coverage. ' +
-        '(Safari limits offline cache to ~50\u00a0MB.)',
-      7000,
-    );
+    const msg = isOsmLayer
+      ? 'Some map tiles aren\u2019t cached for this area \u2014 zoom out for cached coverage. (Safari limits offline cache to ~50\u00a0MB.)'
+      : 'Tiles unavailable offline \u2014 switch to Structures layer for offline coverage.';
+    showToast(msg, 7000);
     setTimeout(() => {
       tileWarnCooldown = false;
     }, 10000);
@@ -63,7 +63,7 @@ async function handleTileError(
 
   const tile = e.tile;
   const coords = e.coords;
-  const cache = await caches.open('osm-tiles');
+  const cache = await caches.open(OSM_TILE_CACHE_NAME);
 
   for (let dz = 1; dz <= 3; dz++) {
     const parentZ = coords.z - dz;

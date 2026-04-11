@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'fs';
+import { OSM_TILE_CACHE_NAME } from './src/sw-constants';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
@@ -46,7 +47,7 @@ export default defineConfig({
             urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'osm-tiles',
+              cacheName: OSM_TILE_CACHE_NAME,
               expiration: {
                 maxEntries: 500,
                 maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
