@@ -94,7 +94,9 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     // Discard fixes with accuracy > 30m — noisy fixes inflate trail distance and create zigzag artifacts.
     if (state.recordingState === 'recording' && e.accuracy <= TRAIL_MAX_ACCURACY_M) {
       const speedMs = isNaN(e.speed) ? 0 : e.speed;
-      appendTrailPoint(e.latlng, speedMs, state, map);
+      // e.altitude is null when the device doesn't report elevation
+      const altM = e.altitude !== null ? e.altitude : undefined;
+      appendTrailPoint(e.latlng, speedMs, state, map, altM);
     }
   }
 

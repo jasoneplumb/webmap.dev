@@ -367,8 +367,9 @@ function buildGpx(state: AppState): string {
     allSegments.push(state.trailPoints);
   }
 
-  const formatPoint = ({ latlng, t, speedMs }: { latlng: L.LatLng; t: number; speedMs: number }): string => {
+  const formatPoint = ({ latlng, t, speedMs, altM }: { latlng: L.LatLng; t: number; speedMs: number; altM?: number }): string => {
     const pointTime = new Date(epochOffset + t).toISOString();
+    const eleTag = altM !== undefined ? `<ele>${altM.toFixed(1)}</ele>` : '';
     const timeTag = `<time>${pointTime}</time>`;
     const speedTag =
       speedMs > 0
@@ -376,7 +377,7 @@ function buildGpx(state: AppState): string {
         : '';
     return (
       `      <trkpt lat="${latlng.lat.toFixed(7)}" lon="${latlng.lng.toFixed(7)}">` +
-      `${timeTag}${speedTag}</trkpt>`
+      `${eleTag}${timeTag}${speedTag}</trkpt>`
     );
   };
 
@@ -428,6 +429,7 @@ export function appendTrailPoint(
   speedMs: number,
   state: AppState,
   map: L.Map,
+  altM?: number,
 ): void {
   if (state.recordingState !== 'recording') return;
 
@@ -442,7 +444,7 @@ export function appendTrailPoint(
   state.trail?.addLatLng(latlng);
   state.trailGlow?.addLatLng(latlng);
   state.lastTrailPoint = latlng;
-  state.trailPoints.push({ latlng, t: performance.now(), speedMs });
+  state.trailPoints.push({ latlng, t: performance.now(), speedMs, altM });
 
   // Direction arrow: add between lastArrowPoint and current point when far enough apart
   if (state.lastArrowPoint !== null) {
