@@ -388,32 +388,181 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   const pinLayer = L.layerGroup().addTo(map);
   _pinLayer = pinLayer;
 
-  // Compact one-line bar shown below the map when a pin is dropped.
+  // Bottom sheet shown below the map when a pin is dropped.
+  // Supports two snap points (peek / full) and drag-to-dismiss.
   const geocodeBar = document.createElement('div');
   geocodeBar.className = 'geocode-bar';
   geocodeBar.style.display = 'none';
   geocodeBar.innerHTML =
-    '<button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
-    '<span class="geocode-bar__addr"></span>' +
-    '<button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>';
+    '<div class="geocode-bar__handle" role="button" aria-label="Drag to resize sheet" tabindex="0">' +
+    '  <div class="geocode-bar__handle-pill"></div>' +
+    '</div>' +
+    '<div class="geocode-bar__body">' +
+    '  <button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
+    '  <span class="geocode-bar__addr"></span>' +
+    '  <button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>' +
+    '</div>';
   document.body.appendChild(geocodeBar);
 
   const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
+  const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
+
+  // Height of the sheet visible in peek state (px), augmented by safe-area-inset-bottom
+  // so the handle + action row remain fully above the home-indicator on notched phones.
+  const PEEK_HEIGHT_BASE = 130;
+
+  function getSafeAreaBottom(): number {
+    // Read env(safe-area-inset-bottom) via a CSS custom property set in :root.
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--sai-bottom').trim();
+    return parseInt(raw, 10) || 0;
+  }
+
+  function getPeekHeight(): number {
+    return PEEK_HEIGHT_BASE + getSafeAreaBottom();
+  }
+
+  type SheetState = 'hidden' | 'peek' | 'full';
+  let sheetState: SheetState = 'hidden';
+
+  function getPeekOffset(): number {
+    return geocodeBar.offsetHeight - getPeekHeight();
+  }
+
+  // Read the current rendered translateY so drag-start is always correct even
+  // if the user grabs the handle mid-transition (sheetState is set to the
+  // target before the CSS animation completes, so reading state would jump).
+  function getCurrentOffset(): number {
+    const matrix = new DOMMatrix(getComputedStyle(geocodeBar).transform);
+    return matrix.m42; // translateY component
+  }
+
+  // Animate to offsetPx with a CSS transition. willChange is enabled for the
+  // duration of the animation only, then cleared to avoid pinning a GPU layer.
+  function animateTo(offsetPx: number): void {
+    geocodeBar.style.willChange = 'transform';
+    geocodeBar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+    geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
+    geocodeBar.addEventListener('transitionend', () => {
+      geocodeBar.style.willChange = '';
+    }, { once: true });
+  }
+
+  function snapTo(target: SheetState): void {
+    if (target === 'hidden') {
+      // Update sheetState immediately so any concurrent showGeocodeBar call
+      // takes the correct 'hidden' branch rather than calling snapTo('peek')
+      // during the outgoing transition and having this transitionend listener
+      // fire at the end of the NEW transition, hiding the freshly-opened sheet.
+      sheetState = 'hidden';
+      animateTo(geocodeBar.offsetHeight + 20);
+      geocodeBar.addEventListener('transitionend', () => {
+        if (sheetState !== 'hidden') return; // re-opened before transition ended
+        geocodeBar.style.display = 'none';
+        geocodeBar.style.transform = '';
+      }, { once: true });
+      geocodeBar.classList.remove('geocode-bar--peek');
+      barHandle.setAttribute('aria-expanded', 'false');
+    } else {
+      sheetState = target;
+      animateTo(target === 'peek' ? getPeekOffset() : 0);
+      // In peek state the sheet overlay is pointer-events:none so map
+      // interactions pass through; only handle and buttons remain interactive.
+      geocodeBar.classList.toggle('geocode-bar--peek', target === 'peek');
+      barHandle.setAttribute('aria-expanded', target === 'full' ? 'true' : 'false');
+    }
+  }
 
   function showGeocodeBar(label: string, copyText: string): void {
     barAddrEl.textContent = label;
     barCopyBtn.dataset['copy'] = copyText;
     barCopyBtn.textContent = 'Copy';
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
-    geocodeBar.style.display = 'flex';
+
+    if (sheetState === 'hidden') {
+      // Render off-screen first so offsetHeight is available, then use double-rAF
+      // to guarantee the browser renders the initial off-screen position before
+      // starting the transition (single-rAF can batch both into one paint frame).
+      geocodeBar.style.display = 'flex';
+      geocodeBar.style.transition = 'none';
+      geocodeBar.style.transform = `translateX(-50%) translateY(${geocodeBar.offsetHeight}px)`;
+      barHandle.setAttribute('aria-expanded', 'false');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { snapTo('peek'); });
+      });
+    } else {
+      // Already visible — just refresh content and snap back to peek.
+      snapTo('peek');
+    }
   }
 
   function hideGeocodeBar(): void {
-    geocodeBar.style.display = 'none';
+    snapTo('hidden');
   }
 
   _showGeocodeBar = showGeocodeBar;
+
+  // ── Drag-to-snap on handle ───────────────────────────────────────────────
+  let dragStartY = 0;
+  let dragStartOffset = 0;
+  let isDragging = false;
+
+  barHandle.addEventListener('touchstart', (e: TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    isDragging = true;
+    dragStartY = touch.clientY;
+    // Read the actual rendered position so drag start is correct even if the
+    // user grabs mid-transition (sheetState already reflects the target).
+    dragStartOffset = getCurrentOffset();
+    geocodeBar.style.willChange = 'transform';
+    geocodeBar.style.transition = 'none';
+  }, { passive: true });
+
+  barHandle.addEventListener('touchmove', (e: TouchEvent) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const delta = touch.clientY - dragStartY;
+    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + 20, dragStartOffset + delta));
+    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+  }, { passive: true });
+
+  barHandle.addEventListener('touchend', (e: TouchEvent) => {
+    if (!isDragging) return;
+    isDragging = false;
+    geocodeBar.style.willChange = ''; // animateTo will re-enable for transition duration
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const delta = touch.clientY - dragStartY;
+    const currentOffset = dragStartOffset + delta;
+    const peekOffset = getPeekOffset();
+    // Dragged more than 80px below peek → dismiss
+    if (currentOffset > peekOffset + 80) {
+      hideGeocodeBar();
+      pinLayer.clearLayers();
+      return;
+    }
+    // Snap to nearest: below midpoint between full(0) and peek → full; above → peek
+    snapTo(currentOffset < peekOffset / 2 ? 'full' : 'peek');
+  }, { passive: true });
+
+  // Click and keyboard (Enter / Space) on handle bar toggle peek ↔ full.
+  // Both are required: click fires from pointer devices; keydown covers
+  // keyboard and assistive-technology users (role="button" + tabindex="0").
+  function handleToggle(): void {
+    if (sheetState === 'peek') snapTo('full');
+    else if (sheetState === 'full') snapTo('peek');
+  }
+
+  barHandle.addEventListener('click', handleToggle);
+  barHandle.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleToggle();
+    }
+  });
 
   geocodeBar.addEventListener('click', (e: MouseEvent) => {
     const t = e.target as HTMLElement;
@@ -424,6 +573,8 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     }
     const copyBtn = t.closest<HTMLButtonElement>('.geocode-bar__copy');
     if (copyBtn) {
+      // Haptic feedback on supported devices (Android Chrome)
+      if ('vibrate' in navigator) navigator.vibrate(50);
       const text = copyBtn.dataset['copy'] ?? '';
       navigator.clipboard.writeText(text).then(() => {
         copyBtn.textContent = '✓ Copied';
