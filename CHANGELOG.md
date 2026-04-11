@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.14.0-beta (2026-04-11)
+
+### Changed
+
+- **UI** — recording stats bar reordered: Duration | Dist | Ascent | ● RECORDING indicator moved to trailing position
+- **UI** — "Time" label renamed to "Duration"
+- **UI** — "Speed" stat replaced with "Ascent" — displays cumulative elevation gain in metres; shows "-- m" until altitude data is available
+
+### Added
+
+- **Recording** — cumulative ascent (total metres gained) tracked from GPS altitude deltas during trail recording; persisted and restored via trail backup (backup schema v2)
+
+
 ## v0.13.0-beta (2026-04-11)
 
 ### Added
