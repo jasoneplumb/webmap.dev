@@ -19,7 +19,13 @@ interface TileErrorEvent extends L.LeafletEvent {
   error: Error;
 }
 
+// Single cooldown shared across all layers — intentional: one toast per 10 s regardless
+// of which layer fired, so a Mapbox error followed immediately by an OSM error doesn't
+// show two toasts. The per-layer message is set when the cooldown first trips.
 let tileWarnCooldown = false;
+
+// Opened once on first use; reused for every subsequent tile error lookup.
+let osmCachePromise: Promise<Cache> | null = null;
 
 /** Wire up offline tile warnings and canvas-based lower-zoom fallback.
  *  Must be called after createMap(). Attaches tileerror handlers to all tile layers.
@@ -35,6 +41,9 @@ export function initOfflineTileFallback(
   if (layers.length === 0) {
     console.warn('initOfflineTileFallback: no tile layers found — call createMap() first');
     return;
+  }
+  if ('caches' in window) {
+    osmCachePromise = caches.open(OSM_TILE_CACHE_NAME);
   }
   for (const layer of layers) {
     layer.on('tileerror', (e: L.LeafletEvent) => {
@@ -59,11 +68,11 @@ async function handleTileError(
     }, 10000);
   }
 
-  if (!isOsmLayer || navigator.onLine || !('caches' in window) || e.tile.src.startsWith('data:')) return;
+  if (!isOsmLayer || navigator.onLine || osmCachePromise === null || e.tile.src.startsWith('data:')) return;
 
   const tile = e.tile;
   const coords = e.coords;
-  const cache = await caches.open(OSM_TILE_CACHE_NAME);
+  const cache = await osmCachePromise;
 
   for (let dz = 1; dz <= 3; dz++) {
     const parentZ = coords.z - dz;
@@ -72,11 +81,14 @@ async function handleTileError(
     const parentX = Math.floor(coords.x / scale);
     const parentY = Math.floor(coords.y / scale);
 
-    for (const sub of ['a', 'b', 'c']) {
-      const url = `https://${sub}.tile.openstreetmap.org/${parentZ}/${parentX}/${parentY}.png`;
+    // Check all three subdomains in parallel — parent tile is on exactly one of them
+    const subUrls = ['a', 'b', 'c'].map(
+      sub => `https://${sub}.tile.openstreetmap.org/${parentZ}/${parentX}/${parentY}.png`,
+    );
+    const responses = await Promise.all(subUrls.map(url => cache.match(url)));
+    const response = responses.find(Boolean);
+    if (response !== undefined) {
       try {
-        const response = await cache.match(url);
-        if (!response) continue;
 
         const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
@@ -85,6 +97,9 @@ async function handleTileError(
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
+            // OSM tiles are 256×256; the layer uses tileSize:512 so Leaflet stretches
+            // the img element to 512 CSS px — fallback tiles will look blurrier than
+            // normal tiles, which is expected and acceptable for degraded offline UX.
             canvas.width = 256;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
@@ -109,7 +124,7 @@ async function handleTileError(
         });
         return; // success — stop searching
       } catch {
-        // try next subdomain / zoom level
+        // blob or canvas failed — try next zoom level
       }
     }
   }
