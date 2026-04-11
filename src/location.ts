@@ -9,6 +9,9 @@ import type { AppState } from './types';
 import { updateLocateIcon } from './controls';
 import { appendTrailPoint } from './recording';
 
+/** Discard GPS fixes coarser than this threshold for trail recording (metres). */
+const TRAIL_MAX_ACCURACY_M = 30;
+
 // divIcon HTML for the blue pulsing dot — styled via .blue-dot CSS in style.css
 const BLUE_DOT_ICON = L.divIcon({
   className: 'blue-dot',
@@ -87,8 +90,9 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
       state.accuracyCircle.setStyle({ fillOpacity });
     }
 
-    // Append to the recording trail when actively recording
-    if (state.recordingState === 'recording') {
+    // Append to the recording trail when actively recording.
+    // Discard fixes with accuracy > 30m — noisy fixes inflate trail distance and create zigzag artifacts.
+    if (state.recordingState === 'recording' && e.accuracy <= TRAIL_MAX_ACCURACY_M) {
       const speedMs = isNaN(e.speed) ? 0 : e.speed;
       appendTrailPoint(e.latlng, speedMs, state, map);
     }
