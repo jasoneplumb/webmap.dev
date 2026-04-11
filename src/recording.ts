@@ -61,7 +61,7 @@ function formatElapsed(ms: number): string {
 /**
  * intent: Detect whether the user's locale uses imperial units (miles/mph) at module load time
  * method: Intl.Locale.measurementSystem where supported; region tag fallback (US/LR/MM) otherwise
- * effect: Single boolean used by formatDistance and formatSpeed — avoids per-call locale parsing
+ * effect: Single boolean used by formatDistance — avoids per-call locale parsing
  */
 // constraint: measurementSystem is not yet in all TypeScript lib defs, so we use an unknown cast
 function usesImperial(): boolean {
@@ -87,14 +87,6 @@ function formatDistance(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
-function formatSpeed(ms: number): string {
-  if (IMPERIAL) {
-    const mph = ms * 3600 / M_PER_MI;
-    return mph < 0.3 ? '-- mph' : `${mph.toFixed(1)} mph`;
-  }
-  const kmh = ms * 3.6;
-  return kmh < 0.5 ? '-- km/h' : `${kmh.toFixed(1)} km/h`;
-}
 
 // ── Stats bar DOM ─────────────────────────────────────────────────────────────
 
