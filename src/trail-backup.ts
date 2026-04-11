@@ -23,7 +23,14 @@ interface TrailBackup {
   version: 1;
   /** Wall-clock epoch ms when recording started */
   recordingStartWallMs: number;
-  /** Accumulated pause duration in ms */
+  /**
+   * Accumulated pause duration in ms.
+   * Known limitation: recordingState ('recording' | 'paused') is not serialized.
+   * If the page reloads while recording is paused, the in-progress pause duration
+   * (performance.now() - recordingPauseStart) is lost and will not be subtracted
+   * from the elapsed time, slightly inflating the displayed time. This is a low-
+   * probability corner case (crash during pause) and acceptable for now.
+   */
   recordingPauseMs: number;
   trailSegments: SerializedPoint[][];
   /** Current (active) segment points */
@@ -104,18 +111,41 @@ export function loadTrailBackup(): TrailBackup | null {
     const parsed: unknown = JSON.parse(raw);
     // Runtime shape guard: discard stale/partial data from schema changes or other apps
     const p = parsed as Record<string, unknown>;
+    const trailPoints = p['trailPoints'];
+    const trailSegments = p['trailSegments'];
     if (
       typeof parsed !== 'object' ||
       parsed === null ||
       p['version'] !== CURRENT_VERSION ||
-      !Array.isArray(p['trailPoints']) ||
-      !Array.isArray(p['trailSegments']) ||
+      !Array.isArray(trailPoints) ||
+      !Array.isArray(trailSegments) ||
       typeof p['totalDistance'] !== 'number' ||
       typeof p['recordingStartWallMs'] !== 'number' ||
       typeof p['recordingPauseMs'] !== 'number'
     ) {
       localStorage.removeItem(BACKUP_KEY);
       return null;
+    }
+    // Per-point spot check: validate first element of each array to catch truncated/corrupt data
+    function isValidPoint(pt: unknown): boolean {
+      return (
+        typeof pt === 'object' && pt !== null &&
+        typeof (pt as Record<string, unknown>)['lat'] === 'number' &&
+        typeof (pt as Record<string, unknown>)['lng'] === 'number'
+      );
+    }
+    const firstPoint = trailPoints[0];
+    if (firstPoint !== undefined && !isValidPoint(firstPoint)) {
+      localStorage.removeItem(BACKUP_KEY);
+      return null;
+    }
+    for (const seg of trailSegments) {
+      if (!Array.isArray(seg)) { localStorage.removeItem(BACKUP_KEY); return null; }
+      const firstSeg = seg[0];
+      if (firstSeg !== undefined && !isValidPoint(firstSeg)) {
+        localStorage.removeItem(BACKUP_KEY);
+        return null;
+      }
     }
     return parsed as TrailBackup;
   } catch {

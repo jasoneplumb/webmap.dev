@@ -503,8 +503,15 @@ export function maybeRestoreTrailBackup(
   // The rest of the app uses showToast() for non-blocking feedback, but a restore
   // prompt must block initialization until the user decides — a toast action button
   // would require async startup machinery that isn't worth the complexity.
+  //
+  // Known limitation: some browsers (Firefox on Android, certain PWA installations on
+  // Chromium) suppress confirm() without user interaction and silently return false.
+  // To prevent silent discard in these cases, we intentionally do NOT call
+  // clearTrailBackup() here — the backup persists and will be offered again on the next
+  // page load. If the user genuinely cancels, the backup remains until recording stops
+  // normally (which calls clearTrailBackup()). This is a minor annoyance vs. the
+  // alternative of silently losing a hike's worth of GPS data.
   if (!confirm(`Restore interrupted recording? (${totalPoints} GPS points recovered)`)) {
-    clearTrailBackup();
     return false;
   }
 
