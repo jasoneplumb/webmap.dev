@@ -31,6 +31,10 @@ export function initOfflineTileFallback(
   const layers = [osmTileLayer, mapboxTileLayer, googleTileLayer].filter(
     (l): l is L.TileLayer => l !== null,
   );
+  if (layers.length === 0) {
+    console.warn('initOfflineTileFallback: no tile layers found — call createMap() first');
+    return;
+  }
   for (const layer of layers) {
     layer.on('tileerror', (e: L.LeafletEvent) => {
       void handleTileError(e as TileErrorEvent, layer === osmTileLayer, showToast);
@@ -55,10 +59,11 @@ async function handleTileError(
     }, 10000);
   }
 
-  if (!isOsmLayer || !('caches' in window) || e.tile.src.startsWith('data:')) return;
+  if (!isOsmLayer || navigator.onLine || !('caches' in window) || e.tile.src.startsWith('data:')) return;
 
   const tile = e.tile;
   const coords = e.coords;
+  const cache = await caches.open('osm-tiles');
 
   for (let dz = 1; dz <= 3; dz++) {
     const parentZ = coords.z - dz;
@@ -70,7 +75,6 @@ async function handleTileError(
     for (const sub of ['a', 'b', 'c']) {
       const url = `https://${sub}.tile.openstreetmap.org/${parentZ}/${parentX}/${parentY}.png`;
       try {
-        const cache = await caches.open('osm-tiles');
         const response = await cache.match(url);
         if (!response) continue;
 
