@@ -12,6 +12,11 @@ import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup } 
 const MIN_TRAIL_DIST_M = 5;
 const MIN_ARROW_DIST_M = 50;  // minimum metres between direction-arrow markers
 
+// Shared polyline options — used in both startRecording and maybeRestoreTrailBackup
+// to avoid style drift between the two code paths.
+const TRAIL_LINE_OPTS: L.PolylineOptions = { color: '#4287f5', weight: 4, smoothFactor: 2, interactive: false };
+const TRAIL_GLOW_OPTS: L.PolylineOptions = { color: 'rgba(66,135,245,0.25)', weight: 14, smoothFactor: 2, interactive: false };
+
 // ── Geometry helpers ─────────────────────────────────────────────────────────
 
 function haversineM(a: L.LatLng, b: L.LatLng): number {
@@ -286,20 +291,10 @@ function startRecording(
   state.trailSegments = [];
 
   // Glow layer beneath the main trail line
-  state.trailGlow = L.polyline([], {
-    color: 'rgba(66,135,245,0.25)',
-    weight: 14,
-    smoothFactor: 2,
-    interactive: false,
-  }).addTo(map);
+  state.trailGlow = L.polyline([], TRAIL_GLOW_OPTS).addTo(map);
 
   // Main trail line
-  state.trail = L.polyline([], {
-    color: '#4287f5',
-    weight: 4,
-    smoothFactor: 2,
-    interactive: false,
-  }).addTo(map);
+  state.trail = L.polyline([], TRAIL_LINE_OPTS).addTo(map);
 
   activatePolling(); // recording refcount
 
@@ -514,18 +509,8 @@ export function maybeRestoreTrailBackup(
   }
 
   // Recreate polylines so applyTrailBackup can populate them
-  state.trailGlow = L.polyline([], {
-    color: 'rgba(66,135,245,0.25)',
-    weight: 14,
-    smoothFactor: 2,
-    interactive: false,
-  }).addTo(map);
-  state.trail = L.polyline([], {
-    color: '#4287f5',
-    weight: 4,
-    smoothFactor: 2,
-    interactive: false,
-  }).addTo(map);
+  state.trailGlow = L.polyline([], TRAIL_GLOW_OPTS).addTo(map);
+  state.trail = L.polyline([], TRAIL_LINE_OPTS).addTo(map);
 
   applyTrailBackup(backup, state);
   state.recordingState = 'recording';

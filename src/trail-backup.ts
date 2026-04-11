@@ -74,21 +74,26 @@ function flushBackup(state: AppState): void {
   }
 }
 
-/** Write the current recording state to localStorage, debounced to at most once per 5s. */
+/**
+ * Write the current recording state to localStorage, throttled to at most once per 5s.
+ * Leading-edge write fires immediately on the first call; trailing flush catches any
+ * points that arrived during the 5s window. Timer is NOT reset on each call — that
+ * would make it a debounce and the trailing flush would never fire under continuous GPS input.
+ */
 export function saveTrailBackup(state: AppState): void {
   if (_backupTimer === null) {
     // First call of a burst — write immediately for fast initial persistence
     flushBackup(state);
     _backupDirty = false;
+    _backupTimer = setTimeout(() => {
+      if (_backupDirty) flushBackup(state);
+      _backupDirty = false;
+      _backupTimer = null;
+    }, 5000);
   } else {
+    // Timer already running — mark dirty so the trailing flush picks up the latest points
     _backupDirty = true;
   }
-  if (_backupTimer !== null) clearTimeout(_backupTimer);
-  _backupTimer = setTimeout(() => {
-    if (_backupDirty) flushBackup(state);
-    _backupDirty = false;
-    _backupTimer = null;
-  }, 5000);
 }
 
 /** Read a previously persisted trail backup, or null if none exists or shape is invalid. */
@@ -98,13 +103,16 @@ export function loadTrailBackup(): TrailBackup | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     // Runtime shape guard: discard stale/partial data from schema changes or other apps
+    const p = parsed as Record<string, unknown>;
     if (
       typeof parsed !== 'object' ||
       parsed === null ||
-      (parsed as Record<string, unknown>)['version'] !== CURRENT_VERSION ||
-      !Array.isArray((parsed as Record<string, unknown>)['trailPoints']) ||
-      !Array.isArray((parsed as Record<string, unknown>)['trailSegments']) ||
-      typeof (parsed as Record<string, unknown>)['totalDistance'] !== 'number'
+      p['version'] !== CURRENT_VERSION ||
+      !Array.isArray(p['trailPoints']) ||
+      !Array.isArray(p['trailSegments']) ||
+      typeof p['totalDistance'] !== 'number' ||
+      typeof p['recordingStartWallMs'] !== 'number' ||
+      typeof p['recordingPauseMs'] !== 'number'
     ) {
       localStorage.removeItem(BACKUP_KEY);
       return null;
