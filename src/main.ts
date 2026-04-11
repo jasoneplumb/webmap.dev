@@ -24,7 +24,7 @@ import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
-import { createStatsBar, addRecordingControl, updateRecordingButtons } from './recording';
+import { createStatsBar, addRecordingControl, updateRecordingButtons, maybeRestoreTrailBackup } from './recording';
 import { registerSW } from 'virtual:pwa-register';
 
 const state = createInitialState();
@@ -181,6 +181,11 @@ map.on('dragstart', () => {
 
 createStatsBar();
 addRecordingControl(map, state, activatePolling, deactivatePolling);
+
+// Offer to restore an interrupted trail if a backup exists in localStorage
+if (maybeRestoreTrailBackup(state, map, activatePolling)) {
+  updateRecordingButtons();
+}
 
 initInfoPanel(map);
 addSearchControl(map, state, showToast);

@@ -6,6 +6,7 @@
  */
 import L from 'leaflet';
 import type { AppState } from './types';
+import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup } from './trail-backup';
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
 const MIN_TRAIL_DIST_M = 5;
@@ -340,6 +341,8 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
   state.recordingState = 'idle';
   deactivatePolling(); // recording refcount
 
+  clearTrailBackup();
+
   if (state.statsTimer !== null) {
     clearInterval(state.statsTimer);
     state.statsTimer = null;
@@ -444,6 +447,9 @@ export function appendTrailPoint(
   state.lastTrailPoint = latlng;
   state.trailPoints.push({ latlng, t: performance.now(), speedMs });
 
+  // Persist to localStorage so a page reload doesn't lose the in-progress trail
+  saveTrailBackup(state);
+
   // Direction arrow: add between lastArrowPoint and current point when far enough apart
   if (state.lastArrowPoint !== null) {
     const arrowDist = haversineM(state.lastArrowPoint, latlng);
@@ -472,4 +478,58 @@ function addArrowMarker(
   const mid = L.latLng((from.lat + to.lat) / 2, (from.lng + to.lng) / 2);
   const marker = L.marker(mid, { icon, interactive: false }).addTo(map);
   state.arrowMarkers.push(marker);
+}
+
+// ── Trail backup restore (called from main.ts on startup) ─────────────────────
+
+/**
+ * Check for a persisted trail backup and, if found, prompt the user to restore it.
+ * Restores recording state and redraws the trail on the map; starts the stats bar timer.
+ * Returns true if a backup was applied, false otherwise.
+ */
+export function maybeRestoreTrailBackup(
+  state: AppState,
+  map: L.Map,
+  activatePolling: () => void,
+): boolean {
+  const backup = loadTrailBackup();
+  if (!backup) return false;
+
+  const totalPoints =
+    backup.trailPoints.length +
+    backup.trailSegments.reduce((n, s) => n + s.length, 0);
+  if (totalPoints === 0) {
+    clearTrailBackup();
+    return false;
+  }
+
+  if (!confirm(`Restore interrupted recording? (${totalPoints} GPS points recovered)`)) {
+    clearTrailBackup();
+    return false;
+  }
+
+  // Recreate polylines so applyTrailBackup can populate them
+  state.trailGlow = L.polyline([], {
+    color: 'rgba(66,135,245,0.25)',
+    weight: 14,
+    smoothFactor: 2,
+    interactive: false,
+  }).addTo(map);
+  state.trail = L.polyline([], {
+    color: '#4287f5',
+    weight: 4,
+    smoothFactor: 2,
+    interactive: false,
+  }).addTo(map);
+
+  applyTrailBackup(backup, state);
+  state.recordingState = 'recording';
+
+  activatePolling(); // recording refcount
+
+  setStatsBarVisible(true);
+  if (state.statsTimer !== null) clearInterval(state.statsTimer);
+  state.statsTimer = setInterval(() => updateStatsBar(state), 1000);
+
+  return true;
 }
