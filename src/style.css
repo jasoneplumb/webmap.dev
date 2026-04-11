@@ -605,14 +605,14 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   animation: tile-loading-spin 1s linear infinite;
 }
 
-/* ── Custom toggle controls (locate, track) ──────────────────────────────────
-   Sized to match Leaflet zoom buttons: 36px desktop, 44px mobile.             */
+/* ── Custom toggle controls (locate, track) and layers toggle ────────────────
+   Sized to match ESRI geocoder search button: 26px desktop, 34px touch.       */
 .leaflet-control-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
   background: rgba(255, 255, 255, 0.9);
   border-radius: 4px;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
@@ -621,19 +621,31 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 .leaflet-control-toggle img {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
 }
 
-@media (max-width: 768px) {
-  .leaflet-control-toggle {
-    width: 44px;
-    height: 44px;
-  }
-  .leaflet-control-toggle img {
-    width: 28px;
-    height: 28px;
-  }
+/* Size the layers control toggle button to match locate/track/zoom controls */
+.leaflet-control-layers-toggle {
+  width: 26px !important;
+  height: 26px !important;
+  background-size: 16px 16px !important;
+}
+
+.leaflet-touch .leaflet-control-toggle {
+  width: 34px;
+  height: 34px;
+}
+
+.leaflet-touch .leaflet-control-toggle img {
+  width: 20px;
+  height: 20px;
+}
+
+.leaflet-touch .leaflet-control-layers-toggle {
+  width: 34px !important;
+  height: 34px !important;
+  background-size: 20px 20px !important;
 }
 
 /* ── Mobile-optimized Control Layout ──────────────────────────────────────── */
@@ -683,13 +695,13 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
   .leaflet-control-zoom-in,
   .leaflet-control-zoom-out {
-    width: 44px;
-    height: 44px;
+    width: 34px;
+    height: 34px;
     background: rgba(255, 255, 255, 0.85);
     border-radius: 4px;
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
-    font-size: 18px;
-    line-height: 44px;
+    font-size: 16px;
+    line-height: 34px;
     color: #333;
     margin: 0 !important;
   }
@@ -700,11 +712,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     color: #000;
   }
 
-  /* Layer control at bottom-left on mobile */
+  /* Layer control — collapsed state matches other controls */
   .leaflet-control-layers {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.9);
     border-radius: 4px;
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+    border: none !important;
   }
 
   /* Scale control stays at bottom-left, slightly smaller on mobile */
@@ -739,11 +752,13 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
   .leaflet-control-zoom-in,
   .leaflet-control-zoom-out {
-    width: 36px;
-    height: 36px;
+    width: 26px;
+    height: 26px;
     background: rgba(255, 255, 255, 0.85);
     border-radius: 4px;
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+    font-size: 14px;
+    line-height: 26px;
     margin: 0 !important;
   }
 
