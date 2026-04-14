@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.15.0-beta (2026-04-14)
+
+### Added
+
+- **GPS** — adaptive polling interval reduces battery drain during trail recording; GPS poll frequency lowers when stationary and increases on movement (#99)
+- **Search** — expandable result items on mobile: first tap shows full address, type badge, coordinates, and action buttons; second tap flies to location (#98)
+- **UX** — mouse drag support for reverse geocode bottom sheet handle on desktop (#96)
+- **Offline** — region pre-download UI: select bounding box and zoom range to pre-cache tiles for offline use, with progress bar and Safari quota warnings (#97)
+
+### Fixed
+
+- **UX** — GPS weak-signal badge now uses hysteresis (show after 2+ consecutive weak fixes, hide below 25m) to prevent flicker in marginal signal (#95)
+- **UX** — long addresses in geocode bar peek state are tap-to-expand on mobile: tap reveals full text for 3s, then collapses (#94)
+
+
 ## v0.14.3-beta (2026-04-14)
 
 ### Fixed
