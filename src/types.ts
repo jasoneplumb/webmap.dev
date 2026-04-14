@@ -46,6 +46,7 @@ export interface AppState {
   trailSegments: Array<Array<{ latlng: L.LatLng; t: number; speedMs: number; altM?: number }>>;
   arrowMarkers: L.Marker[];
   statsTimer: ReturnType<typeof setInterval> | null;
+  lastGpsAccuracy: number | null; // most recent GPS fix accuracy (metres); used by stats bar to show weak-signal indicator
 }
 
 export function createInitialState(): AppState {
@@ -75,5 +76,6 @@ export function createInitialState(): AppState {
     trailSegments: [],
     arrowMarkers: [],
     statsTimer: null,
+    lastGpsAccuracy: null,
   };
 }
