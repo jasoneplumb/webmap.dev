@@ -126,7 +126,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     collapseAfterResult: false,
     minCharacters: MIN_CHARS,
     debounceDelay: 250,
-    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal' }))],
+    providers: [wrapProvider(arcgisOnlineProvider({ maxResults: 15, apikey, outFields: 'Addr_type,City,Region,Postal,LongLabel,Match_addr' }))],
   });
   searchControl.addTo(map);
 
@@ -235,44 +235,70 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     if (marker) marker.setIcon(createActiveNumberedIcon(index + 1));
   }
 
-  // Event delegation on dropdown — wired once; fires for any result-item click.
+  // Event delegation on dropdown — expand/collapse on item click; navigate on "Go" button.
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
-    if (target === null) return;
-    const lat = parseFloat(target.dataset['lat'] ?? '');
-    const lng = parseFloat(target.dataset['lng'] ?? '');
-    if (isNaN(lat) || isNaN(lng)) return;
-    // Clear dropped pin markers; show geocode bar with the selected result's address and coordinates.
-    _pinLayer?.clearLayers();
-    const resultName = target.dataset['name'] ?? '';
-    const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    const label = resultName !== '' ? resultName : coordText;
-    const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
-    _showGeocodeBar?.(label, copyText);
-    clearSelection();
-    target.classList.add('sheet-result--active');
-    const idx = parseInt(target.dataset['index'] ?? '', 10);
-    if (!isNaN(idx)) activateSelection(idx);
-    const boundsRaw = target.dataset['bounds'] ?? '';
-    if (boundsRaw !== '') {
-      try {
-        const parsed = JSON.parse(boundsRaw) as unknown;
-        if (Array.isArray(parsed) && parsed.length === 2 &&
-            Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
-          map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
-            paddingTopLeft:     [50, 50],
-            paddingBottomRight: [50, 50],
-            maxZoom: 17,
-          });
-        } else {
-          map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+    const clicked = e.target as HTMLElement;
+
+    // "Go to location" button — fly to the result and show geocode bar
+    const goBtn = clicked.closest<HTMLElement>('.sheet-result__go-btn');
+    if (goBtn) {
+      const li = goBtn.closest<HTMLElement>('.sheet-result[data-lat]');
+      if (li === null) return;
+      const lat = parseFloat(li.dataset['lat'] ?? '');
+      const lng = parseFloat(li.dataset['lng'] ?? '');
+      if (isNaN(lat) || isNaN(lng)) return;
+      _pinLayer?.clearLayers();
+      const resultName = li.dataset['name'] ?? '';
+      const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      const label = resultName !== '' ? resultName : coordText;
+      const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
+      _showGeocodeBar?.(label, copyText);
+      clearSelection();
+      li.classList.add('sheet-result--active');
+      li.classList.remove('sheet-result--expanded');
+      const idx = parseInt(li.dataset['index'] ?? '', 10);
+      if (!isNaN(idx)) activateSelection(idx);
+      const boundsRaw = li.dataset['bounds'] ?? '';
+      if (boundsRaw !== '') {
+        try {
+          const parsed = JSON.parse(boundsRaw) as unknown;
+          if (Array.isArray(parsed) && parsed.length === 2 &&
+              Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+            map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
+              paddingTopLeft:     [50, 50],
+              paddingBottomRight: [50, 50],
+              maxZoom: 17,
+            });
+          } else {
+            map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
+          }
+        } catch {
+          map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
         }
-      } catch {
-        map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+      } else {
+        map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
       }
-    } else {
-      map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+      return;
     }
+
+    // Copy button inside expanded detail
+    const copyBtn = clicked.closest<HTMLElement>('.sheet-result__copy-btn');
+    if (copyBtn) {
+      const text = copyBtn.dataset['copy'] ?? '';
+      const origText = copyBtn.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = '\u2713 Copied';
+        setTimeout(() => { copyBtn.textContent = origText; }, 1500);
+      }).catch(() => { /* silent */ });
+      return;
+    }
+
+    // Result item click — toggle expand/collapse
+    const li = clicked.closest<HTMLElement>('.sheet-result');
+    if (li === null) return;
+    const prev = dropdownEl.querySelector('.sheet-result--expanded');
+    if (prev && prev !== li) prev.classList.remove('sheet-result--expanded');
+    li.classList.toggle('sheet-result--expanded');
   });
 
   // Keep marker size in sync with map zoom level via CSS classes.
@@ -336,15 +362,31 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
             .join(', ');
           const tooltipParts = [name, subtitle, addrType, `${lat}, ${lng}`].filter(Boolean);
           const tooltip = escapeHtml(tooltipParts.join(' · '));
+          const longLabel = escapeHtml(strProp(r.properties?.LongLabel) || strProp(r.properties?.Match_addr) || r.text || '');
+          const coordStr = `${lat}, ${lng}`;
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-name="${escapeHtml(name)}" data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}" title="${tooltip}">` +
-            `  <div class="sheet-result__main">` +
-            `    <span class="sheet-result__name">${name}</span>` +
-            (subtitle ? `    <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
+            `  <div class="sheet-result__summary">` +
+            `    <div class="sheet-result__main">` +
+            `      <span class="sheet-result__name">${name}</span>` +
+            (subtitle ? `      <span class="sheet-result__subtitle">${subtitle}</span>` : '') +
+            `    </div>` +
+            (addrType ? `    <span class="sheet-result__badge">${addrType}</span>` : '') +
+            `    <span class="sheet-result__arrow">&#x203A;</span>` +
             `  </div>` +
-            (addrType ? `  <span class="sheet-result__badge">${addrType}</span>` : '') +
-            `  <span class="sheet-result__arrow">&#x203A;</span>` +
+            `  <div class="sheet-result__detail">` +
+            `    <div class="sheet-result__full-addr">${longLabel}</div>` +
+            `    <div class="sheet-result__detail-meta">` +
+            (addrType ? `      <span class="sheet-result__detail-badge">${addrType}</span>` : '') +
+            `      <span class="sheet-result__detail-coords">${coordStr}</span>` +
+            `    </div>` +
+            `    <div class="sheet-result__detail-actions">` +
+            `      <button class="sheet-result__go-btn">Go to location</button>` +
+            `      <button class="sheet-result__copy-btn" data-copy="${longLabel}">Copy address</button>` +
+            `      <button class="sheet-result__copy-btn" data-copy="${escapeHtml(coordStr)}">Copy coords</button>` +
+            `    </div>` +
+            `  </div>` +
             `</li>`
           );
         })
