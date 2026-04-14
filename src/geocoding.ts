@@ -476,6 +476,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
 
   function showGeocodeBar(label: string, copyText: string): void {
     barAddrEl.textContent = label;
+    barAddrEl.title = label;
     barCopyBtn.dataset['copy'] = copyText;
     barCopyBtn.textContent = 'Copy';
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
