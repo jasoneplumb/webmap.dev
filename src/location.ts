@@ -10,7 +10,7 @@ import { updateLocateIcon } from './controls';
 import { appendTrailPoint } from './recording';
 
 /** Discard GPS fixes coarser than this threshold for trail recording (metres). */
-const TRAIL_MAX_ACCURACY_M = 30;
+export const TRAIL_MAX_ACCURACY_M = 30;
 
 // divIcon HTML for the blue pulsing dot — styled via .blue-dot CSS in style.css
 const BLUE_DOT_ICON = L.divIcon({
@@ -36,6 +36,9 @@ function createGrayDotIcon(): L.DivIcon {
  * effect: Eliminates stationary GPS jitter without introducing lag when the user actually moves
  */
 export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map): void {
+  // Always track the latest GPS accuracy so the stats bar can show a weak-signal indicator
+  state.lastGpsAccuracy = e.accuracy;
+
   // Haversine formula: great-circle distance between previous and current position
   const p = Math.PI / 180;
   const f =

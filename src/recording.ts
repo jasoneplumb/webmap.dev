@@ -6,6 +6,7 @@
  */
 import L from 'leaflet';
 import type { AppState } from './types';
+import { TRAIL_MAX_ACCURACY_M } from './location';
 import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup, dismissTrailBackup, isTrailBackupDismissed } from './trail-backup';
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
@@ -114,6 +115,9 @@ export function createStatsBar(): void {
     '<div class="rec-indicator">' +
     '<span class="rec-dot"></span>' +
     '<span id="rec-status-label">RECORDING</span>' +
+    '</div>' +
+    '<div class="gps-badge" id="gps-weak-badge">' +
+    'GPS ±<span id="gps-accuracy-val">--</span>m' +
     '</div>';
 
   document.getElementById('map')?.appendChild(bar);
@@ -135,6 +139,20 @@ function updateStatsBar(state: AppState): void {
       dotEl.classList.add('rec-dot-paused');
     } else {
       dotEl.classList.remove('rec-dot-paused');
+    }
+  }
+
+  // Show GPS weak badge when recording and last fix exceeded accuracy threshold
+  const gpsBadge = document.getElementById('gps-weak-badge');
+  const gpsVal = document.getElementById('gps-accuracy-val');
+  if (gpsBadge && gpsVal) {
+    const weak =
+      state.recordingState === 'recording' &&
+      state.lastGpsAccuracy !== null &&
+      state.lastGpsAccuracy > TRAIL_MAX_ACCURACY_M;
+    gpsBadge.style.display = weak ? 'block' : 'none';
+    if (weak) {
+      gpsVal.textContent = String(Math.round(state.lastGpsAccuracy!));
     }
   }
 }
