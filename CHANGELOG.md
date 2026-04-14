@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.14.3-beta (2026-04-14)
+
+### Fixed
+
+- **UX** — GPS weak-signal badge appears in stats bar when recording and accuracy exceeds 30m; hides automatically when signal improves (#91)
+- **UX** — geocode-bar address element now has a `title` attribute so long addresses are accessible via tooltip without expanding the sheet (#90)
+
+
 ## v0.14.2-beta (2026-04-11)
 
 ### Fixed
