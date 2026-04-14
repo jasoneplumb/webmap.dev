@@ -7,6 +7,7 @@
 import L from 'leaflet';
 import type { AppState } from './types';
 import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup, dismissTrailBackup, isTrailBackupDismissed } from './trail-backup';
+import { snapshotBatteryStart, formatBatteryEstimate } from './battery';
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
 const MIN_TRAIL_DIST_M = 5;
@@ -117,12 +118,15 @@ export function createStatsBar(): void {
     '</div>' +
     '<div class="gps-badge" id="gps-weak-badge">' +
     'GPS ±<span id="gps-accuracy-val">--</span>m' +
-    '</div>';
+    '</div>' +
+    '<div class="battery-badge" id="battery-estimate"></div>';
 
   document.getElementById('map')?.appendChild(bar);
 }
 
 function updateStatsBar(state: AppState): void {
+  if (state.screenOff) return; // skip DOM updates when screen is off
+
   const timeEl = document.getElementById('stat-time');
   const distEl = document.getElementById('stat-dist');
   const ascentEl = document.getElementById('stat-ascent');
@@ -149,6 +153,18 @@ function updateStatsBar(state: AppState): void {
     gpsBadge.style.display = weak ? 'block' : 'none';
     if (weak && state.lastGpsAccuracy !== null) {
       gpsVal.textContent = String(Math.round(state.lastGpsAccuracy));
+    }
+  }
+
+  // Battery estimate: show projected remaining battery life during recording
+  const batteryEl = document.getElementById('battery-estimate');
+  if (batteryEl) {
+    const estimate = state.recordingState !== 'idle' ? formatBatteryEstimate(state) : null;
+    if (estimate) {
+      batteryEl.textContent = estimate;
+      batteryEl.style.display = 'block';
+    } else {
+      batteryEl.style.display = 'none';
     }
   }
 }
@@ -302,6 +318,9 @@ function startRecording(
   state.gpsWeakStreak = 0;
   state.gpsStrongStreak = 0;
   state.gpsWeakBadgeVisible = false;
+  state.stationaryFixCount = 0;
+
+  snapshotBatteryStart(state);
 
   // Glow layer beneath the main trail line
   state.trailGlow = L.polyline([], TRAIL_GLOW_OPTS).addTo(map);

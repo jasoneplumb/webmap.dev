@@ -52,6 +52,18 @@ export interface AppState {
   gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
   gpsStrongStreak: number;      // consecutive fixes with accuracy < (TRAIL_MAX_ACCURACY_M - 5)
   gpsWeakBadgeVisible: boolean; // debounced badge state: true after 2+ weak, false after 2+ strong
+
+  // Battery efficiency: adaptive GPS accuracy
+  stationaryFixCount: number;   // consecutive fixes with no significant movement
+
+  // Battery efficiency: screen-off optimization
+  screenOff: boolean;           // true when document is hidden (Page Visibility API)
+
+  // Battery efficiency: battery monitoring
+  batteryLevel: number | null;          // current battery level 0–1, null if API unavailable
+  batteryCharging: boolean;             // true if device is charging
+  batteryDrainStartLevel: number | null; // battery level when recording started
+  batteryDrainStartMs: number;          // performance.now() when drain tracking began
 }
 
 export function createInitialState(): AppState {
@@ -85,5 +97,11 @@ export function createInitialState(): AppState {
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,
     gpsWeakBadgeVisible: false,
+    stationaryFixCount: 0,
+    screenOff: false,
+    batteryLevel: null,
+    batteryCharging: false,
+    batteryDrainStartLevel: null,
+    batteryDrainStartMs: 0,
   };
 }

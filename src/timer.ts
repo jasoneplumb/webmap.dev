@@ -1,15 +1,38 @@
 /**
- * Intent: GPS watch management — start/stop continuous location tracking
- * Context: Called by main.ts refcount logic; each activate increments the refcount, each deactivate decrements — watch starts at 1, stops at 0
- * Pattern: Thin wrapper over Leaflet's map.locate({ watch: true }), which itself wraps the browser watchPosition API; no polling timer needed
- * Future: No accuracy timeout or stale-fix detection; a fix could be cached and never refresh on some devices
+ * Intent: GPS watch management with adaptive accuracy to save battery
+ * Context: Called by main.ts refcount logic; supports switching between high/low accuracy based on motion state
+ * Pattern: Wraps Leaflet's map.locate({ watch: true }) with accuracy toggling — high accuracy uses GPS hardware (power hungry), low accuracy uses WiFi/cell (power efficient)
  */
 import type L from 'leaflet';
 
+let highAccuracy = true;
+
 export function startWatching(map: L.Map): void {
-  map.locate({ watch: true, setView: false });
+  highAccuracy = true;
+  map.locate({ watch: true, setView: false, enableHighAccuracy: true });
 }
 
 export function stopWatching(map: L.Map): void {
   map.stopLocate();
+}
+
+/**
+ * Switch between high/low GPS accuracy to save battery when stationary.
+ * High accuracy uses GPS hardware (power-hungry); low accuracy uses WiFi/cell (efficient).
+ * Restarts the watch with new settings — brief gap between fixes is acceptable.
+ */
+export function setWatchAccuracy(map: L.Map, high: boolean): void {
+  if (high === highAccuracy) return;
+  highAccuracy = high;
+  map.stopLocate();
+  map.locate({
+    watch: true,
+    setView: false,
+    enableHighAccuracy: high,
+    maximumAge: high ? 0 : 5000,
+  });
+}
+
+export function isHighAccuracy(): boolean {
+  return highAccuracy;
 }
