@@ -26,6 +26,7 @@ import { onLocationFound, onLocationError, clearLocationMarkers } from './locati
 import { startWatching, stopWatching } from './timer';
 import { createStatsBar, addRecordingControl, updateRecordingButtons, maybeRestoreTrailBackup } from './recording';
 import { addOfflineDownloadControl } from './offline-download';
+import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 
 const state = createInitialState();
@@ -269,6 +270,27 @@ window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
 
 initOfflineTileFallback(showToast);
+
+// ── Screen-off optimization ───────────────────────────────────────────────────
+// Suppress map rendering and UI updates when screen is off during recording
+// to reduce CPU/GPU work. GPS data is still processed for trail recording.
+document.addEventListener('visibilitychange', () => {
+  state.screenOff = document.hidden;
+  // When screen comes back on, re-render latest state to catch up
+  if (!document.hidden) {
+    if (state.locationMarker !== null && state.youAreHereLocation !== null) {
+      state.locationMarker.setLatLng(state.youAreHereLocation);
+    }
+    if (state.accuracyCircle !== null && state.youAreHereLocation !== null && state.lastGpsAccuracy !== null) {
+      state.accuracyCircle.setLatLng(state.youAreHereLocation);
+      state.accuracyCircle.setRadius(state.lastGpsAccuracy);
+    }
+    updateLocateIcon(state.locateState);
+  }
+});
+
+// ── Battery monitoring ────────────────────────────────────────────────────────
+initBattery(state);
 
 let pendingSwUpdate: (() => void) | null = null;
 
