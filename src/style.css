@@ -483,7 +483,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 .sheet-result--expanded .sheet-result__detail {
-  max-height: 200px;
+  max-height: 300px;
   opacity: 1;
 }
 
@@ -542,6 +542,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   color: #fff;
 }
 
+.sheet-result__go-btn:hover {
+  background: #3d82c4;
+}
+
 .sheet-result__go-btn:active {
   background: #3a7bc8;
 }
@@ -549,6 +553,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .sheet-result__copy-btn {
   background: #f0f0f0;
   color: #444;
+}
+
+.sheet-result__copy-btn:hover {
+  background: #e8e8e8;
 }
 
 .sheet-result__copy-btn:active {
