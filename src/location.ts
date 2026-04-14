@@ -39,6 +39,22 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
   // Always track the latest GPS accuracy so the stats bar can show a weak-signal indicator
   state.lastGpsAccuracy = e.accuracy;
 
+  // Update hysteresis counters for GPS weak-signal badge (show after 2+ weak fixes,
+  // hide after 2+ strong fixes, hold state in the 25-30m deadband)
+  if (e.accuracy > TRAIL_MAX_ACCURACY_M) {
+    state.gpsWeakStreak++;
+    state.gpsStrongStreak = 0;
+    if (state.gpsWeakStreak >= 2) state.gpsWeakBadgeVisible = true;
+  } else if (e.accuracy < TRAIL_MAX_ACCURACY_M - 5) {
+    state.gpsStrongStreak++;
+    state.gpsWeakStreak = 0;
+    if (state.gpsStrongStreak >= 2) state.gpsWeakBadgeVisible = false;
+  } else {
+    // Deadband (25–30m): reset streaks, keep current badge state
+    state.gpsWeakStreak = 0;
+    state.gpsStrongStreak = 0;
+  }
+
   // Haversine formula: great-circle distance between previous and current position
   const p = Math.PI / 180;
   const f =

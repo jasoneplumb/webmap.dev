@@ -47,6 +47,11 @@ export interface AppState {
   arrowMarkers: L.Marker[];
   statsTimer: ReturnType<typeof setInterval> | null;
   lastGpsAccuracy: number | null; // most recent GPS fix accuracy (metres); used by stats bar to show weak-signal indicator
+
+  // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
+  gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
+  gpsStrongStreak: number;      // consecutive fixes with accuracy < (TRAIL_MAX_ACCURACY_M - 5)
+  gpsWeakBadgeVisible: boolean; // debounced badge state: true after 2+ weak, false after 2+ strong
 }
 
 export function createInitialState(): AppState {
@@ -77,5 +82,8 @@ export function createInitialState(): AppState {
     arrowMarkers: [],
     statsTimer: null,
     lastGpsAccuracy: null,
+    gpsWeakStreak: 0,
+    gpsStrongStreak: 0,
+    gpsWeakBadgeVisible: false,
   };
 }
