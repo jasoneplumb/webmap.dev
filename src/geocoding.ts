@@ -595,7 +595,16 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     if (e.buttons !== 1) {
       // Button was released outside the window — end drag gracefully
       isDragging = false;
+      dragMoved = false;
       geocodeBar.style.willChange = '';
+      const earlyOffset = getCurrentOffset();
+      const earlyPeek = getPeekOffset();
+      if (earlyOffset > earlyPeek + 80) {
+        hideGeocodeBar();
+        pinLayer.clearLayers();
+      } else {
+        snapTo(earlyOffset < earlyPeek / 2 ? 'full' : 'peek');
+      }
       return;
     }
     const delta = e.clientY - dragStartY;
@@ -608,6 +617,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     if (!isDragging) return;
     isDragging = false;
     geocodeBar.style.willChange = '';
+    setTimeout(() => { dragMoved = false; }, 0); // let click fire first, then reset
     const currentOffset = getCurrentOffset();
     const peekOffset = getPeekOffset();
     // Dragged more than 80px below peek → dismiss
@@ -629,7 +639,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   }
 
   barHandle.addEventListener('click', () => {
-    if (dragMoved) { dragMoved = false; return; }
+    if (dragMoved) return; // mouseup's setTimeout resets the flag
     handleToggle();
   });
   barHandle.addEventListener('keydown', (e: KeyboardEvent) => {
