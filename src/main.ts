@@ -25,6 +25,7 @@ import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
 import { createStatsBar, addRecordingControl, updateRecordingButtons, maybeRestoreTrailBackup } from './recording';
+import { addOfflineDownloadControl } from './offline-download';
 import { registerSW } from 'virtual:pwa-register';
 
 const state = createInitialState();
@@ -190,6 +191,7 @@ if (maybeRestoreTrailBackup(state, map, activatePolling)) {
 initInfoPanel(map);
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state);
+addOfflineDownloadControl(map, showToast);
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');
