@@ -228,39 +228,56 @@ export function initInfoPanel(map: L.Map): void {
 
   const bodyEl = el.querySelector('.info-panel__body') as HTMLElement;
 
-  // Event delegation: click a result item → fly to its location and mark active
+  // Event delegation: expand result on first tap; fly to location on "Go" button
   bodyEl.addEventListener('click', (e: MouseEvent) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lat]');
-    if (target === null || _map === null) return;
-    const lat = parseFloat(target.dataset['lat'] ?? '');
-    const lng = parseFloat(target.dataset['lng'] ?? '');
-    if (isNaN(lat) || isNaN(lng)) return;
-    // Reset all markers and list items, then activate the selected one
-    if (_clearSelectionFn) _clearSelectionFn();
-    target.classList.add('sheet-result--active');
-    const idx = parseInt(target.dataset['index'] ?? '', 10);
-    if (_activateSelectionFn && !isNaN(idx)) _activateSelectionFn(idx);
-    const boundsRaw = target.dataset['bounds'] ?? '';
-    if (boundsRaw !== '') {
-      try {
-        const parsed = JSON.parse(boundsRaw) as unknown;
-        if (Array.isArray(parsed) && parsed.length === 2 &&
-            Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
-          _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
-              paddingTopLeft: [50, 50],
-              paddingBottomRight: [50, isMobile() ? 300 : 50],
-              maxZoom: 17,
-            });
-        } else {
+    const clicked = e.target as HTMLElement;
+
+    // Let the copy handler (separate listener below) handle data-copy buttons
+    if (clicked.closest('[data-copy]')) return;
+
+    // "Go to location" button — fly to result and mark active
+    const goBtn = clicked.closest<HTMLElement>('.sheet-result__go-btn');
+    if (goBtn) {
+      const target = goBtn.closest<HTMLElement>('[data-lat]');
+      if (target === null || _map === null) return;
+      const lat = parseFloat(target.dataset['lat'] ?? '');
+      const lng = parseFloat(target.dataset['lng'] ?? '');
+      if (isNaN(lat) || isNaN(lng)) return;
+      if (_clearSelectionFn) _clearSelectionFn();
+      target.classList.add('sheet-result--active');
+      target.classList.remove('sheet-result--expanded');
+      const idx = parseInt(target.dataset['index'] ?? '', 10);
+      if (_activateSelectionFn && !isNaN(idx)) _activateSelectionFn(idx);
+      const boundsRaw = target.dataset['bounds'] ?? '';
+      if (boundsRaw !== '') {
+        try {
+          const parsed = JSON.parse(boundsRaw) as unknown;
+          if (Array.isArray(parsed) && parsed.length === 2 &&
+              Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+            _map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
+                paddingTopLeft: [50, 50],
+                paddingBottomRight: [50, isMobile() ? 300 : 50],
+                maxZoom: 17,
+              });
+          } else {
+            _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+          }
+        } catch {
           _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
         }
-      } catch {
+      } else {
         _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
       }
-    } else {
-      _map.flyTo(L.latLng(lat, lng), zoomForAddrType(target.dataset['addrType'] ?? ''));
+      snapTo('half');
+      return;
     }
-    snapTo('half');
+
+    // Result item click — toggle expand/collapse
+    const li = clicked.closest<HTMLElement>('.sheet-result');
+    if (li === null) return;
+    const prev = bodyEl.querySelector('.sheet-result--expanded');
+    if (prev && prev !== li) prev.classList.remove('sheet-result--expanded');
+    li.classList.toggle('sheet-result--expanded');
   });
 
   // Event delegation: click a copy button → write to clipboard
