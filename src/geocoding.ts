@@ -536,6 +536,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   let dragStartY = 0;
   let dragStartOffset = 0;
   let isDragging = false;
+  let dragMoved = false; // suppresses click-toggle after a mouse drag
 
   barHandle.addEventListener('touchstart', (e: TouchEvent) => {
     const touch = e.touches[0];
@@ -577,6 +578,48 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     snapTo(currentOffset < peekOffset / 2 ? 'full' : 'peek');
   }, { passive: true });
 
+  // ── Mouse drag-to-snap on handle (mirrors touch handlers for desktop) ──
+  barHandle.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button !== 0) return; // only primary button
+    isDragging = true;
+    dragMoved = false;
+    dragStartY = e.clientY;
+    dragStartOffset = getCurrentOffset();
+    geocodeBar.style.willChange = 'transform';
+    geocodeBar.style.transition = 'none';
+    e.preventDefault(); // prevent text selection during drag
+  });
+
+  document.addEventListener('mousemove', (e: MouseEvent) => {
+    if (!isDragging) return;
+    if (e.buttons !== 1) {
+      // Button was released outside the window — end drag gracefully
+      isDragging = false;
+      geocodeBar.style.willChange = '';
+      return;
+    }
+    const delta = e.clientY - dragStartY;
+    if (Math.abs(delta) > 3) dragMoved = true;
+    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + 20, dragStartOffset + delta));
+    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    geocodeBar.style.willChange = '';
+    const currentOffset = getCurrentOffset();
+    const peekOffset = getPeekOffset();
+    // Dragged more than 80px below peek → dismiss
+    if (currentOffset > peekOffset + 80) {
+      hideGeocodeBar();
+      pinLayer.clearLayers();
+      return;
+    }
+    // Snap to nearest: below midpoint between full(0) and peek → full; above → peek
+    snapTo(currentOffset < peekOffset / 2 ? 'full' : 'peek');
+  });
+
   // Click and keyboard (Enter / Space) on handle bar toggle peek ↔ full.
   // Both are required: click fires from pointer devices; keydown covers
   // keyboard and assistive-technology users (role="button" + tabindex="0").
@@ -585,7 +628,10 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
     else if (sheetState === 'full') snapTo('peek');
   }
 
-  barHandle.addEventListener('click', handleToggle);
+  barHandle.addEventListener('click', () => {
+    if (dragMoved) { dragMoved = false; return; }
+    handleToggle();
+  });
   barHandle.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
