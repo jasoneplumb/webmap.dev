@@ -493,7 +493,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .geocode-bar--peek .geocode-bar__handle,
 .geocode-bar--peek .geocode-bar__copy,
-.geocode-bar--peek .geocode-bar__close {
+.geocode-bar--peek .geocode-bar__close,
+.geocode-bar--peek .geocode-bar__addr {
   pointer-events: auto;
 }
 
@@ -568,6 +569,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   white-space: nowrap;
   color: #222;
   min-width: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tap-to-expand: show full address as multi-line text */
+.geocode-bar__addr--expanded {
+  white-space: normal;
+  text-overflow: clip;
+  word-break: break-word;
 }
 
 .geocode-bar__close {

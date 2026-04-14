@@ -408,6 +408,33 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
   const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
 
+  // Tap-to-expand: tapping a truncated address shows the full text for 3s
+  // (or until a second tap). This makes long addresses readable on mobile
+  // where title-attr tooltips don't render.
+  let addrCollapseTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function collapseAddr(): void {
+    barAddrEl.classList.remove('geocode-bar__addr--expanded');
+    if (addrCollapseTimer !== undefined) {
+      clearTimeout(addrCollapseTimer);
+      addrCollapseTimer = undefined;
+    }
+  }
+
+  barAddrEl.addEventListener('click', (e: MouseEvent) => {
+    // Don't interfere with the copy button or close button
+    if ((e.target as HTMLElement).closest('.geocode-bar__copy, .geocode-bar__close')) return;
+
+    if (barAddrEl.classList.contains('geocode-bar__addr--expanded')) {
+      collapseAddr();
+      return;
+    }
+
+    barAddrEl.classList.add('geocode-bar__addr--expanded');
+    if (addrCollapseTimer !== undefined) clearTimeout(addrCollapseTimer);
+    addrCollapseTimer = setTimeout(collapseAddr, 3000);
+  });
+
   // Height of the sheet visible in peek state (px), augmented by safe-area-inset-bottom
   // so the handle + action row remain fully above the home-indicator on notched phones.
   const PEEK_HEIGHT_BASE = 130;
@@ -475,6 +502,7 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
   }
 
   function showGeocodeBar(label: string, copyText: string): void {
+    collapseAddr();
     barAddrEl.textContent = label;
     barAddrEl.title = label;
     barCopyBtn.dataset['copy'] = copyText;
