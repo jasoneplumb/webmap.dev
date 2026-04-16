@@ -268,3 +268,22 @@ export function createMap(): L.Map {
 
   return map;
 }
+
+export function getTileLayers(): {
+  osmStreetsLayer: L.TileLayer;
+  cyclosmLayer: L.TileLayer;
+  opentopoLayer: L.TileLayer;
+  humanitarianLayer: L.TileLayer;
+  hillshadeLayer: L.TileLayer;
+} {
+  if (!osmStreetsLayer || !cyclosmLayer || !opentopoLayer || !humanitarianLayer || !hillshadeLayer) {
+    throw new Error('Tile layers not initialized — call createMap() first');
+  }
+  return {
+    osmStreetsLayer,
+    cyclosmLayer,
+    opentopoLayer,
+    humanitarianLayer,
+    hillshadeLayer,
+  };
+}

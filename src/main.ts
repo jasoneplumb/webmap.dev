@@ -18,7 +18,7 @@ import './style.css';
 import changelogRaw from '../CHANGELOG.md?raw';
 
 import { createInitialState } from './types';
-import { createMap, initOfflineTileFallback } from './map';
+import { createMap, initOfflineTileFallback, getTileLayers } from './map';
 import { addLayersControl, type LayerDef, type OverlayDef } from './layers-control';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
@@ -192,33 +192,35 @@ if (maybeRestoreTrailBackup(state, map, activatePolling)) {
 
 
 // Initialize custom layers control with free OSM tile sources
+const tileLayers = getTileLayers();
+
 const layerDefs: LayerDef[] = [
   {
     id: 'osm-streets',
     name: 'Streets',
     description: 'Street map with roads and labels',
-    tileLayer: (window as unknown as { osmStreetsLayer: L.TileLayer }).osmStreetsLayer,
+    tileLayer: tileLayers.osmStreetsLayer,
     offline: true,
   },
   {
     id: 'cyclosm',
     name: 'Trails',
     description: 'Emphasizes hiking and cycling routes',
-    tileLayer: (window as unknown as { cyclosmLayer: L.TileLayer }).cyclosmLayer,
+    tileLayer: tileLayers.cyclosmLayer,
     offline: true,
   },
   {
     id: 'topo',
     name: 'Topographic',
     description: 'Contour lines and hillshade',
-    tileLayer: (window as unknown as { opentopoLayer: L.TileLayer }).opentopoLayer,
+    tileLayer: tileLayers.opentopoLayer,
     offline: true,
   },
   {
     id: 'parks',
     name: 'Parks & POIs',
     description: 'Highlights parks and amenities',
-    tileLayer: (window as unknown as { humanitarianLayer: L.TileLayer }).humanitarianLayer,
+    tileLayer: tileLayers.humanitarianLayer,
     offline: true,
   },
 ];
@@ -227,7 +229,7 @@ const overlayDefs: OverlayDef[] = [
   {
     id: 'hillshade',
     name: 'Hillshade',
-    tileLayer: (window as unknown as { hillshadeLayer: L.TileLayer }).hillshadeLayer,
+    tileLayer: tileLayers.hillshadeLayer,
     offline: true,
   },
 ];
