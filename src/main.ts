@@ -19,6 +19,7 @@ import changelogRaw from '../CHANGELOG.md?raw';
 
 import { createInitialState } from './types';
 import { createMap, initOfflineTileFallback } from './map';
+import { addLayersControl, type LayerDef, type OverlayDef } from './layers-control';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
@@ -188,6 +189,50 @@ addRecordingControl(map, state, activatePolling, deactivatePolling);
 if (maybeRestoreTrailBackup(state, map, activatePolling)) {
   updateRecordingButtons();
 }
+
+
+// Initialize custom layers control with free OSM tile sources
+const layerDefs: LayerDef[] = [
+  {
+    id: 'osm-streets',
+    name: 'Streets',
+    description: 'Street map with roads and labels',
+    tileLayer: (window as unknown as { osmStreetsLayer: L.TileLayer }).osmStreetsLayer,
+    offline: true,
+  },
+  {
+    id: 'cyclosm',
+    name: 'Trails',
+    description: 'Emphasizes hiking and cycling routes',
+    tileLayer: (window as unknown as { cyclosmLayer: L.TileLayer }).cyclosmLayer,
+    offline: true,
+  },
+  {
+    id: 'topo',
+    name: 'Topographic',
+    description: 'Contour lines and hillshade',
+    tileLayer: (window as unknown as { opentopoLayer: L.TileLayer }).opentopoLayer,
+    offline: true,
+  },
+  {
+    id: 'parks',
+    name: 'Parks & POIs',
+    description: 'Highlights parks and amenities',
+    tileLayer: (window as unknown as { humanitarianLayer: L.TileLayer }).humanitarianLayer,
+    offline: true,
+  },
+];
+
+const overlayDefs: OverlayDef[] = [
+  {
+    id: 'hillshade',
+    name: 'Hillshade',
+    tileLayer: (window as unknown as { hillshadeLayer: L.TileLayer }).hillshadeLayer,
+    offline: true,
+  },
+];
+
+addLayersControl(map, layerDefs, overlayDefs);
 
 initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);

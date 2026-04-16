@@ -1,0 +1,368 @@
+/**
+ * Custom layers control — replaces native Leaflet L.control.layers with
+ * a curated, discoverable button + popover UI for base maps and overlays.
+ *
+ * Features:
+ * - Single button in top-left (26×26px desktop, 34×34px mobile)
+ * - Popover shows base maps (radio) + overlays (checkboxes)
+ * - Persists selection to localStorage
+ * - Offline capability metadata for each layer
+ */
+
+import L from 'leaflet';
+
+export interface LayerDef {
+  id: string;
+  name: string;
+  description: string;
+  tileLayer: L.TileLayer;
+  offline: boolean; // Can be pre-downloaded for offline use
+}
+
+export interface OverlayDef {
+  id: string;
+  name: string;
+  tileLayer: L.TileLayer;
+  offline: boolean;
+}
+
+const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
+const OVERLAY_STORAGE_KEY = 'webmap-overlay-selection';
+
+export class LayersControl extends L.Control {
+  private baseMaps: LayerDef[] = [];
+  private overlays: OverlayDef[] = [];
+  private currentBase: LayerDef | null = null;
+  private activeOverlays: Set<string> = new Set();
+  private popoverEl: HTMLElement | null = null;
+  private popoverOpen = false;
+  private map: L.Map | null = null;
+
+  constructor(
+    baseMaps: LayerDef[],
+    overlays: OverlayDef[] = [],
+    options?: L.ControlOptions,
+  ) {
+    super(options || { position: 'topleft' });
+    this.baseMaps = baseMaps;
+    this.overlays = overlays;
+  }
+
+  onAdd(map: L.Map): HTMLElement {
+    this.map = map;
+
+    const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+    container.title = 'Click to choose map layer';
+
+    // Icon: layered squares
+    const icon = L.DomUtil.create('span', 'layers-control__icon') as HTMLSpanElement;
+    icon.innerHTML = '⚙'; // Alternative: could use an SVG or emoji
+    icon.id = 'layers-control-btn';
+
+    container.appendChild(icon);
+
+    // Label
+    const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
+    label.textContent = 'Layers';
+    container.appendChild(label);
+
+    // Prevent map interaction
+    L.DomEvent.disableClickPropagation(container);
+
+    // Toggle popover on click/touch
+    L.DomEvent.on(container, 'touchend', (e: Event) => {
+      e.preventDefault();
+      this.togglePopover();
+      e.stopImmediatePropagation();
+    });
+
+    L.DomEvent.on(container, 'click', (e: Event) => {
+      this.togglePopover();
+      e.stopImmediatePropagation();
+    });
+
+    // Load persisted selection and initialize layers
+    this.loadPersistedSelection();
+    this.applyCurrentLayers();
+
+    return container;
+  }
+
+  private loadPersistedSelection(): void {
+    // Load base map selection
+    const savedBase = localStorage.getItem(LAYERS_STORAGE_KEY);
+    if (savedBase) {
+      const base = this.baseMaps.find((b) => b.id === savedBase);
+      if (base) {
+        this.currentBase = base;
+      }
+    }
+
+    // Use first base map if none persisted
+    if (!this.currentBase && this.baseMaps.length > 0) {
+      this.currentBase = this.baseMaps[0]!;
+    }
+
+    // Load overlay selection
+    const savedOverlays = localStorage.getItem(OVERLAY_STORAGE_KEY);
+    if (savedOverlays) {
+      try {
+        this.activeOverlays = new Set(JSON.parse(savedOverlays));
+      } catch {
+        this.activeOverlays = new Set();
+      }
+    }
+  }
+
+  private togglePopover(): void {
+    if (this.popoverOpen) {
+      this.closePopover();
+    } else {
+      this.openPopover();
+    }
+  }
+
+  private openPopover(): void {
+    if (!this.map) return;
+
+    // Create popover if needed
+    if (!this.popoverEl) {
+      this.popoverEl = this.buildPopover();
+      document.body.appendChild(this.popoverEl);
+    }
+
+    this.popoverEl.style.display = 'block';
+    this.popoverOpen = true;
+
+    // Position popover
+    this.positionPopover();
+
+    // Close on outside click
+    const handleOutsideClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (!this.popoverEl?.contains(target) && target.id !== 'layers-control-btn') {
+        this.closePopover();
+        document.removeEventListener('click', handleOutsideClick);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+  }
+
+  private closePopover(): void {
+    if (this.popoverEl) {
+      this.popoverEl.style.display = 'none';
+    }
+    this.popoverOpen = false;
+  }
+
+  private positionPopover(): void {
+    if (!this.popoverEl) return;
+
+    const btn = document.getElementById('layers-control-btn');
+    if (!btn) return;
+
+    const btnRect = btn.getBoundingClientRect();
+    const popoverRect = this.popoverEl.getBoundingClientRect();
+
+    // Position below/above button with some offset, avoid viewport edges
+    let top = btnRect.bottom + 10;
+    let left = btnRect.left;
+
+    // Adjust if too close to right edge
+    if (left + popoverRect.width > window.innerWidth - 10) {
+      left = window.innerWidth - popoverRect.width - 10;
+    }
+
+    // Adjust if too close to bottom edge
+    if (top + popoverRect.height > window.innerHeight - 10) {
+      top = btnRect.top - popoverRect.height - 10;
+    }
+
+    this.popoverEl.style.position = 'fixed';
+    this.popoverEl.style.top = `${top}px`;
+    this.popoverEl.style.left = `${left}px`;
+    this.popoverEl.style.zIndex = '1000';
+  }
+
+  private buildPopover(): HTMLElement {
+    const popover = document.createElement('div');
+    popover.className = 'layers-popover';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'layers-popover__header';
+
+    const title = document.createElement('span');
+    title.className = 'layers-popover__title';
+    title.textContent = 'Map Layers';
+    header.appendChild(title);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'layers-popover__close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.textContent = '×';
+    L.DomEvent.on(closeBtn, 'click', () => this.closePopover());
+    header.appendChild(closeBtn);
+
+    popover.appendChild(header);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'layers-popover__body';
+
+    // Base maps fieldset
+    const baseMapsFieldset = document.createElement('fieldset');
+    baseMapsFieldset.className = 'layers-fieldset';
+
+    const baseMapsLegend = document.createElement('legend');
+    baseMapsLegend.textContent = 'Base Map';
+    baseMapsFieldset.appendChild(baseMapsLegend);
+
+    for (const layer of this.baseMaps) {
+      const label = document.createElement('label');
+      label.className = 'layers-option';
+
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'base-map';
+      radio.value = layer.id;
+      radio.checked = this.currentBase?.id === layer.id;
+
+      L.DomEvent.on(radio, 'change', () => {
+        this.selectBaseMap(layer);
+      });
+
+      label.appendChild(radio);
+
+      const layerName = document.createElement('span');
+      layerName.className = 'layers-option__name';
+      layerName.textContent = layer.name;
+      label.appendChild(layerName);
+
+      const layerDesc = document.createElement('span');
+      layerDesc.className = 'layers-option__desc';
+      layerDesc.textContent = layer.description;
+      label.appendChild(layerDesc);
+
+      const offlineBadge = document.createElement('span');
+      offlineBadge.className = 'layers-option__badge';
+      offlineBadge.textContent = layer.offline ? '📴 Offline' : '';
+      label.appendChild(offlineBadge);
+
+      baseMapsFieldset.appendChild(label);
+    }
+
+    body.appendChild(baseMapsFieldset);
+
+    // Overlays fieldset
+    if (this.overlays.length > 0) {
+      const overlaysFieldset = document.createElement('fieldset');
+      overlaysFieldset.className = 'layers-fieldset';
+
+      const overlaysLegend = document.createElement('legend');
+      overlaysLegend.textContent = 'Overlays';
+      overlaysFieldset.appendChild(overlaysLegend);
+
+      for (const overlay of this.overlays) {
+        const label = document.createElement('label');
+        label.className = 'layers-option';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = `overlay-${overlay.id}`;
+        checkbox.value = overlay.id;
+        checkbox.checked = this.activeOverlays.has(overlay.id);
+
+        L.DomEvent.on(checkbox, 'change', () => {
+          this.toggleOverlay(overlay, checkbox.checked);
+        });
+
+        label.appendChild(checkbox);
+
+        const overlayName = document.createElement('span');
+        overlayName.className = 'layers-option__name';
+        overlayName.textContent = overlay.name;
+        label.appendChild(overlayName);
+
+        overlaysFieldset.appendChild(label);
+      }
+
+      body.appendChild(overlaysFieldset);
+    }
+
+    popover.appendChild(body);
+
+    return popover;
+  }
+
+  private selectBaseMap(layer: LayerDef): void {
+    if (!this.map) return;
+
+    // Remove old base map
+    if (this.currentBase) {
+      this.map.removeLayer(this.currentBase.tileLayer);
+    }
+
+    // Add new base map
+    this.currentBase = layer;
+    this.currentBase.tileLayer.addTo(this.map);
+
+    // Persist selection
+    localStorage.setItem(LAYERS_STORAGE_KEY, layer.id);
+
+    // Update popover UI
+    const radios = document.querySelectorAll('input[name="base-map"]');
+    radios.forEach((r) => {
+      (r as HTMLInputElement).checked = (r as HTMLInputElement).value === layer.id;
+    });
+  }
+
+  private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {
+    if (!this.map) return;
+
+    if (enabled) {
+      this.activeOverlays.add(overlay.id);
+      overlay.tileLayer.addTo(this.map);
+    } else {
+      this.activeOverlays.delete(overlay.id);
+      this.map.removeLayer(overlay.tileLayer);
+    }
+
+    // Persist selection
+    localStorage.setItem(OVERLAY_STORAGE_KEY, JSON.stringify(Array.from(this.activeOverlays)));
+  }
+
+  private applyCurrentLayers(): void {
+    if (!this.map) return;
+
+    // Add current base map
+    if (this.currentBase) {
+      this.currentBase.tileLayer.addTo(this.map);
+    }
+
+    // Add active overlays
+    for (const overlay of this.overlays) {
+      if (this.activeOverlays.has(overlay.id)) {
+        overlay.tileLayer.addTo(this.map);
+      }
+    }
+  }
+
+  onRemove(): void {
+    if (this.popoverEl) {
+      this.popoverEl.remove();
+      this.popoverEl = null;
+    }
+    this.map = null;
+  }
+}
+
+export function addLayersControl(
+  map: L.Map,
+  baseMaps: LayerDef[],
+  overlays?: OverlayDef[],
+): LayersControl {
+  const control = new LayersControl(baseMaps, overlays, { position: 'topleft' });
+  control.addTo(map);
+  return control;
+}

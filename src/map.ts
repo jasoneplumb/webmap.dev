@@ -9,9 +9,11 @@ import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmTileLayer: L.TileLayer | null = null;
-let mapboxTileLayer: L.TileLayer | null = null;
-let googleTileLayer: L.TileLayer | null = null;
-
+let osmStreetsLayer: L.TileLayer | null = null;
+let cyclosmLayer: L.TileLayer | null = null;
+let opentopoLayer: L.TileLayer | null = null;
+let humanitarianLayer: L.TileLayer | null = null;
+let hillshadeLayer: L.TileLayer | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
 interface TileErrorEvent extends L.LeafletEvent {
   tile: HTMLImageElement;
@@ -35,7 +37,7 @@ let osmCachePromise: Promise<Cache> | null = null;
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmTileLayer, mapboxTileLayer, googleTileLayer].filter(
+  const layers = [osmStreetsLayer, cyclosmLayer, opentopoLayer, humanitarianLayer, hillshadeLayer].filter(
     (l): l is L.TileLayer => l !== null,
   );
   if (layers.length === 0) {
@@ -198,25 +200,61 @@ export function createMap(): L.Map {
   L.control.zoom({ position: 'topleft' }).addTo(map);
   map.setZoom(2);
 
-  // tradeoff: Mapbox requires a token but provides the best outdoor/trail data.
-  // OSM is the anonymous fallback; Google satellite is included for imagery context.
-  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  // All layers are now free, community-maintained OSM sources
   // keepBuffer: extra tiles to cache beyond the viewport (smoother panning)
   // updateWhenZooming: false defers tile loads during pinch-zoom animation
   const tilePerf = { keepBuffer: 3, updateWhenZooming: false } as const;
+  const stdConfig = {
+    tileSize: 512,
+    zoomOffset: -1,
+    maxZoom: 18,
+    maxNativeZoom: 18,
+    minZoom: 2,
+    minNativeZoom: 2,
+    ...tilePerf,
+  };
 
-  mapboxTileLayer = L.tileLayer(
-    `https://api.mapbox.com/styles/v1/mapbox/outdoors-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+  osmStreetsLayer = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {
-      tileSize: 512,
-      zoomOffset: -1,
-      maxZoom: 18,
-      maxNativeZoom: 18,
-      minZoom: 2,
-      minNativeZoom: 2,
-      ...tilePerf,
+      attribution: '© OpenStreetMap contributors',
+      ...stdConfig,
     },
   );
+
+  cyclosmLayer = L.tileLayer(
+    'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+    {
+      attribution: '© OpenStreetMap contributors, Carto',
+      ...stdConfig,
+    },
+  );
+
+  opentopoLayer = L.tileLayer(
+    'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    {
+      attribution: '© OpenStreetMap contributors, Carto',
+      ...stdConfig,
+    },
+  );
+
+  humanitarianLayer = L.tileLayer(
+    'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    {
+      attribution: '© OpenStreetMap contributors',
+      ...stdConfig,
+    },
+  );
+
+  hillshadeLayer = L.tileLayer(
+    'https://{s}.tile.opentopomap.org/hillshade/{z}/{x}/{y}.png',
+    {
+      attribution: '© OpenStreetMap contributors',
+      opacity: 0.4,
+      ...stdConfig,
+    },
+  );
+
 
   osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     tileSize: 512,
@@ -227,20 +265,6 @@ export function createMap(): L.Map {
     minNativeZoom: 2,
     ...tilePerf,
   }).addTo(map);
-
-  googleTileLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-    tileSize: 512,
-    zoomOffset: -1,
-    maxZoom: 18,
-    maxNativeZoom: 18,
-    minZoom: 2,
-    minNativeZoom: 2,
-    ...tilePerf,
-  });
-
-  const baseMaps = { Imagery: googleTileLayer, Structures: osmTileLayer, Topo: mapboxTileLayer };
-  L.control.layers(baseMaps, undefined, { position: 'topleft' }).addTo(map);
 
   return map;
 }
