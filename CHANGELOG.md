@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.18.0-beta (2026-04-16)
+
+### Added
+
+- **Layers** — custom popover UI control replacing Leaflet's native layer switcher; allows switching between base maps (Streets, Trails, Topographic, Parks) and toggling overlays (Hillshade)
+- **Free tile sources** — replaced Mapbox and Google imagery with community-maintained alternatives: CyclOSM (trails-focused), OpenTopoMap (topographic), Humanitarian OSM (parks & POIs); all sources are free and offline-cacheable
+
+### Changed
+
+- **Layers control** — new button with gear icon (⚙) in top-left, matching Locate and Download control styling; opens popover on click with layer selection UI
+- **Service Worker caching** — updated to cache all free OSM tile sources (CyclOSM, OpenTopoMap, Humanitarian OSM) alongside existing OSM Standard tiles; removed Mapbox and Google caching
+
+### Removed
+
+- **Mapbox Topo layer** — replaced with free OpenTopoMap (same topographic + hillshade features, zero cost, offline-capable)
+- **Google Imagery layer** — removed to eliminate vendor lock-in and unapproved costs
+
+### Benefits
+
+- **Zero cost** — unregulated public traffic no longer risks surprise billing
+- **Offline resilience** — all layers available for pre-download via offline-download panel; no vendor outages can break the app
+- **Improved UX** — visual layer switcher with descriptions; matches existing control aesthetic
+
+
 ## v0.17.1-beta (2026-04-16)
 
 ### Fixed
