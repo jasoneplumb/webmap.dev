@@ -533,15 +533,18 @@ export function addOfflineDownloadControl(
 ): void {
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
-      const container = L.DomUtil.create('div', 'leaflet-control-toggle');
-      const btn = L.DomUtil.create('button', '', container) as HTMLButtonElement;
-      btn.id = 'offline-dl-btn';
-      btn.innerHTML = '&#x21E9;'; // downward arrow
-      btn.title = 'Download region for offline';
-      btn.style.cssText =
-        'background:none;border:none;cursor:pointer;font-size:18px;' +
-        'width:100%;height:100%;display:flex;align-items:center;justify-content:center;' +
-        'color:#333;padding:0;';
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+
+      const iconSpan = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
+      iconSpan.id = 'offline-dl-btn';
+      iconSpan.innerHTML = '&#x21E9;'; // downward arrow
+      iconSpan.title = 'Download region for offline';
+
+      container.appendChild(iconSpan);
+
+      const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
+      label.textContent = 'Download';
+      container.appendChild(label);
 
       L.DomEvent.disableClickPropagation(container);
       L.DomEvent.on(container, 'touchend', (e: Event) => {

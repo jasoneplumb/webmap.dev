@@ -190,9 +190,9 @@ if (maybeRestoreTrailBackup(state, map, activatePolling)) {
 }
 
 initInfoPanel(map);
+addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state);
-addOfflineDownloadControl(map, showToast);
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');

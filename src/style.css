@@ -739,24 +739,47 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   animation: tile-loading-spin 1s linear infinite;
 }
 
-/* ── Custom toggle controls (locate, track) and layers toggle ────────────────
-   Sized to match ESRI geocoder search button: 26px desktop, 34px touch.       */
+/* ── Custom toggle controls (locate, track, download) and layers toggle ────────────────
+   Buttons with labels are wider; icon-only buttons remain compact.
+   Sized to match ESRI geocoder search button when icon-only: 26px desktop, 34px touch. */
 .leaflet-control-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
+  gap: 6px;
+  padding: 0 8px;
   height: 26px;
   background: rgba(255, 255, 255, 0.9);
   border-radius: 4px;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
 
 .leaflet-control-toggle img {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
+}
+
+.leaflet-control-toggle__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  color: #333;
+}
+
+.leaflet-control-toggle__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  letter-spacing: -0.3px;
 }
 
 /* Size the layers control toggle button to match locate/track/zoom controls */
@@ -767,13 +790,24 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 .leaflet-touch .leaflet-control-toggle {
-  width: 34px;
   height: 34px;
+  gap: 8px;
+  padding: 0 10px;
 }
 
 .leaflet-touch .leaflet-control-toggle img {
   width: 20px;
   height: 20px;
+}
+
+.leaflet-touch .leaflet-control-toggle__icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.leaflet-touch .leaflet-control-toggle__label {
+  font-size: 14px;
 }
 
 .leaflet-touch .leaflet-control-layers-toggle {

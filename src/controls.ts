@@ -13,12 +13,13 @@ interface ToggleControlConfig {
   disabledTitle: string;
   position: L.ControlPosition;
   onClick: (e: Event) => void;
+  label?: string;
 }
 
 // tradeoff: Using a factory function rather than a class to avoid the complexity of
 // typing L.Control.extend() return values in strict TypeScript. The per-call closure
 // captures config cleanly without needing instance properties.
-function makeToggleControl(config: ToggleControlConfig): L.Control {
+export function makeToggleControl(config: ToggleControlConfig): L.Control {
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
@@ -29,6 +30,12 @@ function makeToggleControl(config: ToggleControlConfig): L.Control {
       img.src = config.disabledSrc;
 
       container.appendChild(img);
+
+      if (config.label) {
+        const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
+        label.textContent = config.label;
+        container.appendChild(label);
+      }
 
       // Prevent click, dblclick, and touchstart from bubbling to the map,
       // so button interactions don't accidentally trigger map handlers (e.g. pin drop on dblclick).
@@ -68,6 +75,7 @@ export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void 
     disabledTitle: 'Locate (Off)',
     position: 'topleft',
     onClick,
+    label: 'Locate',
   }).addTo(map);
 }
 
@@ -98,5 +106,6 @@ export function addTrackingControl(map: L.Map, onClick: (e: Event) => void): voi
     disabledTitle: 'Tracking Toggle (Disabled)',
     position: 'topleft',
     onClick,
+    label: 'Tracking',
   }).addTo(map);
 }
