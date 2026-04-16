@@ -72,7 +72,7 @@ export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void 
   makeToggleControl({
     id: 'locate',
     disabledSrc: '/locate-arrow-lines.svg',
-    disabledTitle: 'Locate (Off)',
+    disabledTitle: 'Locate: Center map on your GPS location',
     position: 'topleft',
     onClick,
     label: 'Locate',
@@ -85,15 +85,15 @@ export function updateLocateIcon(locateState: LocateState): void {
   if (!img) return;
   switch (locateState) {
     case 'off':
-      img.alt = img.title = 'Locate (Off)';
+      img.alt = img.title = 'Locate: Center map on your GPS location';
       img.src = '/locate-arrow-lines.svg';
       break;
     case 'active':
-      img.alt = img.title = 'Locate (Following)';
+      img.alt = img.title = 'Locate (Following): Tap again to stop following';
       img.src = '/locate-arrow-color.svg';
       break;
     case 'passive':
-      img.alt = img.title = 'Locate (Passive — tap to re-center)';
+      img.alt = img.title = 'Locate (Passive): Tap to re-center map on your location';
       img.src = '/locate-arrow-bw.svg';
       break;
   }
