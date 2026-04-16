@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.18.1-beta (2026-04-16)
+
+### Fixed
+
+- **Layers control** — fixed runtime error when layer control tried to add tile layers to the map; tile layers are now properly exported and retrieved via getTileLayers() function
+
+
 ## v0.18.0-beta (2026-04-16)
 
 ### Added
