@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.19.0-beta (2026-04-16)
+
+### Added
+
+- **Consent modal** — first-run consent dialog shown before GPS recording begins; displays inline Terms of Use and Privacy Policy with expandable sections; stores consent version, timestamp, and anonymous install ID in localStorage (#103)
+
 ## v0.18.1-beta (2026-04-16)
 
 ### Fixed
