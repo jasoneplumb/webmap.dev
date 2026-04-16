@@ -534,11 +534,11 @@ export function addOfflineDownloadControl(
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      container.title = 'Download: Select a region and zoom range to cache for offline use';
 
       const iconSpan = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
       iconSpan.id = 'offline-dl-btn';
       iconSpan.innerHTML = '&#x21E9;'; // downward arrow
-      iconSpan.title = 'Download: Select a region and zoom range to cache for offline use';
 
       container.appendChild(iconSpan);
 
