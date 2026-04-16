@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.17.1-beta (2026-04-16)
+
+### Fixed
+
+- **UI** — tooltips on Locate and Download buttons now appear when hovering anywhere on the button (was only showing on icon, not label area)
+
+
 ## v0.17.0-beta (2026-04-16)
 
 ### Added
