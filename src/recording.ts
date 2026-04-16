@@ -8,6 +8,7 @@ import L from 'leaflet';
 import type { AppState } from './types';
 import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup, dismissTrailBackup, isTrailBackupDismissed } from './trail-backup';
 import { snapshotBatteryStart, formatBatteryEstimate } from './battery';
+import { hasConsent, showConsentModal } from './consent';
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
 const MIN_TRAIL_DIST_M = 5;
@@ -229,7 +230,11 @@ function renderButtons(
   c.innerHTML = '';
 
   if (state.recordingState === 'idle') {
-    const btn = makeBtn('⏺ Record', 'rec-btn rec-btn-start', () => {
+    const btn = makeBtn('⏺ Record', 'rec-btn rec-btn-start', async () => {
+      if (!hasConsent()) {
+        const accepted = await showConsentModal();
+        if (!accepted) return;
+      }
       startRecording(state, map, activatePolling);
       renderButtons(state, activatePolling, deactivatePolling, map);
     });
