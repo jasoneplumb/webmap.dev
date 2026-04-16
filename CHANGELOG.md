@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.16.0-beta (2026-04-16)
+
+### Added
+
+- **UI** — locate, tracking, and download buttons now display with text labels for clarity; offline download control repositioned above search control for better logical flow
+
+### Changed
+
+- **UI** — button width adjusted to accommodate text labels with uniform padding and icon-label spacing
+
+
 ## v0.15.0-beta (2026-04-14)
 
 ### Added
