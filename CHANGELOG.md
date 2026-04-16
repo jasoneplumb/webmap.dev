@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.17.0-beta (2026-04-16)
+
+### Added
+
+- **UI** — explanatory tooltips on Locate and Download buttons to improve discoverability; Locate tooltip guides users through state transitions (off → following → passive)
+
+### Changed
+
+- **UI** — Locate button tooltips now explain the button's function rather than just showing state
+
+
 ## v0.16.0-beta (2026-04-16)
 
 ### Added
