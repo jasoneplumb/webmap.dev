@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.19.2-beta (2026-04-17)
+
+### Changed
+
+- **Consent modal** — reworded to cover general app usage, not just GPS recording; includes a description of webmap.dev and inlines shorter Terms of Use and Privacy Policy without expandable sections; bumps consent version to 2.0 so existing users re-accept
+- **Recording button** — removed redundant consent check since consent is now required at app load time
+
 ## v0.19.1-beta (2026-04-17)
 
 ### Fixed
