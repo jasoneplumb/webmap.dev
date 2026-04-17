@@ -16,14 +16,12 @@ export interface LayerDef {
   name: string;
   description: string;
   tileLayer: L.TileLayer;
-  offline: boolean; // Can be pre-downloaded for offline use
 }
 
 export interface OverlayDef {
   id: string;
   name: string;
   tileLayer: L.TileLayer;
-  offline: boolean;
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
@@ -243,11 +241,6 @@ export class LayersControl extends L.Control {
       layerDesc.className = 'layers-option__desc';
       layerDesc.textContent = layer.description;
       label.appendChild(layerDesc);
-
-      const offlineBadge = document.createElement('span');
-      offlineBadge.className = 'layers-option__badge';
-      offlineBadge.textContent = layer.offline ? '📴 Offline' : '';
-      label.appendChild(offlineBadge);
 
       baseMapsFieldset.appendChild(label);
     }

@@ -220,28 +220,24 @@ const layerDefs: LayerDef[] = [
     name: 'Streets',
     description: 'Street map with roads and labels',
     tileLayer: tileLayers.osmStreetsLayer,
-    offline: true,
   },
   {
     id: 'cyclosm',
     name: 'Trails',
     description: 'Emphasizes hiking and cycling routes',
     tileLayer: tileLayers.cyclosmLayer,
-    offline: true,
   },
   {
     id: 'topo',
     name: 'Topographic',
     description: 'Contour lines and hillshade',
     tileLayer: tileLayers.opentopoLayer,
-    offline: true,
   },
   {
     id: 'parks',
     name: 'Parks & POIs',
     description: 'Highlights parks and amenities',
     tileLayer: tileLayers.humanitarianLayer,
-    offline: true,
   },
 ];
 
@@ -250,7 +246,6 @@ const overlayDefs: OverlayDef[] = [
     id: 'hillshade',
     name: 'Hillshade',
     tileLayer: tileLayers.hillshadeLayer,
-    offline: true,
   },
 ];
 
