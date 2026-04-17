@@ -139,6 +139,7 @@ export function createMap(): L.Map {
     // constraint: fractional zoom (0.5 steps) required for smooth pinch-to-zoom on mobile; integer steps feel jarring
     zoomSnap: 0.5,
     zoomDelta: 0.5,
+    maxZoom: 18,
   }).fitWorld();
 
   // Tile loading indicator — shows spinner while tiles are fetching
@@ -207,7 +208,7 @@ export function createMap(): L.Map {
   const stdConfig = {
     tileSize: 512,
     zoomOffset: -1,
-    maxZoom: 18,
+    maxZoom: 20,
     maxNativeZoom: 18,
     minZoom: 2,
     minNativeZoom: 2,
@@ -235,6 +236,7 @@ export function createMap(): L.Map {
     {
       attribution: '© OpenStreetMap contributors, Carto',
       ...stdConfig,
+      maxNativeZoom: 17,
     },
   );
 
