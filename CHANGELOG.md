@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.6-beta (2026-04-17)
+
+### Fixed
+
+- **Bottom sheet on older iOS Safari** — info-panel no longer bleeds ~80px into view on load; `vh` units and `window.innerHeight` disagree on older iOS Safari, so snap-point math now uses the actual rendered element height (`offsetHeight`) instead of computing from `innerHeight`
+
 ## v0.20.5-beta (2026-04-17)
 
 ### Changed
