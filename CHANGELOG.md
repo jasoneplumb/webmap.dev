@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.4-beta (2026-04-17)
+
+### Fixed
+
+- **Hillshade after base map switch** — overlays now re-stack above the new base map when switching layers; previously the opaque base map was added on top of the tile pane, burying the hillshade overlay
+
 ## v0.20.3-beta (2026-04-17)
 
 ### Fixed
