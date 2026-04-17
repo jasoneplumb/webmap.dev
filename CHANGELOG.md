@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.20.0-beta (2026-04-17)
+
+### Added
+
+- **Default layers** — Trails (CyclOSM) is now the default base map and Hillshade overlay is enabled by default for new users; returning users keep their persisted selection
+
+### Changed
+
+- **Locate icon** — redesigned to match the Apple iOS location services arrow: elongated diagonal pointer with iOS blue (#007AFF) when active, gray when passive, outline-only when off
+
 ## v0.19.4-beta (2026-04-17)
 
 ### Fixed
