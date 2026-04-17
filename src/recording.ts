@@ -247,8 +247,8 @@ function renderButtons(
       }),
     );
     c.appendChild(
-      makeBtn('⏹ Stop', 'rec-btn rec-btn-stop', () => {
-        if (confirmStop()) {
+      makeBtn('⏹ Stop', 'rec-btn rec-btn-stop', async () => {
+        if (await confirmStop()) {
           stopRecording(state, deactivatePolling);
           renderButtons(state, activatePolling, deactivatePolling, map);
         }
@@ -263,8 +263,8 @@ function renderButtons(
       }),
     );
     c.appendChild(
-      makeBtn('⏹ Stop', 'rec-btn rec-btn-stop', () => {
-        if (confirmStop()) {
+      makeBtn('⏹ Stop', 'rec-btn rec-btn-stop', async () => {
+        if (await confirmStop()) {
           stopRecording(state, deactivatePolling);
           renderButtons(state, activatePolling, deactivatePolling, map);
         }
@@ -281,8 +281,48 @@ function makeBtn(label: string, className: string, onClick: () => void): HTMLBut
   return btn;
 }
 
-function confirmStop(): boolean {
-  return confirm('Stop recording? The track will be finalized.');
+function confirmStop(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.id = 'consent-overlay';
+
+    const panel = document.createElement('div');
+    panel.id = 'consent-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Stop recording');
+    panel.innerHTML = `
+      <h2>Stop recording?</h2>
+      <p>The track will be finalized. You can export it as a GPX file from the stats bar.</p>
+      <div id="consent-actions">
+        <button id="confirm-stop-yes" class="rec-btn rec-btn-stop">Stop recording</button>
+        <button id="consent-decline">Cancel</button>
+      </div>
+    `;
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    function cleanup(accepted: boolean): void {
+      overlay.remove();
+      resolve(accepted);
+    }
+
+    document.getElementById('confirm-stop-yes')!.addEventListener('click', () => cleanup(true));
+    document.getElementById('consent-decline')!.addEventListener('click', () => cleanup(false));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', onKey);
+        cleanup(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    document.getElementById('confirm-stop-yes')!.focus();
+  });
 }
 
 // ── State machine ─────────────────────────────────────────────────────────────
