@@ -313,6 +313,14 @@ export class LayersControl extends L.Control {
     this.currentBase = layer;
     this.currentBase.tileLayer.addTo(this.map);
 
+    // Re-add active overlays so they render above the new base map
+    for (const overlay of this.overlays) {
+      if (this.activeOverlays.has(overlay.id) && this.map.hasLayer(overlay.tileLayer)) {
+        overlay.tileLayer.remove();
+        overlay.tileLayer.addTo(this.map);
+      }
+    }
+
     // Persist selection
     localStorage.setItem(LAYERS_STORAGE_KEY, layer.id);
 
