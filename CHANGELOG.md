@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.1-beta (2026-04-17)
+
+### Fixed
+
+- **Zoom limits** — map no longer goes blank at high zoom; added map-level maxZoom (18), corrected OpenTopoMap maxNativeZoom from 18 to 17, and set layer maxZoom to 20 so Leaflet upscales tiles gracefully
+
 ## v0.20.0-beta (2026-04-17)
 
 ### Added
