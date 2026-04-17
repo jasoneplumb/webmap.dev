@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.19.1-beta (2026-04-17)
+
+### Fixed
+
+- **Consent gate** — consent modal now blocks all app usage at load time until terms are accepted; previously it only appeared when starting a recording, allowing unrestricted map usage without consent
+
 ## v0.19.0-beta (2026-04-16)
 
 ### Added
