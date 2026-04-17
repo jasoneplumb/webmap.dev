@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.2-beta (2026-04-17)
+
+### Fixed
+
+- **Hillshade overlay** — default hillshade now renders on initial load; a ghost OSM tile layer added in `createMap()` was sitting permanently in the tile pane, blocking the overlay; also fixes offline tile fallback which referenced the wrong layer variable
+
 ## v0.20.1-beta (2026-04-17)
 
 ### Fixed
