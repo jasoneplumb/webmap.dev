@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.5-beta (2026-04-17)
+
+### Changed
+
+- **Stop recording dialog** — replaced browser's native `confirm()` with a styled custom modal; removes the browser's "Prevent this page from creating additional dialogs" checkbox
+
 ## v0.20.4-beta (2026-04-17)
 
 ### Fixed
