@@ -1,10 +1,10 @@
 /**
- * Intent: First-run consent modal for GPS tracking — stores acceptance in localStorage
- * Context: Called by recording.ts before startRecording(); re-prompts only when CONSENT_VERSION changes
+ * Intent: First-run consent modal — blocks app usage until terms are accepted
+ * Context: Called by main.ts at load time; re-prompts when CONSENT_VERSION changes
  * Pattern: Returns a Promise that resolves true (accepted) or false (declined); no AppState dependency
  */
 
-const CONSENT_VERSION = '1.0';
+const CONSENT_VERSION = '2.0';
 const KEY_VERSION = 'webmap-consent-version';
 const KEY_ACCEPTED_AT = 'webmap-consent-accepted-at';
 const KEY_INSTALL_ID = 'webmap-consent-install-id';
@@ -33,52 +33,33 @@ export function showConsentModal(): Promise<boolean> {
     const panel = document.createElement('div');
     panel.id = 'consent-panel';
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Before you start recording');
+    panel.setAttribute('aria-label', 'Welcome to webmap.dev');
     panel.innerHTML = `
-      <h2>Before you start recording</h2>
-      <p>webmap.dev records your GPS location to draw a trail on the map. Here's what you should know:</p>
-      <ul>
-        <li><strong>Your data stays on this device.</strong> GPS coordinates, speed, and altitude are stored in your browser only. Nothing is sent to a server.</li>
-        <li><strong>You control your data.</strong> You can export your trail as a GPX file or delete it at any time. Clearing your browser's site data removes everything.</li>
-        <li><strong>Stay aware of your surroundings.</strong> Do not rely on this app for navigation or safety. Keep your eyes on the trail, not the screen.</li>
+      <h2>Welcome to webmap.dev</h2>
+      <p>A privacy-first GPS mapping tool. View maps, search addresses, record trails, and export GPX files — all without an account or server-side data collection.</p>
+      <p>Before you continue, please review the following:</p>
+
+      <h3>Terms of Use</h3>
+      <ol class="consent-legal">
+        <li>This app is for <strong>personal, non-commercial</strong> map viewing and GPS trail recording.</li>
+        <li>The app is provided <strong>as-is with no warranty</strong>. GPS accuracy varies. Do not rely on it for navigation, emergency response, or safety-critical decisions.</li>
+        <li><strong>You are responsible</strong> for your own safety. Pay attention to your surroundings and obey local laws.</li>
+        <li>To the maximum extent permitted by law, the developer is <strong>not liable</strong> for any damages arising from use of this app.</li>
+        <li>These terms may be updated. Material changes will require re-acceptance.</li>
+      </ol>
+
+      <h3>Privacy Policy</h3>
+      <ul class="consent-legal">
+        <li><strong>Local only.</strong> All GPS data, trail recordings, and app settings stay in your browser. Nothing is sent to our servers.</li>
+        <li><strong>No tracking.</strong> No analytics, cookies, or tracking pixels.</li>
+        <li><strong>Third-party services.</strong> Map tiles load from OpenStreetMap servers. Address search uses the Esri ArcGIS geocoding API. These services may log standard HTTP request data per their own policies.</li>
+        <li><strong>Stored items.</strong> The app stores a consent record and an anonymous install ID in localStorage. Trail backups are also stored locally for crash recovery.</li>
+        <li><strong>Deletion.</strong> Clear your browser's site data for webmap.dev to remove everything.</li>
       </ul>
-      <details>
-        <summary>Terms of Use</summary>
-        <div class="consent-legal">
-          <p><strong>Terms of Use</strong> — v1.0</p>
-          <ol>
-            <li><strong>Permitted use.</strong> The app is for personal, non-commercial GPS trail recording and map viewing.</li>
-            <li><strong>No warranty.</strong> The app may contain errors. GPS accuracy varies by device and environment. Do not rely on it for navigation, emergency response, or safety-critical decisions.</li>
-            <li><strong>Your responsibility.</strong> You are responsible for your own safety while using the app. Pay attention to your surroundings. Obey all local laws and trail regulations.</li>
-            <li><strong>Data.</strong> All GPS and trail data is stored locally on your device. The app does not collect, transmit, or store personal data on any server. See the Privacy Policy for details.</li>
-            <li><strong>Limitation of liability.</strong> To the maximum extent permitted by law, the developer is not liable for any damages arising from your use of the app.</li>
-            <li><strong>Changes.</strong> These terms may be updated. Material changes will require you to re-accept before recording.</li>
-          </ol>
-        </div>
-      </details>
-      <details>
-        <summary>Privacy Policy</summary>
-        <div class="consent-legal">
-          <p><strong>Privacy Policy</strong> — v1.0</p>
-          <p><strong>What we collect</strong><br>
-          When you accept this prompt, the app stores three items in your browser's local storage: a consent version identifier, a timestamp, and a randomly generated anonymous install ID. That's it.</p>
-          <p><strong>GPS data</strong><br>
-          While recording, GPS coordinates, speed, and altitude are held in memory and backed up to your browser's local storage for crash recovery. This data never leaves your device.</p>
-          <p><strong>What we don't do</strong></p>
-          <ul>
-            <li>No server-side data collection</li>
-            <li>No analytics, cookies, or tracking pixels</li>
-            <li>No third-party data sharing</li>
-          </ul>
-          <p><strong>Third-party services</strong><br>
-          Map tiles are loaded from OpenStreetMap tile servers. Address search uses the Esri ArcGIS geocoding API. These services may log standard HTTP request data (IP address, request URL) per their own privacy policies.</p>
-          <p><strong>Data deletion</strong><br>
-          Clear your browser's site data for webmap.dev to remove all stored information, including consent records and trail backups.</p>
-        </div>
-      </details>
+
       <div id="consent-actions">
-        <button id="consent-accept" class="rec-btn rec-btn-start">I agree — start tracking</button>
-        <button id="consent-decline">Cancel</button>
+        <button id="consent-accept" class="rec-btn rec-btn-start">I agree — continue</button>
+        <button id="consent-decline">Decline</button>
       </div>
     `;
 

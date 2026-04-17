@@ -1513,41 +1513,19 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin: 6px 0;
 }
 
-#consent-panel details {
-  margin: 12px 0 0;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-#consent-panel summary {
-  padding: 10px 14px;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  background: #f8f8f8;
-  user-select: none;
-}
-
-#consent-panel summary:hover {
-  background: #f0f0f0;
+#consent-panel h3 {
+  margin: 16px 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
 }
 
 .consent-legal {
-  padding: 12px 14px;
+  padding-left: 20px;
+  margin: 4px 0 0;
   font-size: 12px;
   color: #444;
   line-height: 1.6;
-}
-
-.consent-legal p {
-  margin: 8px 0;
-}
-
-.consent-legal ul,
-.consent-legal ol {
-  padding-left: 18px;
-  margin: 6px 0;
 }
 
 #consent-actions {
