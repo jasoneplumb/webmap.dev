@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.19.4-beta (2026-04-17)
+
+### Fixed
+
+- **Layers popover font** — popover now uses `system-ui, sans-serif` consistently with button text; previously inherited the body default since the popover is appended to `document.body`
+- **Offline badges removed** — the green "Offline" badge appeared on every layer, adding visual noise without conveying useful information; the `offline` property has been removed from layer definitions
+
 ## v0.19.3-beta (2026-04-17)
 
 ### Fixed
