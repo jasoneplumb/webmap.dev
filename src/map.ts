@@ -8,7 +8,6 @@ import L from 'leaflet';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
-let osmTileLayer: L.TileLayer | null = null;
 let osmStreetsLayer: L.TileLayer | null = null;
 let cyclosmLayer: L.TileLayer | null = null;
 let opentopoLayer: L.TileLayer | null = null;
@@ -49,7 +48,7 @@ export function initOfflineTileFallback(
   }
   for (const layer of layers) {
     layer.on('tileerror', (e: L.LeafletEvent) => {
-      void handleTileError(e as TileErrorEvent, layer === osmTileLayer, showToast);
+      void handleTileError(e as TileErrorEvent, layer === osmStreetsLayer, showToast);
     });
   }
 }
@@ -263,16 +262,6 @@ export function createMap(): L.Map {
     },
   );
 
-
-  osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    tileSize: 512,
-    zoomOffset: -1,
-    maxZoom: 18,
-    maxNativeZoom: 18,
-    minZoom: 2,
-    minNativeZoom: 2,
-    ...tilePerf,
-  }).addTo(map);
 
   return map;
 }
