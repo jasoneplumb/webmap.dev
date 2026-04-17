@@ -40,6 +40,12 @@ function isMobile(): boolean {
 }
 
 function fullHeightPx(): number {
+  // Use the actual rendered height when the element exists in the DOM.
+  // On older iOS Safari, CSS `90vh` and `window.innerHeight * 0.9` disagree
+  // because `vh` is based on the largest possible viewport (toolbar hidden)
+  // while `innerHeight` reflects the current visible viewport. Using
+  // offsetHeight keeps snap-point math consistent with the rendered sheet.
+  if (_el) return _el.offsetHeight;
   return Math.round(window.innerHeight * SHEET_VH);
 }
 
@@ -197,12 +203,16 @@ export function initInfoPanel(map: L.Map): void {
     '</div>' +
     '<div class="info-panel__body"></div>';
 
-  // Set initial off-screen position before appending (prevents flash)
-  el.style.transition = 'none';
-  el.style.transform = `translateY(${fullHeightPx() + 8}px)`;
-
+  // Append to DOM first so offsetHeight reflects the actual rendered height
+  // (CSS `90vh`). On older iOS Safari, `vh` and `window.innerHeight` disagree,
+  // so computing translateY from innerHeight leaves part of the sheet visible.
+  // The CSS fallback `translateY(110%)` keeps it off-screen until JS takes over.
   document.body.appendChild(el);
   _el = el;
+
+  // Now read the real height and set the initial off-screen position
+  el.style.transition = 'none';
+  el.style.transform = `translateY(${el.offsetHeight + 8}px)`;
 
   // Close button
   const closeBtn = el.querySelector('.info-panel__close') as HTMLButtonElement;
