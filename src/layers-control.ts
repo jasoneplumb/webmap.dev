@@ -32,6 +32,7 @@ export class LayersControl extends L.Control {
   private overlays: OverlayDef[] = [];
   private currentBase: LayerDef | null = null;
   private activeOverlays: Set<string> = new Set();
+  private defaultOverlayIds: string[];
   private popoverEl: HTMLElement | null = null;
   private popoverOpen = false;
   private map: L.Map | null = null;
@@ -40,10 +41,12 @@ export class LayersControl extends L.Control {
     baseMaps: LayerDef[],
     overlays: OverlayDef[] = [],
     options?: L.ControlOptions,
+    defaultOverlayIds: string[] = [],
   ) {
     super(options || { position: 'topleft' });
     this.baseMaps = baseMaps;
     this.overlays = overlays;
+    this.defaultOverlayIds = defaultOverlayIds;
   }
 
   onAdd(map: L.Map): HTMLElement {
@@ -101,14 +104,16 @@ export class LayersControl extends L.Control {
       this.currentBase = this.baseMaps[0]!;
     }
 
-    // Load overlay selection
+    // Load overlay selection (fall back to defaults if nothing persisted)
     const savedOverlays = localStorage.getItem(OVERLAY_STORAGE_KEY);
     if (savedOverlays) {
       try {
         this.activeOverlays = new Set(JSON.parse(savedOverlays));
       } catch {
-        this.activeOverlays = new Set();
+        this.activeOverlays = new Set(this.defaultOverlayIds);
       }
+    } else {
+      this.activeOverlays = new Set(this.defaultOverlayIds);
     }
   }
 
@@ -354,8 +359,9 @@ export function addLayersControl(
   map: L.Map,
   baseMaps: LayerDef[],
   overlays?: OverlayDef[],
+  defaultOverlayIds?: string[],
 ): LayersControl {
-  const control = new LayersControl(baseMaps, overlays, { position: 'topleft' });
+  const control = new LayersControl(baseMaps, overlays, { position: 'topleft' }, defaultOverlayIds);
   control.addTo(map);
   return control;
 }

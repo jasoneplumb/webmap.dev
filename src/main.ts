@@ -216,16 +216,16 @@ const tileLayers = getTileLayers();
 
 const layerDefs: LayerDef[] = [
   {
-    id: 'osm-streets',
-    name: 'Streets',
-    description: 'Street map with roads and labels',
-    tileLayer: tileLayers.osmStreetsLayer,
-  },
-  {
     id: 'cyclosm',
     name: 'Trails',
     description: 'Emphasizes hiking and cycling routes',
     tileLayer: tileLayers.cyclosmLayer,
+  },
+  {
+    id: 'osm-streets',
+    name: 'Streets',
+    description: 'Street map with roads and labels',
+    tileLayer: tileLayers.osmStreetsLayer,
   },
   {
     id: 'topo',
@@ -249,7 +249,7 @@ const overlayDefs: OverlayDef[] = [
   },
 ];
 
-addLayersControl(map, layerDefs, overlayDefs);
+addLayersControl(map, layerDefs, overlayDefs, ['hillshade']);
 
 initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);
