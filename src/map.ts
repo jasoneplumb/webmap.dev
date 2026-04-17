@@ -247,11 +247,17 @@ export function createMap(): L.Map {
   );
 
   hillshadeLayer = L.tileLayer(
-    'https://{s}.tile.opentopomap.org/hillshade/{z}/{x}/{y}.png',
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
     {
-      attribution: '© OpenStreetMap contributors',
+      attribution: 'Esri',
       opacity: 0.4,
-      ...stdConfig,
+      tileSize: 256,
+      zoomOffset: 0,
+      maxZoom: 18,
+      maxNativeZoom: 16,
+      minZoom: 2,
+      minNativeZoom: 2,
+      ...tilePerf,
     },
   );
 
