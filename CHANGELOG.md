@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.3-beta (2026-04-17)
+
+### Fixed
+
+- **Layers popover** — popover no longer goes off-screen when flipped above the button; clamps to viewport bounds and caps height so content remains scrollable
+
 ## v0.20.2-beta (2026-04-17)
 
 ### Fixed
