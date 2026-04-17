@@ -17,6 +17,7 @@ import 'esri-leaflet-geocoder/dist/esri-leaflet-geocoder.css';
 import './style.css';
 import changelogRaw from '../CHANGELOG.md?raw';
 
+import { hasConsent, showConsentModal } from './consent';
 import { createInitialState } from './types';
 import { createMap, initOfflineTileFallback, getTileLayers } from './map';
 import { addLayersControl, type LayerDef, type OverlayDef } from './layers-control';
@@ -29,6 +30,25 @@ import { createStatsBar, addRecordingControl, updateRecordingButtons, maybeResto
 import { addOfflineDownloadControl } from './offline-download';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
+
+// ── Consent gate — block all interaction until terms are accepted ─────────────
+if (!hasConsent()) {
+  // Show modal immediately; re-show on decline (user cannot bypass)
+  const waitForConsent = async (): Promise<void> => {
+    let accepted = false;
+    while (!accepted) {
+      accepted = await showConsentModal();
+    }
+  };
+  // The top-level await alternative requires ESM module output; use an async
+  // IIFE that delays the rest of init until consent is granted.  The import
+  // side-effects above (CSS, Leaflet icon config) are harmless before consent.
+  void waitForConsent().then(() => initApp());
+} else {
+  initApp();
+}
+
+function initApp(): void {
 
 const state = createInitialState();
 const map = createMap();
@@ -368,3 +388,5 @@ const updateSW = registerSW({
     applyUpdateWhenSafe(() => updateSW(true));
   },
 });
+
+} // end initApp
