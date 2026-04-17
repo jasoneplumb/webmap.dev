@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.20.7-beta (2026-04-17)
+
+### Fixed
+
+- **Locate icon consistency** — active and passive states now use the same outline shape as the off state, differing only in stroke color (blue for active, gray for passive)
+- **Download panel on mobile** — repositioned to bottom of screen and made collapsible so it no longer blocks the map and selection handles
+
+### Changed
+
+- **Control labels** — Locate, Layers, and Download buttons collapse to icon-only after first use, reclaiming screen space on mobile
+
 ## v0.20.6-beta (2026-04-17)
 
 ### Fixed
