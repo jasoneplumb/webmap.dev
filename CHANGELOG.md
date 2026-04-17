@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.19.3-beta (2026-04-17)
+
+### Fixed
+
+- **Hillshade overlay** — replaced broken OpenTopoMap hillshade endpoint (403 Forbidden) with Esri World Hillshade service
+
 ## v0.19.2-beta (2026-04-17)
 
 ### Changed
