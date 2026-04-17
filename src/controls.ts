@@ -14,6 +14,14 @@ interface ToggleControlConfig {
   position: L.ControlPosition;
   onClick: (e: Event) => void;
   label?: string;
+  /** Strip the text label after the first click, keeping only the icon */
+  collapseOnFirstUse?: boolean;
+}
+
+/** Remove the text label from a control container, leaving only the icon. */
+export function collapseControlLabel(container: HTMLElement): void {
+  const label = container.querySelector('.leaflet-control-toggle__label');
+  if (label) label.remove();
 }
 
 // tradeoff: Using a factory function rather than a class to avoid the complexity of
@@ -42,15 +50,23 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
       // so button interactions don't accidentally trigger map handlers (e.g. pin drop on dblclick).
       L.DomEvent.disableClickPropagation(container);
 
+      function handleClick(e: Event): void {
+        if (config.collapseOnFirstUse) {
+          collapseControlLabel(container);
+          config.collapseOnFirstUse = false; // only once
+        }
+        config.onClick(e);
+      }
+
       // touchend + preventDefault prevents the browser from synthesizing a click event,
       // which would fire the handler twice on mobile. click alone handles desktop.
       L.DomEvent.on(container, 'touchend', (e: Event) => {
         e.preventDefault();
-        config.onClick(e);
+        handleClick(e);
         e.stopImmediatePropagation();
       });
       L.DomEvent.on(container, 'click', (e: Event) => {
-        config.onClick(e);
+        handleClick(e);
         e.stopImmediatePropagation();
       });
 
@@ -77,6 +93,7 @@ export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void 
     position: 'topleft',
     onClick,
     label: 'Locate',
+    collapseOnFirstUse: true,
   }).addTo(map);
 }
 

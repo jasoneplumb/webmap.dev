@@ -5,6 +5,7 @@
  * Future: Only caches OSM tiles (the SW-cached layer); Mapbox/Google layers are not cached and won't benefit from pre-download
  */
 import L from 'leaflet';
+import { collapseControlLabel } from './controls';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -310,7 +311,7 @@ function buildPanel(
 
   panel.innerHTML =
     '<div class="offline-dl-panel__header">' +
-    '  <span class="offline-dl-panel__title">Download for Offline</span>' +
+    '  <span class="offline-dl-panel__title">Download for Offline<span class="offline-dl-panel__chevron" aria-hidden="true">&#x25B2;</span></span>' +
     '  <button class="offline-dl-panel__close" aria-label="Cancel">&#x2715;</button>' +
     '</div>' +
     '<div class="offline-dl-panel__body">' +
@@ -390,7 +391,18 @@ function buildPanel(
     updateEstimate();
   });
 
-  closeBtn.addEventListener('click', () => closePanel(map));
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // don't trigger header collapse toggle
+    closePanel(map);
+  });
+
+  // Collapse/expand toggle — tap header on mobile to minimize
+  const headerEl = panel.querySelector('.offline-dl-panel__header') as HTMLElement;
+  headerEl.addEventListener('click', (e) => {
+    // Don't toggle when tapping the close button
+    if ((e.target as HTMLElement).closest('.offline-dl-panel__close')) return;
+    panel.classList.toggle('offline-dl-panel--collapsed');
+  });
 
   startBtn.addEventListener('click', () => {
     if (_downloadState !== 'selecting' || !_selectedBounds) return;
@@ -547,13 +559,23 @@ export function addOfflineDownloadControl(
       container.appendChild(label);
 
       L.DomEvent.disableClickPropagation(container);
+
+      let labelCollapsed = false;
+      function handleClick(): void {
+        if (!labelCollapsed) {
+          collapseControlLabel(container);
+          labelCollapsed = true;
+        }
+        openOfflineDownloadPanel(map, showToast);
+      }
+
       L.DomEvent.on(container, 'touchend', (e: Event) => {
         e.preventDefault();
-        openOfflineDownloadPanel(map, showToast);
+        handleClick();
         e.stopImmediatePropagation();
       });
       L.DomEvent.on(container, 'click', (e: Event) => {
-        openOfflineDownloadPanel(map, showToast);
+        handleClick();
         e.stopImmediatePropagation();
       });
 

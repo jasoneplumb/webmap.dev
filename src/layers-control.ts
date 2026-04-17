@@ -10,6 +10,7 @@
  */
 
 import L from 'leaflet';
+import { collapseControlLabel } from './controls';
 
 export interface LayerDef {
   id: string;
@@ -70,15 +71,24 @@ export class LayersControl extends L.Control {
     // Prevent map interaction
     L.DomEvent.disableClickPropagation(container);
 
-    // Toggle popover on click/touch
+    // Toggle popover on click/touch; strip label after first use
+    let labelCollapsed = false;
+    const handleToggle = (): void => {
+      if (!labelCollapsed) {
+        collapseControlLabel(container);
+        labelCollapsed = true;
+      }
+      this.togglePopover();
+    };
+
     L.DomEvent.on(container, 'touchend', (e: Event) => {
       e.preventDefault();
-      this.togglePopover();
+      handleToggle();
       e.stopImmediatePropagation();
     });
 
     L.DomEvent.on(container, 'click', (e: Event) => {
-      this.togglePopover();
+      handleToggle();
       e.stopImmediatePropagation();
     });
 

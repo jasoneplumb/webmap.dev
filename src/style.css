@@ -1162,12 +1162,55 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   overflow: hidden;
 }
 
+/* Mobile: anchor to bottom so the map + selection handles stay visible */
+@media (max-width: 768px) {
+  .offline-dl-panel {
+    top: auto;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    border-radius: 12px;
+  }
+
+  /* Collapsed state — hide body, keep header as a thin bar */
+  .offline-dl-panel--collapsed .offline-dl-panel__body {
+    display: none;
+  }
+}
+
 .offline-dl-panel__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid #eee;
+}
+
+/* Collapse chevron — visible on mobile only */
+.offline-dl-panel__chevron {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .offline-dl-panel__header {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .offline-dl-panel__chevron {
+    display: inline-block;
+    font-size: 12px;
+    color: #888;
+    margin-left: 6px;
+    transition: transform 0.2s ease;
+  }
+
+  .offline-dl-panel--collapsed .offline-dl-panel__chevron {
+    transform: rotate(180deg);
+  }
+
+  /* Hide border-bottom when collapsed (body is hidden, looks odd) */
+  .offline-dl-panel--collapsed .offline-dl-panel__header {
+    border-bottom: none;
+  }
 }
 
 .offline-dl-panel__title {
