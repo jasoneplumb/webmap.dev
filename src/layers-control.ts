@@ -167,18 +167,26 @@ export class LayersControl extends L.Control {
     const btnRect = btn.getBoundingClientRect();
     const popoverRect = this.popoverEl.getBoundingClientRect();
 
-    // Position below/above button with some offset, avoid viewport edges
-    let top = btnRect.bottom + 10;
+    // Position below button; flip above only if it fits; clamp to viewport
+    const margin = 10;
+    let top = btnRect.bottom + margin;
     let left = btnRect.left;
 
     // Adjust if too close to right edge
-    if (left + popoverRect.width > window.innerWidth - 10) {
-      left = window.innerWidth - popoverRect.width - 10;
+    if (left + popoverRect.width > window.innerWidth - margin) {
+      left = window.innerWidth - popoverRect.width - margin;
     }
 
-    // Adjust if too close to bottom edge
-    if (top + popoverRect.height > window.innerHeight - 10) {
-      top = btnRect.top - popoverRect.height - 10;
+    // Flip above button if it doesn't fit below
+    if (top + popoverRect.height > window.innerHeight - margin) {
+      top = btnRect.top - popoverRect.height - margin;
+    }
+
+    // Clamp: never go off-screen top; cap height to available space
+    if (top < margin) {
+      top = margin;
+      const maxH = window.innerHeight - 2 * margin;
+      this.popoverEl.style.maxHeight = `${maxH}px`;
     }
 
     this.popoverEl.style.position = 'fixed';
