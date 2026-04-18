@@ -4,8 +4,8 @@ export class Keepalive {
   private sourceNode: AudioBufferSourceNode | null = null;
 
   async start(): Promise<void> {
+    this.startSilentAudio(); // synchronous — must run before any await to stay in gesture stack
     await this.acquireWakeLock();
-    this.startSilentAudio();
   }
 
   stop(): void {
@@ -35,13 +35,16 @@ export class Keepalive {
   private startSilentAudio(): void {
     try {
       this.audioCtx = new AudioContext();
-      const buffer = this.audioCtx.createBuffer(1, 1, 22050);
+      // 1-second silent buffer — loops once per second instead of 22k/s with a 1-sample buffer
+      const buffer = this.audioCtx.createBuffer(1, 22050, 22050);
       const source = this.audioCtx.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
       source.connect(this.audioCtx.destination);
       source.start();
       this.sourceNode = source;
+      // Resume explicitly — Chrome may create AudioContext in suspended state
+      this.audioCtx.resume().catch(() => undefined);
     } catch {
       // AudioContext unavailable — silent degradation
     }
