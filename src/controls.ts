@@ -40,10 +40,21 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
 
       container.appendChild(img);
 
+      const storageKey = config.collapseOnFirstUse ? `webmap-ctrl-label-${config.id}` : null;
+
       if (config.label) {
         const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
         label.textContent = config.label;
         container.appendChild(label);
+        // Restore collapsed state from previous session
+        if (storageKey) {
+          try {
+            if (localStorage.getItem(storageKey) === '1') {
+              collapseControlLabel(container);
+              config.collapseOnFirstUse = false;
+            }
+          } catch { /* localStorage unavailable (e.g. private browsing) */ }
+        }
       }
 
       // Prevent click, dblclick, and touchstart from bubbling to the map,
@@ -54,6 +65,9 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
         if (config.collapseOnFirstUse) {
           collapseControlLabel(container);
           config.collapseOnFirstUse = false; // only once
+          if (storageKey) {
+            try { localStorage.setItem(storageKey, '1'); } catch { /* ignore */ }
+          }
         }
         config.onClick(e);
       }
