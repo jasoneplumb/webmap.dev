@@ -4,7 +4,7 @@
  * Pattern: Returns a Promise that resolves true (accepted) or false (declined); no AppState dependency
  */
 
-const CONSENT_VERSION = '2.0';
+const CONSENT_VERSION = '2.1';
 const KEY_VERSION = 'webmap-consent-version';
 const KEY_ACCEPTED_AT = 'webmap-consent-accepted-at';
 const KEY_INSTALL_ID = 'webmap-consent-install-id';
@@ -35,27 +35,27 @@ export function showConsentModal(): Promise<boolean> {
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', 'Welcome to webmap.dev');
     panel.innerHTML = `
-      <h2>Welcome to webmap.dev</h2>
-      <p>A privacy-first GPS mapping tool. View maps, search addresses, record trails, and export GPX files — all without an account or server-side data collection.</p>
-      <p>Before you continue, please review the following:</p>
+      <h2>webmap.dev — privacy-first GPS mapping, no account required</h2>
 
-      <h3>Terms of Use</h3>
-      <ol class="consent-legal">
-        <li>This app is for <strong>personal, non-commercial</strong> map viewing and GPS trail recording.</li>
-        <li>The app is provided <strong>as-is with no warranty</strong>. GPS accuracy varies. Do not rely on it for navigation, emergency response, or safety-critical decisions.</li>
-        <li><strong>You are responsible</strong> for your own safety. Pay attention to your surroundings and obey local laws.</li>
-        <li>To the maximum extent permitted by law, the developer is <strong>not liable</strong> for any damages arising from use of this app.</li>
-        <li>These terms may be updated. Material changes will require re-acceptance.</li>
-      </ol>
+      <div id="consent-body">
+        <h3>Privacy Policy</h3>
+        <ul class="consent-legal">
+          <li><strong>Local only.</strong> All GPS data, trail recordings, and app settings stay in your browser. Nothing is sent to our servers.</li>
+          <li><strong>No tracking.</strong> No analytics, cookies, or tracking pixels.</li>
+          <li><strong>Third-party services.</strong> Map tiles load from OpenStreetMap servers. Address search uses the Esri ArcGIS geocoding API. These services may log standard HTTP request data per their own policies.</li>
+          <li><strong>Stored items.</strong> The app stores a consent record and an anonymous install ID in localStorage. Trail backups are also stored locally for crash recovery.</li>
+          <li><strong>Deletion.</strong> Clear your browser's site data for webmap.dev to remove everything.</li>
+        </ul>
 
-      <h3>Privacy Policy</h3>
-      <ul class="consent-legal">
-        <li><strong>Local only.</strong> All GPS data, trail recordings, and app settings stay in your browser. Nothing is sent to our servers.</li>
-        <li><strong>No tracking.</strong> No analytics, cookies, or tracking pixels.</li>
-        <li><strong>Third-party services.</strong> Map tiles load from OpenStreetMap servers. Address search uses the Esri ArcGIS geocoding API. These services may log standard HTTP request data per their own policies.</li>
-        <li><strong>Stored items.</strong> The app stores a consent record and an anonymous install ID in localStorage. Trail backups are also stored locally for crash recovery.</li>
-        <li><strong>Deletion.</strong> Clear your browser's site data for webmap.dev to remove everything.</li>
-      </ul>
+        <h3>Terms of Use</h3>
+        <ol class="consent-legal">
+          <li>This app is for <strong>personal, non-commercial</strong> map viewing and GPS trail recording.</li>
+          <li>The app is provided <strong>as-is with no warranty</strong>. GPS accuracy varies. Do not rely on it for navigation, emergency response, or safety-critical decisions.</li>
+          <li><strong>You are responsible</strong> for your own safety. Pay attention to your surroundings and obey local laws.</li>
+          <li>To the maximum extent permitted by law, the developer is <strong>not liable</strong> for any damages arising from use of this app.</li>
+          <li>These terms may be updated. Material changes will require re-acceptance.</li>
+        </ol>
+      </div>
 
       <div id="consent-actions">
         <button id="consent-accept" class="rec-btn rec-btn-start">I agree — continue</button>
