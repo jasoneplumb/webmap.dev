@@ -36,6 +36,15 @@
 - **Changelog** — Tap the version badge (upper right) to view the full release history inline
 - **Adaptive Controls** — Locate, Layers, and Download buttons collapse to icon-only after first use
 
+## Design Principles
+
+- **Offline-first** — App works without connectivity; all tiles cached, no required server calls
+- **Local-only data** — No server storage, no accounts, no telemetry — your trail stays on your device
+- **Progressive enhancement** — Core features work everywhere; advanced features (reverse geocode, tile preload) activate when APIs available
+- **Mobile-native UX** — Bottom sheets, safe-area insets, touch controls, and responsive layouts built in
+- **Minimal dependencies** — No framework, no CSS library, no state management — just Leaflet, ESRI Leaflet, and a 400-line app
+- **Transparent architecture** — Single AppState object, explicit data flow, no event bus or indirection
+
 ## Tech Stack
 
 | Layer | Technology |
