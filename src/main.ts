@@ -43,7 +43,17 @@ if (!hasConsent()) {
   // The top-level await alternative requires ESM module output; use an async
   // IIFE that delays the rest of init until consent is granted.  The import
   // side-effects above (CSS, Leaflet icon config) are harmless before consent.
-  void waitForConsent().then(() => initApp());
+  void waitForConsent()
+    .then(() => initApp())
+    .catch((err: unknown) => {
+      console.error('[webmap] consent flow failed', err);
+      // Only reload if consent wasn't recorded yet — avoids a reload loop if
+      // initApp() itself threw after the user already accepted (next load will
+      // skip straight to initApp() via the else branch with no catch needed).
+      if (!hasConsent()) {
+        location.reload();
+      }
+    });
 } else {
   initApp();
 }
@@ -382,7 +392,14 @@ function applyUpdateWhenSafe(update: () => void): void {
 // Not wired here — silent first-install caching is acceptable.
 const updateSW = registerSW({
   onNeedRefresh() {
-    applyUpdateWhenSafe(() => updateSW(true));
+    // Defer SW update until after first paint — immediate reload during init
+    // causes a blank page on iOS Safari (new SW activates + clientsClaim
+    // triggers location.reload() before Leaflet has rendered anything).
+    // rAF is also suspended in background tabs, which further protects active
+    // recordings from an unintended mid-session reload (intentional benefit).
+    requestAnimationFrame(() => {
+      applyUpdateWhenSafe(() => updateSW(true));
+    });
   },
 });
 
