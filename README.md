@@ -9,18 +9,12 @@
 ## Preview
 
 <p align="center">
-  <em>Screenshots coming soon — visit <a href="https://www.webmap.dev">webmap.dev</a> to try it live</em>
+  <img src="docs/images/map-view.png" alt="webmap.dev — map view with controls" width="280" />
 </p>
 
-<!-- To add screenshots:
-  1. Take mobile viewport screenshots (375×812) from Chrome DevTools
-  2. Save as optimized PNGs in docs/images/
-  3. Replace this placeholder with:
-
-  | Map View | Trail Recording | Search |
-  |----------|----------------|--------|
-  | ![Map](docs/images/map-view.png) | ![Recording](docs/images/recording.png) | ![Search](docs/images/search.png) |
--->
+<p align="center">
+  <em>Try it live at <a href="https://www.webmap.dev">webmap.dev</a></em>
+</p>
 
 ## Features
 
