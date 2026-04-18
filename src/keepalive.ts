@@ -26,7 +26,13 @@ export class Keepalive {
   private async acquireWakeLock(): Promise<void> {
     if (!('wakeLock' in navigator)) return;
     try {
-      this.wakeLock = await navigator.wakeLock.request('screen');
+      const sentinel = await navigator.wakeLock.request('screen');
+      // Guard: stop() may have been called while awaiting (race between start/stop)
+      if (this.audioCtx === null) {
+        sentinel.release().catch(() => undefined);
+      } else {
+        this.wakeLock = sentinel;
+      }
     } catch {
       // Permission denied or not supported — silent degradation
     }
