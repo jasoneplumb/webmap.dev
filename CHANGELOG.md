@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.22.2-beta (2026-04-18)
+
+### Fixed
+
+- **Locate label persists collapsed** — after tapping the Locate button once (collapsing the text label), the collapsed state is now stored in `localStorage` (`webmap-ctrl-label-locate`) and restored on reload; previously the label reappeared on every page load (#127)
+- **Basemap screenshots aligned** — all four basemap preview images now use identical tile coordinates (z=13, eastern SF) so they show the same geographic region; streets image switched to `tile.openstreetmap.de` to avoid OSM policy blocks on scripted tile fetches
+
 ## v0.22.1-beta (2026-04-18)
 
 ### Added
