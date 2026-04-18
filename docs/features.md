@@ -9,10 +9,12 @@
 2. Your location appears as a blue dot; the gray circle around it shows the GPS accuracy (wider circle = less accurate).
 3. The map automatically centers on your position and keeps following you as you move.
 
-**Three-state button:**
-- **Off** (lines icon) — Location disabled; no blue dot
-- **Active** (blue icon) — Following your location; map pans as you move
-- **Passive** (gray icon) — Blue dot visible but map stopped following (appears when you pan away); tap the button again to re-center
+**Three-state button** (all states use the same outline arrow shape, differing only in color):
+- **Off** (dark outline) — Location disabled; no blue dot
+- **Active** (blue outline) — Following your location; map pans as you move
+- **Passive** (gray outline) — Blue dot visible but map stopped following (appears when you pan away); tap the button again to re-center
+
+The "Locate" text label is shown on first load for discoverability, then collapses to icon-only after the first tap.
 
 **Accuracy circle:**
 - Larger circle = GPS is less accurate (typical: 10–50 meters)
@@ -42,6 +44,7 @@
 - **Time**: Elapsed time (MM:SS or H:MM:SS); paused time is not counted
 - **Distance**: Total trail distance in meters or kilometers
 - **Speed**: Current speed from GPS (km/h); shows "-- km/h" if stopped
+- **Battery estimate**: Estimated remaining recording time based on battery drain rate (shown when Battery API is available)
 
 **Trail visualization:**
 - **Main line**: Solid blue polyline showing your path
@@ -175,6 +178,60 @@ There's a **Clipboard toggle button** (copy icon) in the top-left toolbar that y
 
 ---
 
+## Layer Switching
+
+**What it does:** Switch between base maps (OpenStreetMap, Mapbox, Google Satellite) and toggle overlays (hillshade) via a custom popover.
+
+**How to use:**
+1. Tap the **Layers button** (gear icon) in the top-left toolbar.
+2. A popover appears with radio buttons for base maps and checkboxes for overlays.
+3. Select a base map; the map switches immediately.
+4. Toggle overlays on or off.
+5. Close the popover by tapping the close button, pressing Escape, or tapping outside.
+
+**Persistence:** Your layer selection is saved to localStorage and restored on next visit.
+
+The "Layers" text label collapses to icon-only after the first tap.
+
+---
+
+## Offline Tile Download
+
+**What it does:** Pre-cache map tiles for a selected region and zoom range so you can view them offline.
+
+**How to use:**
+1. Tap the **Download button** (arrow icon) in the top-left toolbar.
+2. A selection rectangle with draggable corner handles appears on the map.
+3. Drag the corners to define the region you want to cache.
+4. Adjust the **Min zoom** and **Max zoom** sliders to control detail level.
+5. The tile count and estimated size update in real-time.
+6. Tap **Download** to start caching tiles.
+7. A progress bar shows completion; already-cached tiles are skipped.
+
+**Mobile:** The panel anchors to the bottom of the screen. Tap the header to collapse/expand the panel while adjusting the selection rectangle.
+
+**Limits:**
+- Safari has a ~50MB cache quota; a warning appears if the estimate exceeds it.
+- Only caches OSM tiles (the service-worker-cached layer).
+- Download requires internet; tiles are stored in the Cache API for offline use.
+
+The "Download" text label collapses to icon-only after the first tap.
+
+---
+
+## Consent Dialog
+
+**What it does:** Shows a privacy policy and terms of use on first launch, blocking app usage until accepted.
+
+**How it works:**
+- Appears on first visit or when the consent version is bumped.
+- Title and buttons are pinned (sticky); legal text scrolls independently.
+- Privacy Policy is listed first, followed by Terms of Use.
+- Accepting stores a consent record and anonymous install ID in localStorage.
+- Declining dismisses the dialog and prevents app initialization.
+
+---
+
 ## Offline Mode
 
 **What it does:** Caches map tiles and app code so you can use the app without internet (limited functionality).
@@ -192,9 +249,9 @@ There's a **Clipboard toggle button** (copy icon) in the top-left toolbar that y
 - ❌ Tile caching (cached tiles expire after 30 days of no use)
 
 **How to populate the offline cache:**
-1. Use the app normally with internet enabled.
-2. As you view different parts of the map, tiles are cached automatically.
-3. Each tile layer (Mapbox, OSM, Google) caches up to 500 tiles.
+1. **Passive caching:** Use the app normally with internet; tiles are cached automatically as you view them.
+2. **Proactive download:** Use the Download button to pre-cache a specific region and zoom range (see Offline Tile Download above).
+3. Each tile layer (Mapbox, OSM, Google) caches up to 500 tiles via service worker; the Download feature caches additional tiles via the Cache API.
 4. Cached tiles stay for 30 days; using them refreshes the timer.
 
 **Enabling offline mode:**

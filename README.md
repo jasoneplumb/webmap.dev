@@ -8,13 +8,17 @@
 
 ## Features
 
-- **Live GPS Tracking** — Blue dot with accuracy circle; three-state button controls locating behavior
-- **Trail Recording** — Record your journey with real-time distance, elapsed time, and speed
+- **Live GPS Tracking** — Blue dot with accuracy circle; three-state locate button (off/active/passive) with consistent outline icon shape
+- **Trail Recording** — Record your journey with real-time distance, elapsed time, speed, and battery estimate
 - **GPX Export** — Save tracks as GPX files compatible with all mapping software
-- **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete
+- **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete and numbered result markers
 - **Reverse Geocoding** — Double-click or long-press to drop a pin and look up the address
-- **Offline Support** — Maps, tiles, and app UI cached via service worker; search requires internet
+- **Layer Switching** — Custom layers popover for base maps (OSM, Mapbox, Google) and overlays (hillshade)
+- **Offline Support** — Tiles cached via service worker; proactive region pre-download for offline use
+- **Trail Backup** — Automatic crash recovery via localStorage backup of in-progress recordings
+- **Consent Dialog** — First-run privacy policy and terms with sticky header/footer layout
 - **Changelog** — Tap the version badge (upper right) to view the full release history inline
+- **Adaptive Controls** — Locate, Layers, and Download buttons collapse to icon-only after first use
 
 ## Tech Stack
 
@@ -76,24 +80,34 @@ See **[docs/architecture.md](docs/architecture.md)** for a deep-dive on:
 3. Three-State Locate Button
 4. Haversine Jitter Filter
 5. Recording State Machine
-6. Bottom Sheet / Side Panel (mobile & desktop)
-7. PWA / Offline Strategy
-8. nginx Infrastructure
+6. Bottom Sheet / Side Panel (iOS Safari compatible)
+7. Consent Modal (sticky header/footer)
+8. Layers Control (custom popover)
+9. Offline Tile Download (region pre-caching)
+10. Adaptive Control Labels
+11. PWA / Offline Strategy
+12. nginx Infrastructure
 
 ## Project Structure
 
 ```
 src/
-  main.ts           # Entry point — wires modules, implements polling refcount
-  types.ts          # AppState interface, shared mutable state
-  map.ts            # Leaflet initialization, tile layers, zoom controls
-  controls.ts       # Clipboard, locate, and tracking toggle buttons
-  geocoding.ts      # Address search + reverse geocode (ESRI)
-  location.ts       # GPS handlers, haversine filter, blue dot
-  timer.ts          # GPS polling loop (500 ms intervals)
-  recording.ts      # Trail state machine, GPX export, stats bar
-  bottom-sheet.ts   # Mobile sheet (drag, snap points) + desktop side panel
-  style.css         # App styles (responsive, animations, PWA UI)
+  main.ts              # Entry point — wires modules, implements polling refcount
+  types.ts             # AppState interface, shared mutable state
+  map.ts               # Leaflet initialization, tile layers, zoom controls
+  controls.ts          # Toggle button factory, locate/tracking controls, label collapse
+  geocoding.ts         # Address search + reverse geocode (ESRI)
+  location.ts          # GPS handlers, haversine filter, blue dot
+  timer.ts             # GPS polling loop (500 ms intervals)
+  recording.ts         # Trail state machine, GPX export, stats bar
+  bottom-sheet.ts      # Mobile sheet (drag, snap points) + desktop side panel
+  layers-control.ts    # Custom layers popover (base maps + overlays)
+  offline-download.ts  # Region pre-download for offline tile caching
+  consent.ts           # First-run consent modal (privacy + terms)
+  battery.ts           # Battery drain estimation during recording
+  trail-backup.ts      # Crash recovery backup for in-progress trails
+  sw-constants.ts      # Service worker cache name constants
+  style.css            # App styles (responsive, animations, PWA UI)
 
 infrastructure/
   nginx/

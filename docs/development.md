@@ -56,16 +56,22 @@ npm test             # Run unit tests (vitest)
 
 2. **Edit source files** in `src/`:
    ```bash
-   src/main.ts       # entry point
-   src/types.ts      # AppState, interfaces
-   src/map.ts        # Leaflet initialization
-   src/location.ts   # GPS handling
-   src/recording.ts  # Trail recording, GPX export
-   src/geocoding.ts  # Search, reverse geocode
-   src/controls.ts   # UI buttons
-   src/timer.ts      # GPS polling loop
-   src/bottom-sheet.ts  # mobile/desktop info panel
-   src/style.css     # styles
+   src/main.ts              # entry point
+   src/types.ts             # AppState, interfaces
+   src/map.ts               # Leaflet initialization
+   src/location.ts          # GPS handling
+   src/recording.ts         # Trail recording, GPX export
+   src/geocoding.ts         # Search, reverse geocode
+   src/controls.ts          # Toggle button factory, label collapse
+   src/timer.ts             # GPS polling loop
+   src/bottom-sheet.ts      # mobile/desktop info panel
+   src/layers-control.ts    # Custom layers popover
+   src/offline-download.ts  # Region tile pre-download
+   src/consent.ts           # First-run consent modal
+   src/battery.ts           # Battery drain estimation
+   src/trail-backup.ts      # Crash recovery backup
+   src/sw-constants.ts      # Service worker constants
+   src/style.css            # styles
    ```
 
 3. **Type-check and lint** before committing:
@@ -154,14 +160,48 @@ Uses ESRI ArcGIS and `esri-leaflet-geocoder`:
 
 ### `src/controls.ts` — UI Controls
 
-Creates reusable toggle buttons for the map toolbar:
+Creates reusable toggle buttons for the map toolbar via a factory function (`makeToggleControl`):
 
 **Controls:**
-- **Clipboard**: Toggle auto-copy of reverse-geocoded coordinates
-- **Locate**: Three-state button (off → active → passive)
-- **Tracking**: (reserved for future use)
+- **Locate**: Three-state button (off → active → passive) with consistent outline icon shape across all states
+- **Tracking**: Trail recording toggle
 
-Each button is a Leaflet control with SVG icon, styled container, and event handler.
+**Label collapse:** Controls with the `collapseOnFirstUse` flag strip their text label after the first tap, keeping only the icon. The exported `collapseControlLabel()` helper is also used by the Layers and Download controls.
+
+Each button is a Leaflet control with SVG/emoji icon, styled container, and event handler.
+
+### `src/layers-control.ts` — Custom Layers Popover
+
+Replaces Leaflet's native `L.control.layers` with a button + popover UI:
+- Radio buttons for base maps (OSM, Mapbox, Google)
+- Checkboxes for overlays (hillshade)
+- Persists selection to localStorage
+- Re-stacks overlays above base map after switching
+
+### `src/offline-download.ts` — Offline Tile Pre-Download
+
+Lets users select a region and zoom range to pre-cache tiles via the Cache API:
+- Draggable selection rectangle with corner handles
+- Real-time tile count and size estimation
+- Parallel download (6 concurrent fetches)
+- Skips already-cached tiles
+- Mobile: bottom-anchored panel with collapsible header
+
+### `src/consent.ts` — Consent Modal
+
+First-run consent dialog with sticky header/footer layout:
+- Privacy Policy listed before Terms of Use
+- Title and buttons pinned; legal text scrolls independently
+- Consent version gating forces re-acceptance on content changes
+- Stores consent record + anonymous install ID in localStorage
+
+### `src/battery.ts` — Battery Estimation
+
+Estimates remaining recording time based on battery drain rate during trail recording. Uses the Battery API when available; shown as a badge in the recording stats bar.
+
+### `src/trail-backup.ts` — Trail Crash Recovery
+
+Backs up in-progress trail recordings to localStorage for crash recovery. On reload during an active recording, offers to restore the trail from the backup.
 
 ### `src/bottom-sheet.ts` — Responsive Info Panel
 
@@ -299,17 +339,21 @@ import L from 'leaflet';                 // default exports
 
 ## Testing
 
-The project has **no traditional test framework**. Instead, rely on:
+The project uses **vitest** for unit tests alongside type-checking and linting:
 
-1. **Type-check:** `npm run type-check`
+1. **Unit tests:** `npm test`
+   - Tests live alongside source files (e.g., `src/geocoding.test.ts`)
+   - Run with `npm test` or `npx vitest`
+
+2. **Type-check:** `npm run type-check`
    - Catches typos, type mismatches, missing fields
    - Run before every commit
 
-2. **Lint:** `npm run lint`
+3. **Lint:** `npm run lint`
    - ESLint checks code style and common mistakes
    - Run before every commit
 
-3. **Manual browser testing:**
+4. **Manual browser testing:**
    - Start `npm run dev`
    - Test the features you changed
    - Check mobile layout (DevTools → device emulation)

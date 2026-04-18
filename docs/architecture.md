@@ -298,7 +298,7 @@ The file is automatically downloaded via `createElement('a') + click()`.
 
 webmap.dev adapts its UI between mobile and desktop:
 
-- **Mobile** (≤768px width): Bottom sheet with three snap points (hidden, peek, half, full)
+- **Mobile** (≤768px width): Bottom sheet with four snap points (hidden, peek, half, full)
 - **Desktop** (>768px): Slide-in side panel (left side)
 
 Both show search results, reverse geocode locations, and any other contextual info.
@@ -321,19 +321,16 @@ Both show search results, reverse geocode locations, and any other contextual in
 
 **Implementation:**
 
+`fullHeightPx()` uses `_el.offsetHeight` (the actual rendered element height) rather than computing from `window.innerHeight`. On older iOS Safari, CSS `vh` units and `window.innerHeight` disagree — `vh` is based on the largest viewport (toolbar hidden) while `innerHeight` reflects the current visible viewport. Using `offsetHeight` keeps snap-point calculations consistent with the rendered sheet size.
+
 ```typescript
-function snapToPx(snap: SnapPoint): number {
-  const h = fullHeightPx(); // 90vh on mobile
-  switch (snap) {
-    case 'hidden': return h + 8;     // fully off-screen
-    case 'peek': return h - PEEK_PX;   // 72px visible
-    case 'half': return h - (45vh);    // half viewport
-    case 'full': return 0;             // fully visible
-  }
+function fullHeightPx(): number {
+  if (_el) return _el.offsetHeight;
+  return Math.round(window.innerHeight * SHEET_VH);
 }
 ```
 
-The sheet is positioned absolutely and transformed via `translateY()` for smooth GPU-accelerated animations.
+The sheet is positioned absolutely and transformed via `translateY()` for smooth GPU-accelerated animations. The CSS fallback `translateY(110%)` keeps it hidden until JS takes over.
 
 **Map offset (mobile only):**
 
@@ -341,7 +338,67 @@ When the sheet is at half height, the map center shifts upward so the point of i
 
 ---
 
-## 7. PWA / Offline Strategy (vite.config.ts)
+## 7. Consent Modal (consent.ts)
+
+A first-run consent dialog blocks app usage until the user accepts privacy policy and terms of use. Re-prompts when `CONSENT_VERSION` changes.
+
+**Layout:** The dialog uses a flex-column layout with three zones:
+- **Title** (sticky top): One-line summary pinned at the top
+- **Body** (scrollable): Privacy Policy followed by Terms of Use
+- **Buttons** (sticky bottom): "I agree" and "Decline" pinned at the bottom
+
+This ensures the title and action buttons remain visible on small screens where the legal text requires scrolling.
+
+**Consent storage:** On acceptance, three values are written to localStorage:
+- `webmap-consent-version` — current consent version string
+- `webmap-consent-accepted-at` — ISO timestamp
+- `webmap-consent-install-id` — anonymous UUID (generated once via `crypto.randomUUID()`)
+
+**Version gating:** `hasConsent()` checks `localStorage.getItem('webmap-consent-version') === CONSENT_VERSION`. Bumping `CONSENT_VERSION` forces all users to re-accept.
+
+---
+
+## 8. Layers Control (layers-control.ts)
+
+A custom layers popover replaces Leaflet's native `L.control.layers`. It provides a curated button + popover UI for base maps (radio buttons) and overlays (checkboxes).
+
+**Features:**
+- Single toggle button in top-left toolbar (label collapses to icon-only after first use)
+- Popover with radio buttons for base maps and checkboxes for overlays
+- Persists selection to localStorage (`webmap-layer-selection`, `webmap-overlay-selection`)
+- Re-stacks overlays above the base map after switching layers
+
+**Implementation:** `LayersControl` extends `L.Control`. The popover is positioned relative to the toggle button and dismisses on outside click, Escape key, or close button.
+
+---
+
+## 9. Offline Tile Download (offline-download.ts)
+
+Proactive region pre-download supplements the passive service worker caching strategy. Users select a bounding box and zoom range, and the app pre-fetches tiles into the Cache API.
+
+**Flow:**
+1. User taps Download button → panel opens (bottom-anchored on mobile, collapsible header)
+2. A draggable selection rectangle with corner handles appears on the map
+3. Zoom range sliders (min/max) control which zoom levels to cache
+4. Tile count and estimated size are calculated in real-time
+5. Download fetches tiles in parallel (6 concurrent fetches, matching browser per-domain limit)
+6. Already-cached tiles are skipped; progress bar shows completion
+
+**Mobile UX:** The panel anchors to the bottom of the screen (not top) so it doesn't block the selection handles. The header is tappable to collapse/expand the panel body.
+
+**Tile math:** `lng2tile()` and `lat2tile()` convert geographic bounds to tile coordinates at each zoom level. `countTiles()` sums across all requested zoom levels for the estimate.
+
+---
+
+## 10. Adaptive Control Labels (controls.ts)
+
+Locate, Layers, and Download toolbar buttons start with text labels (e.g., "Locate", "Layers", "Download") for discoverability. After the first tap, the label is removed and only the icon remains, reclaiming screen space.
+
+**Implementation:** `collapseControlLabel()` removes the `.leaflet-control-toggle__label` span from the control container. For controls using the `makeToggleControl` factory, a `collapseOnFirstUse` flag triggers this on first click. Layers and Download wire it independently via a `labelCollapsed` boolean in their click handlers.
+
+---
+
+## 11. PWA / Offline Strategy (vite.config.ts)
 
 webmap.dev uses **vite-plugin-pwa** and **Workbox** to cache assets and enable offline use.
 
@@ -419,7 +476,7 @@ Browsers show "Add to Home Screen" prompts when visited from a mobile browser.
 
 ---
 
-## 8. nginx Infrastructure
+## 12. nginx Infrastructure
 
 Production deployment uses **nginx** as a reverse proxy, serving the Vite build from `/var/www/webmap/web/dist/`.
 
@@ -492,13 +549,17 @@ Prevents accidental exposure of `.env`, `.git`, etc.
 
 ## Summary
 
-These eight patterns work together to create a lightweight, responsive GPS app:
+These twelve patterns work together to create a lightweight, responsive GPS app:
 
 1. **Single state** keeps the codebase simple and type-safe.
 2. **Refcounting** lets locate and recording share the GPS polling loop.
 3. **Three-state button** gives users intuitive control.
 4. **Haversine filter** prevents trail jitter.
 5. **State machine** cleanly handles recording start/pause/resume/stop.
-6. **Responsive UI** adapts between mobile and desktop.
-7. **Service worker** enables offline use.
-8. **nginx** handles HTTPS, caching, and SPA routing at the edge.
+6. **Responsive UI** adapts between mobile and desktop (with iOS Safari compatibility).
+7. **Consent modal** gates first-run usage with sticky header/footer layout.
+8. **Layers control** provides curated base map and overlay switching.
+9. **Offline download** enables proactive tile pre-caching for offline use.
+10. **Adaptive controls** collapse labels to icons after first use.
+11. **Service worker** enables passive offline caching.
+12. **nginx** handles HTTPS, caching, and SPA routing at the edge.
