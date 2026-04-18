@@ -1,6 +1,6 @@
 {
   "name": "webmap-dev",
-  "version": "0.20.8-beta",
+  "version": "0.20.9-beta",
   "type": "module",
   "scripts": {
     "test": "vitest run",

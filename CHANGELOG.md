@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.20.9-beta (2026-04-17)
+
+### Added
+
+- **README badges** — CI status, license, and TypeScript badges at the top of README
+- **Repo topics** — 10 topics (pwa, typescript, leaflet, gps, etc.) for GitHub discoverability
+- **PR and issue templates** — bug report, feature request, and PR templates in `.github/`
+- **README screenshots section** — Preview placeholder with `docs/images/` directory
+- **Design principles** — offline-first, local-only data, progressive enhancement, mobile-native UX, minimal dependencies, transparent architecture
+- **Architecture Decision Records** — 5 ADRs documenting single state, refcount polling, iOS Safari viewport, local-only data, and offline tile strategy
+- **SECURITY.md** — threat model, data architecture, vulnerability reporting via GitHub private advisories
+- **CONTRIBUTING.md** — development workflow, code conventions, quality gate, file structure
+- **CODE_OF_CONDUCT.md** — simplified Contributor Covenant
+
+### Changed
+
+- **Repo description** — updated to "Privacy-first PWA for GPS trail recording, offline maps, and address search"
+- **Documentation** — updated README, architecture, features, and development guides with all new source files and features
+
 ## v0.20.8-beta (2026-04-17)
 
 ### Changed
