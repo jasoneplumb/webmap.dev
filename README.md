@@ -136,14 +136,7 @@ CLAUDE.md           # Project conventions (code patterns, architecture notes)
 
 ## Contributing
 
-1. **Fork the repo** and create a feature branch
-2. **Code changes**: Update relevant files in `src/`
-3. **Quality gate**:
-   ```bash
-   npm run type-check && npm run lint && npm test
-   ```
-4. **Commit & push** to your fork
-5. **Create a PR** with a clear description of your changes
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on setting up a development environment, code conventions, and our PR workflow.
 
 ## License
 
