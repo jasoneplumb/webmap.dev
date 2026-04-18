@@ -173,8 +173,6 @@ function startLocating(): void {
   updateLocateIcon('active');
 }
 
-// Re-center on current position and resume following — shared by the locate
-// button click handler and the mobile double-tap gesture.
 function reactivateLocate(): void {
   state.locateState = 'active';
   if (state.youAreHereLocation !== null) {
@@ -232,7 +230,7 @@ map.on('dragstart', () => {
     } else {
       lastTouchEnd = now;
     }
-  }, { capture: true });
+  }, { capture: true, passive: false });
 }
 
 // ── Recording (trail with stats) ──────────────────────────────────────────────
