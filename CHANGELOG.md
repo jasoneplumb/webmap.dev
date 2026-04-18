@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.22.0-beta (2026-04-18)
+
+### Added
+
+- **Background GPS keepalive** — new `Keepalive` class (`src/keepalive.ts`) wraps Screen Wake Lock API and a silent `AudioContext` loop to keep GPS active when the phone locks or the browser is backgrounded during recording; wake lock re-acquired automatically on screen wakeup; both mechanisms degrade gracefully if unavailable (#119)
+
+### Fixed
+
+- **Blank page on iOS Safari after app update** — service worker `onNeedRefresh` reload now deferred via `requestAnimationFrame` so the map renders before any SW-triggered navigation fires; also adds a guarded `.catch()` on the consent promise chain to reload on failure without looping (#121)
+
 ## v0.21.0-beta (2026-04-17)
 
 ### Added
