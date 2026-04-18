@@ -8,6 +8,7 @@ import L from 'leaflet';
 import type { AppState } from './types';
 import { saveTrailBackup, clearTrailBackup, loadTrailBackup, applyTrailBackup, dismissTrailBackup, isTrailBackupDismissed } from './trail-backup';
 import { snapshotBatteryStart, formatBatteryEstimate } from './battery';
+import { Keepalive } from './keepalive';
 
 
 // tradeoff: 5m minimum distance filters GPS jitter at walking pace without skipping real movement; lower values add noise, higher values miss tight turns
@@ -371,6 +372,9 @@ function startRecording(
 
   activatePolling(); // recording refcount
 
+  state.keepalive = new Keepalive();
+  state.keepalive.start().catch(() => undefined);
+
   setStatsBarVisible(true);
   if (state.statsTimer !== null) clearInterval(state.statsTimer);
   state.statsTimer = setInterval(() => updateStatsBar(state), 1000);
@@ -401,6 +405,9 @@ function resumeRecording(state: AppState): void {
 
 function stopRecording(state: AppState, deactivatePolling: () => void): void {
   if (state.recordingState === 'idle') return;
+
+  state.keepalive?.stop();
+  state.keepalive = null;
 
   if (state.trailPoints.length > 0 || state.trailSegments.length > 0) {
     downloadGpx(state);

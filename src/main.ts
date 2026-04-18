@@ -348,6 +348,9 @@ document.addEventListener('visibilitychange', () => {
       state.accuracyCircle.setRadius(state.lastGpsAccuracy);
     }
     updateLocateIcon(state.locateState);
+    if (state.recordingState === 'recording') {
+      state.keepalive?.reacquireWakeLock().catch(() => undefined);
+    }
   }
 });
 
