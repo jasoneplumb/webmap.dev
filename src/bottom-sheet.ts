@@ -15,12 +15,33 @@ export interface SheetContent {
   bodyHtml: string;
 }
 
-const MOBILE_BREAKPOINT = 768;
+export const MOBILE_BREAKPOINT = 768;
 // Sheet occupies 90vh on mobile (partially revealed via translateY)
-const SHEET_VH = 0.9;
-const HALF_VH = 0.45;
+export const SHEET_VH = 0.9;
+export const HALF_VH = 0.45;
 // constraint: 72px matches the approximate height of mobile browser bottom nav bars; peek must clear them or the handle is unreachable
-const PEEK_PX = 72;
+export const PEEK_PX = 72;
+
+/**
+ * Compute translateY (px) for each snap point given a sheet height and viewport height.
+ * Pure function extracted for testability.
+ */
+export function computeSnapPx(
+  snap: SnapPoint,
+  sheetHeight: number,
+  viewportHeight: number,
+): number {
+  switch (snap) {
+    case 'hidden':
+      return sheetHeight + 8;
+    case 'peek':
+      return sheetHeight - PEEK_PX;
+    case 'half':
+      return sheetHeight - Math.round(viewportHeight * HALF_VH);
+    case 'full':
+      return 0;
+  }
+}
 
 // Module state
 let _map: L.Map | null = null;

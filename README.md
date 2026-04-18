@@ -3,6 +3,7 @@
 [![CI](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml/badge.svg)](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![TypeScript](https://img.shields.io/badge/TypeScript-ES2020-blue)
+![Bundle Size](https://img.shields.io/badge/bundle-93kB_gzip-brightgreen)
 
 > A mobile-first Progressive Web App for GPS trail recording and map exploration.
 

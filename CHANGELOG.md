@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.21.0-beta (2026-04-17)
+
+### Added
+
+- **Test coverage** — 3 new test files: haversine distance formula (`location.test.ts`), bottom-sheet snap-point math (`bottom-sheet.test.ts`), recording state machine transitions (`recording.test.ts`); 23 new tests bringing total to 103
+- **Bundle size tracking** — `size-limit` checks gzipped JS bundle stays under 100KB; added to CI pipeline and README badge (93KB gzip)
+
+### Changed
+
+- **Haversine distance** — extracted as exported `haversineDistance()` function from inline code in `location.ts` for testability
+- **Snap-point math** — extracted as exported `computeSnapPx()` function and constants from `bottom-sheet.ts` for testability
+
 ## v0.20.9-beta (2026-04-17)
 
 ### Added
