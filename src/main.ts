@@ -173,6 +173,14 @@ function startLocating(): void {
   updateLocateIcon('active');
 }
 
+function reactivateLocate(): void {
+  state.locateState = 'active';
+  if (state.youAreHereLocation !== null) {
+    map.flyTo(state.youAreHereLocation, map.getZoom(), { animate: true, duration: 0.8 });
+  }
+  updateLocateIcon('active');
+}
+
 addLocateControl(map, () => {
   switch (state.locateState) {
     case 'off':
@@ -192,12 +200,7 @@ addLocateControl(map, () => {
       break;
 
     case 'passive':
-      // Re-center: fly to current position and resume following
-      state.locateState = 'active';
-      if (state.youAreHereLocation !== null) {
-        map.flyTo(state.youAreHereLocation, map.getZoom(), { animate: true, duration: 0.8 });
-      }
-      updateLocateIcon('active');
+      reactivateLocate();
       break;
   }
 });
@@ -209,6 +212,26 @@ map.on('dragstart', () => {
     updateLocateIcon('passive');
   }
 });
+
+// Double-tap on the map re-activates locate (mobile) — when the user has panned
+// away (active → passive), a double-tap snaps back to their position without
+// requiring them to reach the locate button.
+// Intercepted at capture phase so e.preventDefault() suppresses the browser's
+// synthesized dblclick event (which would zoom instead of re-centering).
+{
+  let lastTouchEnd = 0;
+  map.getContainer().addEventListener('touchend', (e: TouchEvent) => {
+    if (e.touches.length !== 0 || e.changedTouches.length !== 1) return; // multi-touch
+    const now = Date.now();
+    if (state.locateState === 'passive' && now - lastTouchEnd < 300) {
+      e.preventDefault(); // suppress synthesized dblclick → prevents zoom-in
+      reactivateLocate();
+      lastTouchEnd = 0;   // reset so a third tap starts a fresh sequence
+    } else {
+      lastTouchEnd = now;
+    }
+  }, { capture: true, passive: false });
+}
 
 // ── Recording (trail with stats) ──────────────────────────────────────────────
 
