@@ -9,7 +9,7 @@ An ADR is a lightweight document that captures an important architectural decisi
 ## Format
 
 Each ADR follows a consistent template:
-- **Status** — Proposed, Accepted, Deprecated, Superseded, or Accepted
+- **Status** — Proposed, Accepted, Rejected, Deprecated, or Superseded
 - **Context** — The issue or problem that motivated the decision
 - **Decision** — The choice made
 - **Alternatives Considered** — Other options evaluated
@@ -26,4 +26,4 @@ Each ADR follows a consistent template:
 ## References
 
 - [Michael Nygard's ADR Template](https://github.com/adr/madr)
-- [webmap.dev GitHub Repository](https://github.com/jplumb/webmap.dev)
+- [webmap.dev GitHub Repository](https://github.com/jasoneplumb/webmap.dev)

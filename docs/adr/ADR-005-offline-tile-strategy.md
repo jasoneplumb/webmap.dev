@@ -49,24 +49,29 @@ runtimeCaching: [
 Provide a UI control to select a bounding box, choose zoom levels, and pre-download all tiles for that region into the Cache API:
 
 ```typescript
-// offline-download.ts
-async function downloadTiles(urls: string[], onProgress: ProgressCallback): Promise<void> {
+// offline-download.ts (simplified — see source for full implementation)
+async function downloadTiles(urls: string[], onProgress: ProgressCallback): Promise<DownloadProgress> {
   const cache = await caches.open(OSM_TILE_CACHE_NAME);
+  const progress: DownloadProgress = { total: urls.length, done: 0, cached: 0, failed: 0 };
+
+  // Skip already-cached tiles
   for (const url of urls) {
-    const resp = await fetch(url);
-    if (resp.ok) {
-      await cache.put(url, resp);
-    }
+    if (await cache.match(url)) { progress.cached++; progress.done++; }
   }
-  onProgress({ done: urls.length, failed: 0 });
+
+  // Fetch uncached tiles in parallel (6 concurrent workers)
+  // Each worker calls onProgress after every tile for real-time UI updates
+  // AbortController enables user cancellation mid-download
 }
 ```
 
 **Behavior:**
 - User drags a rectangle on the map and selects zoom levels
-- App estimates tile count and storage size
-- User initiates download; tiles are fetched and cached in parallel (6 concurrent fetches)
-- Progress is shown in the UI; can be cancelled at any time
+- App estimates tile count and storage size in real-time
+- User initiates download; tiles are fetched in 6 parallel workers
+- `onProgress` fires after each tile (not just at the end) for real-time progress bar
+- Download can be cancelled at any time via `AbortController`
+- Already-cached tiles are skipped (not re-fetched)
 - Pre-downloaded tiles are stored in the same cache as passive tiles
 
 ## Alternatives Considered

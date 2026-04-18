@@ -80,9 +80,9 @@ if (state.updateCallback === 0) {
 - **No visibility:** No built-in logging of who requested GPS and when; debugging refcount leaks requires tracing through code
 
 ### Mitigation
-- Wrap increment/decrement in utility functions with clear names (`requestGPSWatch()`, `releaseGPSWatch()`) to reduce typos
-- Add TypeScript compile-time checks to ensure increment is paired with a corresponding decrement in try/finally blocks
-- Consider adding a debug mode that logs refcount changes and stack traces to identify leaks during development
+- Current code uses `activatePolling()` / `deactivatePolling()` wrappers in `main.ts` to encapsulate increment/decrement (not yet extracted to standalone utility functions)
+- Future: add TypeScript compile-time checks to ensure increment is paired with a corresponding decrement in try/finally blocks
+- Future: consider a debug mode that logs refcount changes and stack traces to identify leaks during development
 
 ## Related Decisions
 - [ADR-001: Single Mutable State](ADR-001-single-mutable-state.md) — Refcount is stored in the mutable AppState object
