@@ -1,5 +1,9 @@
 # webmap.dev
 
+[![CI](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml/badge.svg)](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![TypeScript](https://img.shields.io/badge/TypeScript-ES2020-blue)
+
 > A mobile-first Progressive Web App for GPS trail recording and map exploration.
 
 ## Features
