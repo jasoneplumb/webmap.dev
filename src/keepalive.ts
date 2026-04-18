@@ -1,0 +1,58 @@
+export class Keepalive {
+  private wakeLock: WakeLockSentinel | null = null;
+  private audioCtx: AudioContext | null = null;
+  private sourceNode: AudioBufferSourceNode | null = null;
+
+  async start(): Promise<void> {
+    this.startSilentAudio(); // synchronous — must run before any await to stay in gesture stack
+    await this.acquireWakeLock();
+  }
+
+  stop(): void {
+    this.wakeLock?.release().catch(() => undefined);
+    this.wakeLock = null;
+    this.sourceNode?.stop();
+    this.audioCtx?.close().catch(() => undefined);
+    this.audioCtx = null;
+    this.sourceNode = null;
+  }
+
+  async reacquireWakeLock(): Promise<void> {
+    if (this.wakeLock === null || this.wakeLock.released) {
+      await this.acquireWakeLock();
+    }
+  }
+
+  private async acquireWakeLock(): Promise<void> {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      const sentinel = await navigator.wakeLock.request('screen');
+      // Guard: stop() may have been called while awaiting (race between start/stop)
+      if (this.audioCtx === null) {
+        sentinel.release().catch(() => undefined);
+      } else {
+        this.wakeLock = sentinel;
+      }
+    } catch {
+      // Permission denied or not supported — silent degradation
+    }
+  }
+
+  private startSilentAudio(): void {
+    try {
+      this.audioCtx = new AudioContext();
+      // 1-second silent buffer — loops once per second instead of 22k/s with a 1-sample buffer
+      const buffer = this.audioCtx.createBuffer(1, 22050, 22050);
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(this.audioCtx.destination);
+      source.start();
+      this.sourceNode = source;
+      // Resume explicitly — Chrome may create AudioContext in suspended state
+      this.audioCtx.resume().catch(() => undefined);
+    } catch {
+      // AudioContext unavailable — silent degradation
+    }
+  }
+}

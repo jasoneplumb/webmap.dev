@@ -5,6 +5,7 @@
  * Future: Will become unwieldy if state grows significantly; consider splitting into domain sub-objects
  */
 import type L from 'leaflet';
+import type { Keepalive } from './keepalive';
 
 // Three-state location button: off → active (following) → passive (dot visible, not following)
 export type LocateState = 'off' | 'active' | 'passive';
@@ -64,6 +65,9 @@ export interface AppState {
   batteryCharging: boolean;             // true if device is charging
   batteryDrainStartLevel: number | null; // battery level when recording started
   batteryDrainStartMs: number;          // performance.now() when drain tracking began
+
+  // Background GPS keepalive: screen wake lock + silent audio loop
+  keepalive: Keepalive | null;
 }
 
 export function createInitialState(): AppState {
@@ -103,5 +107,6 @@ export function createInitialState(): AppState {
     batteryCharging: false,
     batteryDrainStartLevel: null,
     batteryDrainStartMs: 0,
+    keepalive: null,
   };
 }
