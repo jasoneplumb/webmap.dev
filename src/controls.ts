@@ -40,13 +40,14 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
 
       container.appendChild(img);
 
-      const storageKey = config.collapseOnFirstUse ? `webmap-ctrl-label-${config.id}` : null;
+      const storageKey = config.collapseOnFirstUse && config.id
+        ? `webmap-ctrl-label-${config.id}`
+        : null;
 
       if (config.label) {
         const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
         label.textContent = config.label;
         container.appendChild(label);
-        // Restore collapsed state from previous session
         if (storageKey) {
           try {
             if (localStorage.getItem(storageKey) === '1') {
