@@ -166,7 +166,7 @@ export default function appendTrailPoint(latlng, speed, state, map) {
 
 ### Testing
 
-- No automated test framework is currently configured
+- Unit tests use **vitest** (e.g., `src/geocoding.test.ts`); run with `npm test`
 - Verify changes with manual browser testing
 - For GPS/location features, test on a real device if possible
 - Check both desktop and mobile viewports (use Chrome DevTools mobile emulation)
@@ -186,18 +186,26 @@ For a deep-dive on the codebase architecture, see [docs/architecture.md](docs/ar
 src/
   main.ts              # Entry point, consent gate, locate button, recording controls
   types.ts             # AppState interface
+  map.ts               # Leaflet initialization, tile layers
+  controls.ts          # Toggle button factory, label collapse helper
   location.ts          # GPS handlers, haversine filter, blue dot
+  timer.ts             # GPS polling loop
   geocoding.ts         # ESRI address search + reverse geocoding
   recording.ts         # Trail recording state machine, stats, GPX export
-  map.ts               # Leaflet initialization, tile layers
-  controls.ts          # Control button factory
-  timer.ts             # GPS polling loop
+  bottom-sheet.ts      # Mobile bottom sheet / desktop side panel
+  layers-control.ts    # Custom layers popover (base maps + overlays)
+  offline-download.ts  # Region pre-download for offline tile caching
+  consent.ts           # First-run consent modal (privacy + terms)
+  battery.ts           # Battery drain estimation during recording
+  trail-backup.ts      # Crash recovery backup for in-progress trails
+  sw-constants.ts      # Service worker cache name constants
   style.css            # Styles
-  [other features]
 
 docs/
-  architecture.md      # Detailed architecture
-  development.md       # Dev environment setup
+  architecture.md      # Detailed architecture and design patterns
+  development.md       # Dev environment setup and file walkthrough
+  features.md          # User-facing feature documentation
+  deployment.md        # CI/CD, nginx, and deployment guide
 ```
 
 ## Common Tasks
@@ -234,6 +242,9 @@ docs/
 ## Questions?
 
 - **How do I...?** Check [docs/development.md](docs/development.md)
+- **How does X work?** Check [docs/architecture.md](docs/architecture.md)
+- **What features exist?** Check [docs/features.md](docs/features.md)
+- **How is it deployed?** Check [docs/deployment.md](docs/deployment.md)
 - **I found a security issue**: See [SECURITY.md](SECURITY.md)
 - **I'm stuck**: Comment on your GitHub issue; maintainers will help
 

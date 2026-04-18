@@ -63,12 +63,13 @@ webmap.dev stores sensitive location and navigation data entirely on the client.
 
 **Mitigations**:
 - ESRI geocoding API calls require an explicit `VITE_ESRI_API_KEY` (from arcgis.com)
-- API key stored in `.env` (not committed; not exposed to client bundle)
+- API key source (`.env`) is not committed to git
+- **Note**: Vite embeds all `VITE_*` variables in the client bundle at build time — the API key is visible in compiled JS output and browser DevTools. Restrict key usage via ESRI's API key scope and domain allowlist settings.
 - Map tiles from free/public sources (OpenStreetMap, Mapbox via optional key)
 - No analytics, telemetry, or tracking enabled by default
 - Reverse geocoding and search are opt-in user actions (not automatic)
 
-**Residual Risk**: ESRI API key in `.env` could be leaked if `.env` is accidentally committed or if the build environment is compromised. API logs on ESRI's side contain user search queries.
+**Residual Risk**: ESRI API key is embedded in the client bundle and visible to anyone inspecting the compiled JS. Mitigate by restricting the key to specific domains and API scopes in the ESRI dashboard. API logs on ESRI's side contain user search queries.
 
 ### 4. localStorage Tampering
 
@@ -98,7 +99,7 @@ webmap.dev stores sensitive location and navigation data entirely on the client.
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Instead, email a detailed report to: [maintainer email not specified — see repo README or GitHub profile]
+Instead, use [GitHub's private vulnerability reporting](https://github.com/jasoneplumb/webmap.dev/security/advisories/new) to submit a detailed report.
 
 Include:
 - Description of the vulnerability
