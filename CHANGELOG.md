@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.8-beta (2026-04-17)
+
+### Changed
+
+- **Consent dialog** — condensed title and summary into a one-liner; reordered Privacy Policy above Terms of Use; removed preamble text; title and buttons now stay pinned while legal text scrolls independently
+
 ## v0.20.7-beta (2026-04-17)
 
 ### Fixed
