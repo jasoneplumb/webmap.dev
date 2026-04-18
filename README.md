@@ -10,7 +10,10 @@
 ## Preview
 
 <p align="center">
-  <img src="docs/images/map-view.png" alt="webmap.dev — map view with controls" width="280" />
+  <img src="docs/images/trail-map-view.png" alt="Trails basemap" width="140" />
+  <img src="docs/images/streets-map-view.png" alt="Streets basemap" width="140" />
+  <img src="docs/images/topo-map-view.png" alt="Topographic basemap" width="140" />
+  <img src="docs/images/parks-map-view.png" alt="Parks &amp; POIs basemap" width="140" />
 </p>
 
 <p align="center">
