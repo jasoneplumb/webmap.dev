@@ -46,8 +46,13 @@ if (!hasConsent()) {
   void waitForConsent()
     .then(() => initApp())
     .catch((err: unknown) => {
-      console.error('[webmap] consent flow failed — reloading', err);
-      location.reload();
+      console.error('[webmap] consent flow failed', err);
+      // Only reload if consent wasn't recorded yet — avoids a reload loop if
+      // initApp() itself threw after the user already accepted (next load will
+      // skip straight to initApp() via the else branch with no catch needed).
+      if (!hasConsent()) {
+        location.reload();
+      }
     });
 } else {
   initApp();
@@ -390,6 +395,8 @@ const updateSW = registerSW({
     // Defer SW update until after first paint — immediate reload during init
     // causes a blank page on iOS Safari (new SW activates + clientsClaim
     // triggers location.reload() before Leaflet has rendered anything).
+    // rAF is also suspended in background tabs, which further protects active
+    // recordings from an unintended mid-session reload (intentional benefit).
     requestAnimationFrame(() => {
       applyUpdateWhenSafe(() => updateSW(true));
     });
