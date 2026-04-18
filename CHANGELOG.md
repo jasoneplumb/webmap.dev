@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.22.1-beta (2026-04-18)
+
+### Added
+
+- **Basemap previews** — docs/images now includes screenshots for all four basemaps (Trails, Streets, Topographic, Parks & POIs); README Preview section shows them side by side
+
+### Fixed
+
+- **Double-tap to re-center** — double-tapping the map on mobile re-activates locate from passive state without triggering zoom-in; uses capture-phase `touchend` with `passive:false` so `preventDefault()` suppresses the synthesized `dblclick`; guards simultaneous multi-finger lifts via `changedTouches.length === 1` (#123)
+
 ## v0.22.0-beta (2026-04-18)
 
 ### Added
