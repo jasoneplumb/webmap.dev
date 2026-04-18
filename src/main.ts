@@ -221,7 +221,7 @@ map.on('dragstart', () => {
 {
   let lastTouchEnd = 0;
   map.getContainer().addEventListener('touchend', (e: TouchEvent) => {
-    if (e.touches.length !== 0) return; // multi-touch in progress, ignore
+    if (e.touches.length !== 0 || e.changedTouches.length !== 1) return; // multi-touch
     const now = Date.now();
     if (state.locateState === 'passive' && now - lastTouchEnd < 300) {
       e.preventDefault(); // suppress synthesized dblclick → prevents zoom-in
