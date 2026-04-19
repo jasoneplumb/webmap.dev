@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.23.0-beta (2026-04-18)
+
+### Added
+
+- **Double-tap locate hint** — when the map is panned (locate drops to passive), a 2.5s toast "Double-tap map to re-center" appears on touch devices on the first pan per session (`sessionStorage` key `locate-hint-shown`); the locate button icon also pulses twice via a one-shot CSS animation to draw the eye (#124)
+
+### Fixed
+
+- **GPS polling refcount guard** — `activatePolling()` now emits a `console.warn` in dev builds (`import.meta.env.DEV`) when `updateCallback` exceeds 2, catching activate-without-deactivate leaks before they silently keep GPS running forever; stripped by Vite in production (#125)
+- **GPX trkpt timestamp docs** — added inline comments in `buildGpx()` documenting that `<time>` is required on every `<trkpt>` for Strava/Garmin moving-time and elevation-over-time compatibility, and that GPX 1.1 schema order is `<ele> → <time> → <extensions>` (#126)
+
 ## v0.22.2-beta (2026-04-18)
 
 ### Fixed
