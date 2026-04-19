@@ -210,6 +210,22 @@ map.on('dragstart', () => {
   if (state.locateState === 'active') {
     state.locateState = 'passive';
     updateLocateIcon('passive');
+
+    if (navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
+      sessionStorage.setItem('locate-hint-shown', '1');
+      showToast('Double-tap map to re-center', 2500);
+    }
+
+    const locateImg = document.getElementById('locate');
+    if (locateImg) {
+      locateImg.classList.remove('locate-passive-pulse');
+      // Force reflow so re-adding the class restarts the animation
+      void locateImg.offsetWidth;
+      locateImg.classList.add('locate-passive-pulse');
+      locateImg.addEventListener('animationend', () => {
+        locateImg.classList.remove('locate-passive-pulse');
+      }, { once: true });
+    }
   }
 });
 
