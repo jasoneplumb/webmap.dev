@@ -111,6 +111,9 @@ map.on('locationerror', (e: L.ErrorEvent) => {
 // Polling refcount helpers — shared by locate and recording
 function activatePolling(): void {
   state.updateCallback += 1;
+  if (import.meta.env.DEV && state.updateCallback > 2) {
+    console.warn('[webmap] updateCallback > 2 — possible activatePolling() leak', state.updateCallback);
+  }
   if (state.updateCallback === 1) startWatching(map);
 }
 
