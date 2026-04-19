@@ -120,6 +120,9 @@ function activatePolling(): void {
 function deactivatePolling(): void {
   state.prior = 1000;
   state.updateCallback -= 1;
+  if (import.meta.env.DEV && state.updateCallback < 0) {
+    console.warn('[webmap] updateCallback < 0 — possible deactivatePolling() leak', state.updateCallback);
+  }
   if (state.updateCallback === 0) stopWatching(map);
 }
 
