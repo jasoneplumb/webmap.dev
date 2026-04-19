@@ -211,13 +211,11 @@ map.on('dragstart', () => {
     state.locateState = 'passive';
     updateLocateIcon('passive');
 
-    // Show discoverability hint once per session on touch devices
     if (navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
       sessionStorage.setItem('locate-hint-shown', '1');
       showToast('Double-tap map to re-center', 2500);
     }
 
-    // Pulse the locate icon for 2 cycles to draw attention to the state change
     const locateImg = document.getElementById('locate');
     if (locateImg) {
       locateImg.classList.remove('locate-passive-pulse');
