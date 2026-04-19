@@ -448,7 +448,8 @@ function buildGpx(state: AppState): string {
   const formatPoint = ({ latlng, t, speedMs, altM }: { latlng: L.LatLng; t: number; speedMs: number; altM?: number }): string => {
     const pointTime = new Date(epochOffset + t).toISOString();
     const eleTag = altM !== undefined ? `<ele>${altM.toFixed(1)}</ele>` : '';
-    // required on every trkpt for Strava/Garmin moving-time and elevation-over-time graphs; GPX 1.1 schema orders <time> after <ele> and before <extensions>
+    // <time> required on every trkpt for Strava/Garmin moving-time and elevation-over-time graphs
+    // GPX 1.1 schema order: <ele> → <time> → <extensions>
     const timeTag = `<time>${pointTime}</time>`;
     const speedTag =
       speedMs > 0
