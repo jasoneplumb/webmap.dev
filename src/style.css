@@ -1037,7 +1037,9 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 #version-badge {
   position: absolute;
-  top: calc(8px + env(safe-area-inset-top, 0px));
+  /* Sits below the layers control which now occupies top-right (26px desktop, 34px touch).
+     Layers control's top is at safe-area-inset-top; badge clears it with an 8px gap. */
+  top: calc(34px + env(safe-area-inset-top, 0px));
   right: calc(8px + env(safe-area-inset-right, 0px));
   z-index: 500;
   background: rgba(255, 255, 255, 0.85);
@@ -1050,6 +1052,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   border: none;
   cursor: pointer;
   user-select: none;
+}
+
+.leaflet-touch #version-badge {
+  top: calc(42px + env(safe-area-inset-top, 0px));
 }
 
 #version-badge:hover {

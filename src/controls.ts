@@ -105,7 +105,7 @@ export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void 
     id: 'locate',
     disabledSrc: '/locate-arrow-lines.svg',
     disabledTitle: 'Locate: Center map on your GPS location',
-    position: 'topleft',
+    position: 'bottomright',
     onClick,
     label: 'Locate',
     collapseOnFirstUse: true,
@@ -142,7 +142,7 @@ export function addTrackingControl(map: L.Map, onClick: (e: Event) => void): voi
     id: 'tracking',
     disabledSrc: '/logging-lines-v1.1.svg',
     disabledTitle: 'Tracking Toggle (Disabled)',
-    position: 'topleft',
+    position: 'bottomright',
     onClick,
     label: 'Tracking',
   }).addTo(map);

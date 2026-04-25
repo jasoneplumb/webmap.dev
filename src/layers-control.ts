@@ -44,7 +44,7 @@ export class LayersControl extends L.Control {
     options?: L.ControlOptions,
     defaultOverlayIds: string[] = [],
   ) {
-    super(options || { position: 'topleft' });
+    super(options || { position: 'topright' });
     this.baseMaps = baseMaps;
     this.overlays = overlays;
     this.defaultOverlayIds = defaultOverlayIds;
@@ -387,7 +387,7 @@ export function addLayersControl(
   overlays?: OverlayDef[],
   defaultOverlayIds?: string[],
 ): LayersControl {
-  const control = new LayersControl(baseMaps, overlays, { position: 'topleft' }, defaultOverlayIds);
+  const control = new LayersControl(baseMaps, overlays, { position: 'topright' }, defaultOverlayIds);
   control.addTo(map);
   return control;
 }

@@ -197,7 +197,7 @@ export function createMap(): L.Map {
   }).addTo(map);
 
   L.control.scale({ position: 'bottomleft' }).addTo(map);
-  L.control.zoom({ position: 'topleft' }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
   map.setZoom(2);
 
   // All layers are now free, community-maintained OSM sources
