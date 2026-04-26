@@ -7,6 +7,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
+import { startGuidance } from './guidance';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -239,6 +240,19 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
     const clicked = e.target as HTMLElement;
 
+    // "Navigate here" button — start routed guidance to the selected result
+    const navBtn = clicked.closest<HTMLElement>('.sheet-result__nav-btn');
+    if (navBtn) {
+      const li = navBtn.closest<HTMLElement>('.sheet-result[data-lat]');
+      if (li === null) return;
+      const lat = parseFloat(li.dataset['lat'] ?? '');
+      const lng = parseFloat(li.dataset['lng'] ?? '');
+      if (isNaN(lat) || isNaN(lng)) return;
+      const label = li.dataset['name'] ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      void startGuidance(state, map, { lat, lng, label }, onNoResults);
+      return;
+    }
+
     // "Go to location" button — fly to the result and show geocode bar
     const goBtn = clicked.closest<HTMLElement>('.sheet-result__go-btn');
     if (goBtn) {
@@ -382,6 +396,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
             `      <span class="sheet-result__detail-coords">${coordStr}</span>` +
             `    </div>` +
             `    <div class="sheet-result__detail-actions">` +
+            `      <button class="sheet-result__nav-btn">Navigate here</button>` +
             `      <button class="sheet-result__go-btn">Go to location</button>` +
             `      <button class="sheet-result__copy-btn" data-copy="${longLabel}">Copy address</button>` +
             `      <button class="sheet-result__copy-btn" data-copy="${escapeHtml(coordStr)}">Copy coords</button>` +
@@ -424,7 +439,11 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   });
 }
 
-export function addReverseGeocoding(map: L.Map): void {
+export function addReverseGeocoding(
+  map: L.Map,
+  state: AppState,
+  showToast: (msg: string, durationMs?: number) => void,
+): void {
   const apikey = import.meta.env.VITE_ESRI_API_KEY;
   const geocoder = geocodeService({ apikey });
   const pinLayer = L.layerGroup().addTo(map);
@@ -440,6 +459,7 @@ export function addReverseGeocoding(map: L.Map): void {
     '  <div class="geocode-bar__handle-pill"></div>' +
     '</div>' +
     '<div class="geocode-bar__body">' +
+    '  <button class="geocode-bar__nav" aria-label="Navigate here">Navigate</button>' +
     '  <button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
     '  <span class="geocode-bar__addr"></span>' +
     '  <button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>' +
@@ -448,7 +468,33 @@ export function addReverseGeocoding(map: L.Map): void {
 
   const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
+  const barNavBtn  = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__nav')!;
   const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
+
+  // "Navigate" button on the geocode-bar — start guidance to the dropped pin's
+  // current latlng. The pin location is on whichever marker is in pinLayer
+  // (there's always at most one when the bar is visible).
+  let currentPinLatLng: L.LatLng | null = null;
+  let currentPinLabel = '';
+  barNavBtn.addEventListener('click', () => {
+    if (currentPinLatLng === null) return;
+    void startGuidance(
+      state,
+      map,
+      { lat: currentPinLatLng.lat, lng: currentPinLatLng.lng, label: currentPinLabel },
+      showToast,
+    );
+  });
+
+  // Expose pin position to the Navigate button via closure-captured ref.
+  // Updated by showGeocodeBar through pinLayer inspection on each open.
+  pinLayer.on('layeradd', () => {
+    const layers = pinLayer.getLayers();
+    const pin = layers[layers.length - 1];
+    if (pin instanceof L.Marker) {
+      currentPinLatLng = pin.getLatLng();
+    }
+  });
 
   // Tap-to-expand: tapping a truncated address shows the full text for 3s
   // (or until a second tap). This makes long addresses readable on mobile
@@ -550,6 +596,7 @@ export function addReverseGeocoding(map: L.Map): void {
     barCopyBtn.dataset['copy'] = copyText;
     barCopyBtn.textContent = 'Copy';
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
+    currentPinLabel = label;
 
     if (sheetState === 'hidden') {
       // Render off-screen first so offsetHeight is available, then use double-rAF

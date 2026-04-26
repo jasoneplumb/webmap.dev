@@ -124,6 +124,187 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   color: #fff;
 }
 
+/* ── Routed-guidance pill ──────────────────────────────────────────────────
+   Bottom-left pill driven by guidance.ts state machine. Hidden when idle;
+   compact during routing; expanded with maneuver / off-route / arrived
+   variants while a destination is set. */
+
+.guidance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 16px;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 360px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: padding 0.2s ease, background-color 0.2s ease;
+}
+
+.guidance-panel--idle {
+  display: none;
+}
+
+.guidance-panel--arrived {
+  background: rgba(34, 197, 94, 0.92);
+  text-align: center;
+  font-weight: 600;
+}
+
+.guidance-panel--off-route {
+  background: rgba(245, 158, 11, 0.92);
+  color: #1f2937;
+}
+
+.guidance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.guidance-row--maneuver {
+  font-weight: 600;
+}
+
+.guidance-row--summary {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.guidance-row__sep {
+  color: #475569;
+}
+
+.maneuver-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.maneuver-distance {
+  font-size: 16px;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.maneuver-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.guidance-mode-chip {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.guidance-arrived {
+  font-size: 16px;
+  color: #fff;
+}
+
+.guidance-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: guidance-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes guidance-spin {
+  to { transform: rotate(360deg); }
+}
+
+.guidance-btn {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+}
+
+.guidance-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.guidance-btn--stop {
+  background: #ef4444;
+  color: #fff;
+}
+
+.guidance-btn--cancel {
+  background: rgba(239, 68, 68, 0.7);
+  color: #fff;
+}
+
+/* Destination marker — red pin with white border */
+.guidance-dest-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.guidance-dest-marker__inner {
+  width: 24px;
+  height: 24px;
+  background: #ef4444;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Geocode-bar Navigate button (sits next to Copy in the bottom sheet) */
+.geocode-bar__nav {
+  flex: none;
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.geocode-bar__nav:hover {
+  background: #16a34a;
+}
+
+/* Search-result Navigate button — green primary, sits before the Go button */
+.sheet-result__nav-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  background: #22c55e;
+  color: #fff;
+}
+
+.sheet-result__nav-btn:hover {
+  background: #16a34a;
+}
+
 /* ── Locate-button passive-state pulse animation ────────────────────────────
    Used by main.ts dropToPassive() to draw attention to the locate icon when
    it transitions from active → passive. */
@@ -799,6 +980,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    locate → recording → zoom → scale → version-badge → attribution.
    Registration order doesn't match this so we use explicit `order`. */
 .leaflet-bottom.leaflet-left .leaflet-control-toggle { order: 1; }
+.leaflet-bottom.leaflet-left .guidance-panel         { order: 2; }
 .leaflet-bottom.leaflet-left .leaflet-control-zoom   { order: 3; }
 .leaflet-bottom.leaflet-left .leaflet-control-scale  { order: 4; }
 .leaflet-bottom.leaflet-left #version-badge          { order: 5; }

@@ -27,7 +27,7 @@ import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
-import { fetchRoute } from './routing';
+import { addGuidanceControl } from './guidance';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -303,44 +303,8 @@ addLayersControl(map, layerDefs, overlayDefs, ['hillshade']);
 initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
-addReverseGeocoding(map);
-
-// Dev-only: visual smoke test for the routing layer. Removed in PR-3 once the
-// real "Navigate here" entry points are wired in.
-if (import.meta.env.DEV) {
-  let testRouteLine: L.Polyline | null = null;
-  let testRouteAbort: AbortController | null = null;
-  const testBtn = document.createElement('button');
-  testBtn.textContent = 'Test route';
-  testBtn.style.cssText =
-    'position:absolute;top:60px;right:8px;z-index:1000;padding:8px 12px;' +
-    'background:#fff;border:1px solid #ccc;border-radius:4px;cursor:pointer;font:12px system-ui';
-  testBtn.addEventListener('click', () => {
-    if (state.youAreHereLocation === null) {
-      showToast('Tap Locate first');
-      return;
-    }
-    if (testRouteAbort !== null) testRouteAbort.abort();
-    testRouteAbort = new AbortController();
-    const start = state.youAreHereLocation;
-    // ~1 km offset to the northeast — close enough that any costing finds a route
-    const dest = L.latLng(start.lat + 0.01, start.lng + 0.01);
-    fetchRoute({ start, dest, costing: 'auto', signal: testRouteAbort.signal })
-      .then((route) => {
-        if (testRouteLine !== null) map.removeLayer(testRouteLine);
-        testRouteLine = L.polyline(route.coords, { color: '#4287f5', weight: 4 }).addTo(map);
-        showToast(
-          `Route: ${(route.distanceM / 1000).toFixed(2)} km · ${route.steps.length} steps · ${Math.round(route.durationS)} s`,
-          5000,
-        );
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        showToast(`Route failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
-      });
-  });
-  document.getElementById('map')?.appendChild(testBtn);
-}
+addReverseGeocoding(map, state, showToast);
+addGuidanceControl(map, state, activatePolling, deactivatePolling);
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');
