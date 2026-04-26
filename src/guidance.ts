@@ -76,6 +76,11 @@ export function addGuidanceControl(
       panelEl = c;
       L.DomEvent.disableClickPropagation(c);
       L.DomEvent.disableScrollPropagation(c);
+      // Delegate clicks on .guidance-btn to a single persistent listener so
+      // every-GPS-fix re-renders don't destroy the button mid-tap.
+      L.DomEvent.on(c, 'click', (e: Event) => {
+        if ((e.target as HTMLElement).closest('.guidance-btn')) onStop();
+      });
       render();
       return c;
     },
@@ -386,10 +391,11 @@ function render(): void {
 function appendButton(label: string, modifier: string, ariaLabel: string): void {
   if (!panelEl) return;
   const btn = document.createElement('button');
+  btn.type = 'button';
   btn.className = `guidance-btn ${modifier}`;
   btn.textContent = label;
   btn.setAttribute('aria-label', ariaLabel);
-  btn.addEventListener('click', onStop);
+  // Click handling lives on panelEl via delegation — see addGuidanceControl.
   panelEl.appendChild(btn);
 }
 
