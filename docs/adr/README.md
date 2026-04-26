@@ -22,6 +22,7 @@ Each ADR follows a consistent template:
 3. [ADR-003: offsetHeight for iOS Safari Snap-Points](ADR-003-offsetheight-ios-safari.md) — Why bottom sheet snap-point math uses offsetHeight instead of CSS vh units
 4. [ADR-004: Local-Only Data](ADR-004-local-only-data.md) — Why all data stays in the browser with no server-side storage
 5. [ADR-005: Two-Tier Offline Tile Strategy](ADR-005-offline-tile-strategy.md) — Why offline uses Workbox passive caching plus Cache API pre-download
+6. [ADR-006: Routed Turn-by-Turn Guidance](ADR-006-routed-guidance.md) — Why recording was replaced with Valhalla-powered guidance and a heading-cone wedge instead of map rotation
 
 ## References
 
