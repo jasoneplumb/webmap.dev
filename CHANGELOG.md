@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.31.1-beta (2026-04-26)
+
+### Fixed
+
+- **Hillshade rendered fully opaque, hiding the base map** — v0.31.0's per-tile-image `mix-blend-mode` placement put the blend INSIDE the transformed `.leaflet-tile-container`'s stacking context, where it had nothing to multiply against and rendered the source pixels opaque. Reverted to the layer-level `.hillshade-blend` selector and added `isolation: isolate` on `#map` so the multiply blend has the base layer as a stable backdrop. Addresses both the v0.31.0 regression and the original "sometimes not applied at max zoom" symptom from #168 (#171, #172)
+- **Navigate button silently failed for search results and drag-moved pins** — the geocode-bar's "Navigate" button tracked its destination via a `pinLayer` `layeradd` listener, which only fires on layer *addition*. That missed two flows: search → "Go to location" (which clears the pin layer without re-adding) and pin-drag (which moves the same marker without re-adding), causing Navigate to either silently no-op or, worse, route to a stale prior pin. Threaded `latlng` through `showGeocodeBar` so the single setter all three flows already share captures the destination reliably. Added a "No destination set" toast so any future regression surfaces visibly (#173, #174)
+
 ## v0.31.0-beta (2026-04-26)
 
 ### Added
