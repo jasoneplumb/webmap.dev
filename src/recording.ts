@@ -191,6 +191,11 @@ export function addRecordingControl(
   const RecCtrl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'recording-panel');
+      // a11y: marks the pill as a labeled landmark for screen readers; the
+      // aria-label is rewritten per state (idle / recording / paused) by
+      // renderButtons so the announcement matches what's currently rendered.
+      container.setAttribute('role', 'region');
+      container.setAttribute('aria-label', 'Recording controls');
       recControlContainer = container;
       L.DomEvent.disableClickPropagation(container);
       L.DomEvent.disableScrollPropagation(container);
@@ -211,6 +216,11 @@ export function updateRecordingButtons(): void {
   }
 }
 
+// Tracks the most recent recordingState rendered so we can detect transitions
+// and move keyboard focus to the new primary button. Set to null on the initial
+// mount so we don't steal focus from elsewhere on page load.
+let previousRecordingState: AppState['recordingState'] | null = null;
+
 function renderButtons(
   state: AppState,
   activatePolling: () => void,
@@ -224,7 +234,8 @@ function renderButtons(
   if (state.recordingState === 'idle') {
     // Idle: compact pill — just the Record button. No stats, no background.
     c.className = 'recording-panel recording-panel--idle';
-    const btn = makeBtn('⏺ Record', 'rec-btn rec-btn-start', () => {
+    c.setAttribute('aria-label', 'Recording controls');
+    const btn = makeBtn('⏺ Record', 'rec-btn rec-btn-start', 'Start recording', () => {
       startRecording(state, map, activatePolling);
       renderButtons(state, activatePolling, deactivatePolling, map);
     });
@@ -233,6 +244,7 @@ function renderButtons(
       btn.title = 'Enable location first';
     }
     c.appendChild(btn);
+    previousRecordingState = state.recordingState;
     return;
   }
 
@@ -243,8 +255,9 @@ function renderButtons(
   if (state.recordingState === 'recording') {
     // Two-step Stop reveal: only Pause is visible while recording.
     // Tapping Pause is what reveals Finish (the paused branch).
+    c.setAttribute('aria-label', 'Recording in progress');
     c.appendChild(
-      makeBtn('⏸ Pause', 'rec-btn rec-btn-pause', () => {
+      makeBtn('⏸ Pause', 'rec-btn rec-btn-pause', 'Pause recording', () => {
         pauseRecording(state);
         renderButtons(state, activatePolling, deactivatePolling, map);
       }),
@@ -252,14 +265,15 @@ function renderButtons(
   } else {
     // paused — Resume continues recording; Finish ends the session immediately.
     // The Pause-then-Finish reveal IS the confirmation; no modal.
+    c.setAttribute('aria-label', 'Recording paused');
     c.appendChild(
-      makeBtn('▶ Resume', 'rec-btn rec-btn-resume', () => {
+      makeBtn('▶ Resume', 'rec-btn rec-btn-resume', 'Resume recording', () => {
         resumeRecording(state);
         renderButtons(state, activatePolling, deactivatePolling, map);
       }),
     );
     c.appendChild(
-      makeBtn('⏹ Finish', 'rec-btn rec-btn-finish', () => {
+      makeBtn('⏹ Finish', 'rec-btn rec-btn-finish', 'Finish recording', () => {
         stopRecording(state, deactivatePolling);
         showSavedTransient();
       }),
@@ -269,6 +283,18 @@ function renderButtons(
   // Populate stats values immediately so the pill doesn't flash placeholders
   // before the first 1Hz tick of the statsTimer.
   updateStatsBar(state);
+
+  // a11y: move focus to the primary button on a real state transition (Record
+  // → Pause, Pause → Resume, Resume → Pause). Skip on initial mount and on
+  // incidental re-renders (e.g. updateRecordingButtons on locate change) so
+  // we don't steal focus when the user is interacting elsewhere.
+  if (previousRecordingState !== null && previousRecordingState !== state.recordingState) {
+    const primarySelector = state.recordingState === 'recording'
+      ? '.rec-btn-pause'
+      : '.rec-btn-resume';
+    c.querySelector<HTMLButtonElement>(primarySelector)?.focus();
+  }
+  previousRecordingState = state.recordingState;
 }
 
 // Tracks the active "Saved ✓" timer so a future re-entry can cancel it.
@@ -292,10 +318,13 @@ function showSavedTransient(): void {
   }, 1500);
 }
 
-function makeBtn(label: string, className: string, onClick: () => void): HTMLButtonElement {
+function makeBtn(label: string, className: string, ariaLabel: string, onClick: () => void): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.textContent = label;
   btn.className = className;
+  // The visible label leads with an emoji; aria-label gives screen readers a
+  // plain-text affordance instead of the symbol's Unicode name.
+  btn.setAttribute('aria-label', ariaLabel);
   btn.addEventListener('click', onClick);
   return btn;
 }
