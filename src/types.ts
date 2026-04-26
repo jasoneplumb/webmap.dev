@@ -6,9 +6,28 @@
  */
 import type L from 'leaflet';
 import type { Keepalive } from './keepalive';
+import type { Costing, Route } from './routing';
 
 // Three-state location button: off → active (following) → passive (dot visible, not following)
 export type LocateState = 'off' | 'active' | 'passive';
+
+export type GuidanceStatus = 'idle' | 'routing' | 'guiding' | 'off-route' | 'arrived';
+
+export interface GuidanceState {
+  status: GuidanceStatus;
+  destination: { lat: number; lng: number; label: string } | null;
+  costing: Costing;
+  route: Route | null;
+  routePolyline: L.Polyline | null;
+  routeGlow: L.Polyline | null;
+  destMarker: L.Marker | null;
+  currentStepIdx: number;
+  distanceToManeuverM: number | null;
+  offRouteStreak: number;
+  recalcInFlight: AbortController | null;
+  recalcThrottleUntilMs: number;
+  arrivedAt: number | null;
+}
 
 export interface AppState {
   // GPS position tracking
@@ -52,6 +71,9 @@ export interface AppState {
 
   // Background GPS keepalive: screen wake lock + silent audio loop
   keepalive: Keepalive | null;
+
+  // Routed-guidance feature state machine
+  guidance: GuidanceState;
 }
 
 export function createInitialState(): AppState {
@@ -78,5 +100,20 @@ export function createInitialState(): AppState {
     batteryDrainStartLevel: null,
     batteryDrainStartMs: 0,
     keepalive: null,
+    guidance: {
+      status: 'idle',
+      destination: null,
+      costing: 'auto',
+      route: null,
+      routePolyline: null,
+      routeGlow: null,
+      destMarker: null,
+      currentStepIdx: 0,
+      distanceToManeuverM: null,
+      offRouteStreak: 0,
+      recalcInFlight: null,
+      recalcThrottleUntilMs: 0,
+      arrivedAt: null,
+    },
   };
 }

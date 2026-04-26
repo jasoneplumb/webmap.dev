@@ -9,6 +9,7 @@ import type { AppState } from './types';
 import { updateLocateIcon } from './controls';
 import { setWatchAccuracy } from './timer';
 import { haversineDistance } from './geo';
+import { updateGuidance } from './guidance';
 
 /** Discard GPS fixes coarser than this threshold (metres). */
 export const TRAIL_MAX_ACCURACY_M = 30;
@@ -111,10 +112,10 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
       }
     }
 
-    // Track speed + altitude so a future guidance feature can read them off
-    // AppState without re-reading the GPS event.
     state.lastSpeedMs = isNaN(e.speed) ? 0 : e.speed;
     state.lastAltM = (e.altitude as number | null) !== null ? e.altitude : undefined;
+
+    updateGuidance(e, state, map);
   }
 
   // Adaptive GPS accuracy: reduce power when stationary, restore when moving

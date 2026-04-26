@@ -1,0 +1,229 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import L from 'leaflet';
+import { updateGuidance, stopGuidance } from './guidance';
+import { createInitialState } from './types';
+import type { AppState } from './types';
+import type { Route, RouteStep } from './routing';
+
+function makeMap(): L.Map {
+  return {
+    removeLayer: () => undefined,
+    addLayer: () => undefined,
+  } as unknown as L.Map;
+}
+
+function makeRoute(coords: Array<[number, number]>, steps?: RouteStep[]): Route {
+  return {
+    coords: coords.map(([lat, lng]) => L.latLng(lat, lng)),
+    steps: steps ?? [
+      { instruction: 'Go', type: 1, lengthM: 100, durationS: 60, streetNames: [], beginShapeIndex: 0 },
+    ],
+    distanceM: 1000,
+    durationS: 600,
+  };
+}
+
+function setGuiding(
+  state: AppState,
+  route: Route,
+  dest: { lat: number; lng: number; label: string },
+): void {
+  state.guidance.status = 'guiding';
+  state.guidance.route = route;
+  state.guidance.destination = dest;
+  state.guidance.currentStepIdx = 0;
+}
+
+function fakeFix(lat: number, lng: number): L.LocationEvent {
+  return {
+    latlng: L.latLng(lat, lng),
+    bounds: L.latLngBounds(L.latLng(lat, lng), L.latLng(lat, lng)),
+    timestamp: 0,
+    accuracy: 10,
+    heading: NaN,
+    speed: 0,
+    altitude: null,
+    altitudeAccuracy: 0,
+    type: 'locationfound',
+  } as unknown as L.LocationEvent;
+}
+
+describe('updateGuidance — status gating', () => {
+  let state: AppState;
+  let map: L.Map;
+
+  beforeEach(() => {
+    state = createInitialState();
+    map = makeMap();
+  });
+
+  it('is a no-op when status is idle', () => {
+    updateGuidance(fakeFix(40, -74), state, map);
+    expect(state.guidance.status).toBe('idle');
+  });
+
+  it('is a no-op when status is routing', () => {
+    state.guidance.status = 'routing';
+    updateGuidance(fakeFix(40, -74), state, map);
+    expect(state.guidance.status).toBe('routing');
+  });
+
+  it('is a no-op when status is arrived', () => {
+    state.guidance.status = 'arrived';
+    updateGuidance(fakeFix(40, -74), state, map);
+    expect(state.guidance.status).toBe('arrived');
+  });
+});
+
+describe('updateGuidance — arrival', () => {
+  let state: AppState;
+  let map: L.Map;
+
+  beforeEach(() => {
+    state = createInitialState();
+    map = makeMap();
+  });
+
+  it('flips to arrived when within driving radius (25 m)', () => {
+    const route = makeRoute([[40, -74], [40.001, -74]]);
+    setGuiding(state, route, { lat: 40.001, lng: -74, label: 'X' });
+    state.guidance.costing = 'auto';
+    // ~12 m from dest (well within 25 m)
+    updateGuidance(fakeFix(40.00089, -74), state, map);
+    expect(state.guidance.status).toBe('arrived');
+  });
+
+  it('uses tighter pedestrian radius (10 m)', () => {
+    const route = makeRoute([[40, -74], [40.001, -74]]);
+    setGuiding(state, route, { lat: 40.001, lng: -74, label: 'X' });
+    state.guidance.costing = 'pedestrian';
+    // ~17 m from dest — outside pedestrian 10 m, would have been inside auto's 25 m
+    updateGuidance(fakeFix(40.00085, -74), state, map);
+    expect(state.guidance.status).toBe('guiding');
+  });
+
+  it('does not arrive when far from destination', () => {
+    const route = makeRoute([[40, -74], [40.01, -74]]);
+    setGuiding(state, route, { lat: 40.01, lng: -74, label: 'X' });
+    state.guidance.costing = 'auto';
+    updateGuidance(fakeFix(40, -74), state, map); // ~1.1 km away
+    expect(state.guidance.status).toBe('guiding');
+  });
+});
+
+describe('updateGuidance — off-route streak', () => {
+  let state: AppState;
+  let map: L.Map;
+
+  beforeEach(() => {
+    state = createInitialState();
+    map = makeMap();
+  });
+
+  it('does not flip on the first off-route fix', () => {
+    const route = makeRoute([[40, -74], [40, -73.99]]);
+    setGuiding(state, route, { lat: 40, lng: -73.99, label: 'X' });
+    state.guidance.costing = 'auto';
+    // ~110 m north of midpoint — well off the auto 30 m threshold
+    updateGuidance(fakeFix(40.001, -73.995), state, map);
+    expect(state.guidance.offRouteStreak).toBe(1);
+    expect(state.guidance.status).toBe('guiding');
+  });
+
+  it('flips to off-route on the third consecutive fix', () => {
+    const route = makeRoute([[40, -74], [40, -73.99]]);
+    setGuiding(state, route, { lat: 40, lng: -73.99, label: 'X' });
+    state.guidance.costing = 'auto';
+    updateGuidance(fakeFix(40.001, -73.995), state, map);
+    updateGuidance(fakeFix(40.001, -73.995), state, map);
+    expect(state.guidance.status).toBe('guiding');
+    updateGuidance(fakeFix(40.001, -73.995), state, map);
+    expect(state.guidance.status).toBe('off-route');
+  });
+
+  it('resets streak when fix returns to the segment', () => {
+    const route = makeRoute([[40, -74], [40, -73.99]]);
+    setGuiding(state, route, { lat: 40, lng: -73.99, label: 'X' });
+    state.guidance.costing = 'auto';
+    updateGuidance(fakeFix(40.001, -73.995), state, map);
+    updateGuidance(fakeFix(40.001, -73.995), state, map);
+    expect(state.guidance.offRouteStreak).toBe(2);
+    updateGuidance(fakeFix(40, -73.995), state, map); // back on segment
+    expect(state.guidance.offRouteStreak).toBe(0);
+  });
+});
+
+describe('updateGuidance — step advance', () => {
+  let state: AppState;
+  let map: L.Map;
+
+  beforeEach(() => {
+    state = createInitialState();
+    map = makeMap();
+  });
+
+  it('advances currentStepIdx when within step radius (10 m)', () => {
+    const coords: Array<[number, number]> = [
+      [40.0, -74.0],
+      [40.001, -74.0], // step 2 begin
+      [40.002, -74.0],
+    ];
+    const steps: RouteStep[] = [
+      { instruction: 'Start', type: 1, lengthM: 100, durationS: 30, streetNames: [], beginShapeIndex: 0 },
+      { instruction: 'Continue', type: 17, lengthM: 100, durationS: 30, streetNames: [], beginShapeIndex: 1 },
+      { instruction: 'Arrive', type: 4, lengthM: 0, durationS: 0, streetNames: [], beginShapeIndex: 2 },
+    ];
+    const route = makeRoute(coords, steps);
+    setGuiding(state, route, { lat: 40.002, lng: -74, label: 'X' });
+    state.guidance.costing = 'auto';
+
+    expect(state.guidance.currentStepIdx).toBe(0);
+    // ~5 m from coords[1] — well within 10 m radius
+    updateGuidance(fakeFix(40.000955, -74), state, map);
+    expect(state.guidance.currentStepIdx).toBe(1);
+  });
+});
+
+describe('stopGuidance', () => {
+  it('is a no-op when already idle', () => {
+    const state = createInitialState();
+    const map = makeMap();
+    stopGuidance(state, map);
+    expect(state.guidance.status).toBe('idle');
+  });
+
+  it('clears route refs and destination on stop', () => {
+    const state = createInitialState();
+    const map = makeMap();
+    state.guidance.status = 'guiding';
+    state.guidance.routePolyline = {} as L.Polyline;
+    state.guidance.routeGlow = {} as L.Polyline;
+    state.guidance.destMarker = {} as L.Marker;
+    state.guidance.destination = { lat: 0, lng: 0, label: 'X' };
+    state.guidance.route = makeRoute([[0, 0], [0, 1]]);
+    state.guidance.currentStepIdx = 5;
+    state.guidance.offRouteStreak = 2;
+
+    stopGuidance(state, map);
+
+    expect(state.guidance.status).toBe('idle');
+    expect(state.guidance.destination).toBeNull();
+    expect(state.guidance.route).toBeNull();
+    expect(state.guidance.routePolyline).toBeNull();
+    expect(state.guidance.routeGlow).toBeNull();
+    expect(state.guidance.destMarker).toBeNull();
+    expect(state.guidance.currentStepIdx).toBe(0);
+    expect(state.guidance.offRouteStreak).toBe(0);
+  });
+
+  it('aborts in-flight recalc on stop', () => {
+    const state = createInitialState();
+    const map = makeMap();
+    state.guidance.status = 'off-route';
+    const ac = new AbortController();
+    state.guidance.recalcInFlight = ac;
+    stopGuidance(state, map);
+    expect(ac.signal.aborted).toBe(true);
+    expect(state.guidance.recalcInFlight).toBeNull();
+  });
+});
