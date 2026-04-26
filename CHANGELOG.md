@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.31.4-beta (2026-04-26)
+
+### Fixed
+
+- **Guidance Stop button silently dropped taps on mobile** — `updateGuidance()` runs on every accepted GPS fix (~1 Hz on a moving phone) and ends with `render()`, which does `panelEl.innerHTML = ''` and re-creates the Stop button. iOS Safari's touch-to-click synthesis tracks the specific DOM element that received `touchstart`; if it's destroyed before `touchend`, the click never fires. With GPS fixes coming faster than typical tap-and-release timing, the user perceived "Stop doesn't respond like it's not a button". Switched to event delegation: a single persistent `click` listener on `panelEl` checks `closest('.guidance-btn')` and dispatches to `onStop`. The listener survives every render so the button can come and go without breaking the touch path. Added `type="button"` defensively (#179, #180)
+
 ## v0.31.3-beta (2026-04-26)
 
 ### Fixed
