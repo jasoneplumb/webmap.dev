@@ -1736,6 +1736,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   transform: rotate(var(--heading-deg, 0deg));
   transition: transform 0.12s linear;
 }
-.compass-rose--active { opacity: 1; }
+.compass-rose--active { opacity: 1; cursor: default; }
 .compass-rose--unavailable { display: none; }
 
