@@ -19,9 +19,34 @@ interface ToggleControlConfig {
 }
 
 /** Remove the text label from a control container, leaving only the icon. */
-export function collapseControlLabel(container: HTMLElement): void {
+function collapseControlLabel(container: HTMLElement): void {
   const label = container.querySelector('.leaflet-control-toggle__label');
   if (label) label.remove();
+}
+
+/** Wires first-use label collapse with optional localStorage persistence; returns the collapse trigger. */
+export function setupCollapsibleLabel(
+  container: HTMLElement,
+  label: HTMLElement,
+  storageKey: string | null,
+): () => void {
+  let collapsed = false;
+  if (storageKey !== null) {
+    try {
+      collapsed = localStorage.getItem(storageKey) === '1';
+    } catch { /* localStorage unavailable */ }
+  }
+  if (!collapsed) {
+    container.appendChild(label);
+  }
+  return (): void => {
+    if (collapsed) return;
+    collapseControlLabel(container);
+    collapsed = true;
+    if (storageKey !== null) {
+      try { localStorage.setItem(storageKey, '1'); } catch { /* localStorage unavailable */ }
+    }
+  };
 }
 
 // tradeoff: Using a factory function rather than a class to avoid the complexity of
@@ -40,21 +65,16 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
 
       container.appendChild(img);
 
-      const storageKey = config.collapseOnFirstUse && config.id
-        ? `webmap-ctrl-label-${config.id}`
-        : null;
-
+      let collapseAndPersist: () => void = () => { /* no-op when no label */ };
       if (config.label) {
         const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
         label.textContent = config.label;
-        container.appendChild(label);
-        if (storageKey) {
-          try {
-            if (localStorage.getItem(storageKey) === '1') {
-              collapseControlLabel(container);
-              config.collapseOnFirstUse = false;
-            }
-          } catch { /* localStorage unavailable (e.g. private browsing) */ }
+        if (config.collapseOnFirstUse) {
+          // storageKey is null when config.id is absent — collapse is session-only.
+          const storageKey = config.id ? `webmap-ctrl-label-${config.id}` : null;
+          collapseAndPersist = setupCollapsibleLabel(container, label, storageKey);
+        } else {
+          container.appendChild(label);
         }
       }
 
@@ -63,13 +83,7 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
       L.DomEvent.disableClickPropagation(container);
 
       function handleClick(e: Event): void {
-        if (config.collapseOnFirstUse) {
-          collapseControlLabel(container);
-          config.collapseOnFirstUse = false; // only once
-          if (storageKey) {
-            try { localStorage.setItem(storageKey, '1'); } catch { /* ignore */ }
-          }
-        }
+        collapseAndPersist();
         config.onClick(e);
       }
 
