@@ -54,6 +54,10 @@ export interface AppState {
   lastAltM: number | undefined;
   lastGpsAccuracy: number | null; // most recent GPS fix accuracy (metres)
 
+  // Heading-cone wedge: hold last valid GPS bearing for ~10s when course is NaN at low speeds
+  lastValidHeadingDeg: number | null;
+  lastValidHeadingMs: number;
+
   // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
   gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
   gpsStrongStreak: number;      // consecutive fixes with accuracy < (TRAIL_MAX_ACCURACY_M - 5)
@@ -92,6 +96,8 @@ export function createInitialState(): AppState {
     lastSpeedMs: 0,
     lastAltM: undefined,
     lastGpsAccuracy: null,
+    lastValidHeadingDeg: null,
+    lastValidHeadingMs: 0,
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,
     gpsWeakBadgeVisible: false,
