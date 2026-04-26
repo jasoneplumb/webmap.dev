@@ -28,6 +28,7 @@ import { onLocationFound, onLocationError, clearLocationMarkers } from './locati
 import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
 import { addGuidanceControl } from './guidance';
+import { addCompassControl } from './compass';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -305,6 +306,7 @@ addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state, showToast);
 addGuidanceControl(map, state, activatePolling, deactivatePolling);
+addCompassControl(map, state);
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');

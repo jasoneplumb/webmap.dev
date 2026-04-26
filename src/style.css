@@ -1714,3 +1714,28 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin: 8px 24px;
 }
 
+/* Device-orientation compass (top-right). Initial state is muted; first tap requests permission
+   on iOS, after which .compass-rose--active rotates the SVG by --heading-deg. */
+.compass-rose {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+  display: block;
+}
+.compass-rose:hover,
+.compass-rose:focus-visible { opacity: 0.9; }
+.compass-rose svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform: rotate(var(--heading-deg, 0deg));
+  transition: transform 0.12s linear;
+}
+.compass-rose--active { opacity: 1; }
+.compass-rose--unavailable { display: none; }
+
