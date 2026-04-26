@@ -44,11 +44,9 @@ function createGrayDotIcon(): L.DivIcon {
   });
 }
 
-// Hold-last-bearing: GPS course is NaN at low speeds. Keep the wedge pointed in
-// the last valid direction for HEADING_HOLD_MS, then fade it out.
+// Hold-last-bearing window: GPS course is NaN at low speeds, so keep the wedge
+// pointed in the last valid direction for this long before fading it out.
 const HEADING_HOLD_MS = 10_000;
-let lastValidHeadingDeg: number | null = null;
-let lastValidHeadingMs = 0;
 
 /**
  * intent: Accept or reject a GPS fix based on whether we moved meaningfully or accuracy improved
@@ -134,17 +132,15 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     if (state.locationMarker !== null && !state.screenOff) {
       const el = state.locationMarker.getElement();
       if (el) {
-        const heading = (e as L.LocationEvent & { heading?: number }).heading;
-        if (typeof heading === 'number' && !isNaN(heading)) {
-          lastValidHeadingDeg = heading;
-          lastValidHeadingMs = performance.now();
-          el.style.setProperty('--heading-deg', `${heading}deg`);
+        if (!isNaN(e.heading)) {
+          state.lastValidHeadingDeg = e.heading;
+          state.lastValidHeadingMs = performance.now();
+          el.style.setProperty('--heading-deg', `${e.heading}deg`);
           el.classList.add('blue-dot--has-heading');
         } else if (
-          lastValidHeadingDeg !== null &&
-          performance.now() - lastValidHeadingMs < HEADING_HOLD_MS
+          state.lastValidHeadingDeg !== null &&
+          performance.now() - state.lastValidHeadingMs < HEADING_HOLD_MS
         ) {
-          el.style.setProperty('--heading-deg', `${lastValidHeadingDeg}deg`);
           el.classList.add('blue-dot--has-heading');
         } else {
           el.classList.remove('blue-dot--has-heading');
