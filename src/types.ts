@@ -10,8 +10,6 @@ import type { Keepalive } from './keepalive';
 // Three-state location button: off → active (following) → passive (dot visible, not following)
 export type LocateState = 'off' | 'active' | 'passive';
 
-export type RecordingState = 'idle' | 'recording' | 'paused';
-
 export interface AppState {
   // GPS position tracking
   youAreHereLocation: L.LatLng | null;
@@ -23,31 +21,17 @@ export interface AppState {
   locateState: LocateState; // three-state location button (replaces centering boolean)
 
   // Watch/polling state
-  updateCallback: number; // refcount: 0=stopped; each consumer (locate, recording) adds 1
+  updateCallback: number; // refcount: 0=stopped; each consumer (locate, future guidance) adds 1
   initialZoom: boolean; // true until first GPS fix; zooms to level 16 on first fix
 
   // Persistent location marker refs (updated in place instead of adding new layers)
   locationMarker: L.Marker | null;
   accuracyCircle: L.Circle | null;
 
-  // Recording state machine
-  recordingState: RecordingState;
-  recordingStartMs: number;
-  recordingPauseMs: number;
-  recordingPauseStart: number | null;
-  totalDistance: number;
-  totalAscent: number;
-  lastTrailPoint: L.LatLng | null;
-  lastArrowPoint: L.LatLng | null;
+  // GPS-fix metadata kept across location updates — reused by guidance later
   lastSpeedMs: number;
   lastAltM: number | undefined;
-  trail: L.Polyline | null;
-  trailGlow: L.Polyline | null;
-  trailPoints: Array<{ latlng: L.LatLng; t: number; speedMs: number; altM?: number }>;
-  trailSegments: Array<Array<{ latlng: L.LatLng; t: number; speedMs: number; altM?: number }>>;
-  arrowMarkers: L.Marker[];
-  statsTimer: ReturnType<typeof setInterval> | null;
-  lastGpsAccuracy: number | null; // most recent GPS fix accuracy (metres); used by stats bar to show weak-signal indicator
+  lastGpsAccuracy: number | null; // most recent GPS fix accuracy (metres)
 
   // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
   gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
@@ -81,22 +65,8 @@ export function createInitialState(): AppState {
     initialZoom: true,
     locationMarker: null,
     accuracyCircle: null,
-    recordingState: 'idle',
-    recordingStartMs: 0,
-    recordingPauseMs: 0,
-    recordingPauseStart: null,
-    totalDistance: 0,
-    totalAscent: 0,
-    lastTrailPoint: null,
-    lastArrowPoint: null,
     lastSpeedMs: 0,
     lastAltM: undefined,
-    trail: null,
-    trailGlow: null,
-    trailPoints: [],
-    trailSegments: [],
-    arrowMarkers: [],
-    statsTimer: null,
     lastGpsAccuracy: null,
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,

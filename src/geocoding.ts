@@ -424,7 +424,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   });
 }
 
-export function addReverseGeocoding(map: L.Map, state: AppState): void {
+export function addReverseGeocoding(map: L.Map): void {
   const apikey = import.meta.env.VITE_ESRI_API_KEY;
   const geocoder = geocodeService({ apikey });
   const pinLayer = L.layerGroup().addTo(map);
@@ -732,12 +732,12 @@ export function addReverseGeocoding(map: L.Map, state: AppState): void {
       .run((error, result) => {
         if (error || !result) {
           // Geocoding failed — fall back to coordinates.
-          if (state.recordingState === 'idle') document.title = coordLabel;
+          document.title = coordLabel;
           showGeocodeBar(coordLabel, coordLabel);
           return;
         }
         const addr = result.address.Match_addr;
-        if (state.recordingState === 'idle') document.title = addr;
+        document.title = addr;
         showGeocodeBar(addr, addr);
       });
   }

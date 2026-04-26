@@ -7,7 +7,6 @@
 import L from 'leaflet';
 import type { AppState } from './types';
 import { updateLocateIcon } from './controls';
-import { appendTrailPoint } from './recording';
 import { setWatchAccuracy } from './timer';
 
 /** Discard GPS fixes coarser than this threshold for trail recording (metres). */
@@ -128,14 +127,10 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
       }
     }
 
-    // Append to the recording trail when actively recording (always, even screen off).
-    // Discard fixes with accuracy > 30m — noisy fixes inflate trail distance and create zigzag artifacts.
-    if (state.recordingState === 'recording' && e.accuracy <= TRAIL_MAX_ACCURACY_M) {
-      const speedMs = isNaN(e.speed) ? 0 : e.speed;
-      // e.altitude is typed as number by Leaflet but is null at runtime when the device doesn't report elevation
-      const altM = (e.altitude as number | null) !== null ? e.altitude : undefined;
-      appendTrailPoint(e.latlng, speedMs, state, map, altM);
-    }
+    // Track speed + altitude so a future guidance feature can read them off
+    // AppState without re-reading the GPS event.
+    state.lastSpeedMs = isNaN(e.speed) ? 0 : e.speed;
+    state.lastAltM = (e.altitude as number | null) !== null ? e.altitude : undefined;
   }
 
   // Adaptive GPS accuracy: reduce power when stationary, restore when moving
