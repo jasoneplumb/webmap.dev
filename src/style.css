@@ -8,10 +8,7 @@ html { height: 100%; width: 100%; padding: 0; margin: 0; }
 body { height: 100%; width: 100%; padding: 0; margin: 0; }
 #map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
 
-/* Multiply preserves base-map color in flat areas (hillshade ≈ white there) and only darkens slopes. */
-/* Applied at the tile-image level — the layer's outer container shares a stacking context with the */
-/* base layer, but its inner .leaflet-tile-container uses translate3d that can intermittently isolate */
-/* a container-level blend from siblings during zoom animations (most visible at max zoom). */
+/* Per-tile multiply — a container-level blend can isolate under .leaflet-tile-container's translate3d. */
 .hillshade-blend img.leaflet-tile { mix-blend-mode: multiply; }
 
 /* Icon state classes for GPS accuracy filter visual feedback */
