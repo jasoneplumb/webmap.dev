@@ -481,6 +481,8 @@ export function addReverseGeocoding(
       showToast('No destination set');
       return;
     }
+    // Bar's drag-handle overlaps the guidance pill's Stop button at this y-coord (#175).
+    hideGeocodeBar();
     void startGuidance(
       state,
       map,
