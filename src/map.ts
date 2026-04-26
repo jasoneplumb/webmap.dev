@@ -176,28 +176,10 @@ export function createMap(): L.Map {
     }, 300);
   });
 
-  // Subtle zoom level indicator in bottom-left corner
-  const ZoomViewer = L.Control.extend({
-    onAdd(m: L.Map) {
-      const container = L.DomUtil.create('div');
-      const gauge = L.DomUtil.create('div');
-      container.style.width = '200px';
-      container.style.background = 'rgba(255,255,255,0.0)';
-      container.style.textAlign = 'right';
-      container.style.opacity = '0.15';
-      m.on('zoomstart zoom zoomend', () => {
-        gauge.innerHTML = 'Zoom level: ' + m.getZoom().toFixed(1);
-      });
-      container.appendChild(gauge);
-      return container;
-    },
-  });
-  new (ZoomViewer as new (opts: L.ControlOptions) => L.Control)({
-    position: 'bottomleft',
-  }).addTo(map);
-
   L.control.scale({ position: 'bottomleft' }).addTo(map);
-  L.control.zoom({ position: 'topleft' }).addTo(map);
+  L.control.zoom({ position: 'bottomleft' }).addTo(map);
+  // Move the auto-added attribution into the bottom-left cluster too
+  if (map.attributionControl) map.attributionControl.setPosition('bottomleft');
   map.setZoom(2);
 
   // All layers are now free, community-maintained OSM sources

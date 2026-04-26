@@ -44,7 +44,7 @@ export class LayersControl extends L.Control {
     options?: L.ControlOptions,
     defaultOverlayIds: string[] = [],
   ) {
-    super(options || { position: 'topleft' });
+    super(options || { position: 'topright' });
     this.baseMaps = baseMaps;
     this.overlays = overlays;
     this.defaultOverlayIds = defaultOverlayIds;
@@ -66,20 +66,35 @@ export class LayersControl extends L.Control {
     // Label
     const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
     label.textContent = 'Layers';
-    container.appendChild(label);
+
+    const STORAGE_KEY = 'webmap-ctrl-label-layers';
+    let labelCollapsed = false;
+    try {
+      labelCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
+    } catch { /* localStorage unavailable (e.g. private browsing) */ }
+    if (!labelCollapsed) {
+      container.appendChild(label);
+    }
+
+    const collapseAndPersist = (): void => {
+      if (labelCollapsed) return;
+      collapseControlLabel(container);
+      labelCollapsed = true;
+      try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* ignore */ }
+    };
 
     // Prevent map interaction
     L.DomEvent.disableClickPropagation(container);
 
-    // Toggle popover on click/touch; strip label after first use
-    let labelCollapsed = false;
     const handleToggle = (): void => {
-      if (!labelCollapsed) {
-        collapseControlLabel(container);
-        labelCollapsed = true;
-      }
+      collapseAndPersist();
       this.togglePopover();
     };
+
+    // Collapse on tooltip-reveal triggers (hover, long-touch) — once any
+    // of them fires the user has seen the affordance.
+    L.DomEvent.on(container, 'mouseenter', collapseAndPersist);
+    L.DomEvent.on(container, 'touchstart', collapseAndPersist);
 
     L.DomEvent.on(container, 'touchend', (e: Event) => {
       e.preventDefault();
@@ -387,7 +402,7 @@ export function addLayersControl(
   overlays?: OverlayDef[],
   defaultOverlayIds?: string[],
 ): LayersControl {
-  const control = new LayersControl(baseMaps, overlays, { position: 'topleft' }, defaultOverlayIds);
+  const control = new LayersControl(baseMaps, overlays, { position: 'topright' }, defaultOverlayIds);
   control.addTo(map);
   return control;
 }
