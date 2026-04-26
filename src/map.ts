@@ -233,7 +233,11 @@ export function createMap(): L.Map {
     'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
     {
       attribution: 'Esri',
-      opacity: 0.4,
+      // CSS mix-blend-mode: multiply (.hillshade-blend in style.css) governs the
+      // composite — flat/lit pixels leave the base unchanged; only shaded
+      // slopes darken. Dropping the prior opacity:0.4 lets multiply run at
+      // full strength; alpha-blending on top would damp it.
+      className: 'hillshade-blend',
       tileSize: 256,
       zoomOffset: 0,
       maxZoom: 18,
