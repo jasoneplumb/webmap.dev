@@ -277,15 +277,17 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   }
 }
 
-/* Push Stop away from Pause/Resume so it can't be accidentally tapped */
-.rec-btn-stop {
+/* Push Finish away from Resume so it can't be accidentally tapped — Finish
+   is only visible in the paused state (two-step reveal); the gap below is
+   the second mis-tap guard after the reveal itself. */
+.rec-btn-finish {
   margin-top: 12px;
 }
 
 .rec-btn-start  { background: #22c55e; color: #fff; }
 .rec-btn-pause  { background: #f59e0b; color: #fff; }
 .rec-btn-resume { background: #22c55e; color: #fff; }
-.rec-btn-stop   { background: #ef4444; color: #fff; }
+.rec-btn-finish { background: #ef4444; color: #fff; }
 
 /* ── Trail direction arrows ──────────────────────────────────────────────── */
 .trail-arrow {
