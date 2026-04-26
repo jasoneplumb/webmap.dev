@@ -27,6 +27,7 @@ import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
+import { fetchRoute } from './routing';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -303,6 +304,39 @@ initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map);
+
+// Dev-only: visual smoke test for the routing layer. Removed in PR-3 once the
+// real "Navigate here" entry points are wired in.
+if (import.meta.env.DEV) {
+  let testRouteLine: L.Polyline | null = null;
+  const testBtn = document.createElement('button');
+  testBtn.textContent = 'Test route';
+  testBtn.style.cssText =
+    'position:absolute;top:60px;right:8px;z-index:1000;padding:8px 12px;' +
+    'background:#fff;border:1px solid #ccc;border-radius:4px;cursor:pointer;font:12px system-ui';
+  testBtn.addEventListener('click', () => {
+    if (state.youAreHereLocation === null) {
+      showToast('Tap Locate first');
+      return;
+    }
+    const start = state.youAreHereLocation;
+    // ~1 km offset to the northeast — close enough that any costing finds a route
+    const dest = L.latLng(start.lat + 0.01, start.lng + 0.01);
+    fetchRoute({ start, dest, costing: 'auto' })
+      .then((route) => {
+        if (testRouteLine !== null) map.removeLayer(testRouteLine);
+        testRouteLine = L.polyline(route.coords, { color: '#4287f5', weight: 4 }).addTo(map);
+        showToast(
+          `Route: ${(route.distanceM / 1000).toFixed(2)} km · ${route.steps.length} steps · ${Math.round(route.durationS)} s`,
+          5000,
+        );
+      })
+      .catch((err: unknown) => {
+        showToast(`Route failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+      });
+  });
+  document.getElementById('map')?.appendChild(testBtn);
+}
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');
