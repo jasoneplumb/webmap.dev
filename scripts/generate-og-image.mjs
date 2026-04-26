@@ -3,6 +3,10 @@
 // Run when the SVG source changes; the resulting PNG is committed.
 //
 // Usage: npm run og
+//
+// Note: the SVG uses system-ui / -apple-system / Segoe UI, which resolve
+// differently across machines. The committed PNG is the canonical render;
+// if you regenerate on Linux/CI you may get DejaVu or Noto fallback fonts.
 
 import sharp from 'sharp';
 import { readFile, writeFile } from 'node:fs/promises';
