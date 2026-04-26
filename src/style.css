@@ -6,10 +6,16 @@
 
 html { height: 100%; width: 100%; padding: 0; margin: 0; }
 body { height: 100%; width: 100%; padding: 0; margin: 0; }
-#map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
+/* isolation: isolate establishes a clean stacking context root for the map so .hillshade-blend's
+   mix-blend-mode reliably composites against the base-layer tiles below it (without this the blend
+   can sometimes leak out to the page-level backdrop or be isolated by ancestor compositing layers). */
+#map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; isolation: isolate; }
 
-/* Per-tile multiply — a container-level blend can isolate under .leaflet-tile-container's translate3d. */
-.hillshade-blend img.leaflet-tile { mix-blend-mode: multiply; }
+/* Multiply at the Leaflet layer container — peer of the base-layer container in the tile pane,
+   so the blend has the base map below it as the backdrop. (Per-tile blending at img.leaflet-tile
+   was tried in PR #169 and reverted: it moves the blend INTO the transformed tile-container's
+   stacking context, where there is nothing behind to multiply against, so hillshade renders opaque.) */
+.hillshade-blend { mix-blend-mode: multiply; }
 
 /* Icon state classes for GPS accuracy filter visual feedback */
 #disabled {
