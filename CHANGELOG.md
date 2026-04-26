@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.31.0-beta (2026-04-26)
+
+### Added
+
+- **Device-orientation compass widget** — top-right SVG compass rose that shows where the device is physically facing relative to the (always-north-up) map. Tap to enable on iOS (handles the iOS-13+ `DeviceOrientationEvent.requestPermission()` user-gesture flow); non-iOS browsers grant immediately. Most useful at low speed / stationary at a junction, where the GPS-course heading-cone fades. Hidden entirely on platforms without orientation sensors. Prefers iOS `webkitCompassHeading` (true-north calibrated); falls back to W3C `alpha` flipped to clockwise. Driven by `--heading-deg` CSS custom property with a 0.12 s transition for jitter smoothing (#163, #170)
+
+### Fixed
+
+- **Hillshade multiply blend dropouts at max zoom** — `mix-blend-mode: multiply` is now applied to individual hillshade tile images (`.hillshade-blend img.leaflet-tile`) instead of the Leaflet layer container. The container's inner `.leaflet-tile-container` uses `transform: translate3d` for hardware-accelerated zoom animation, which can intermittently establish its own stacking context and isolate the container-level blend from the base layer below — visible as the multiply effect "dropping out" at the closest zoom levels, most noticeable on the Topographic basemap where Esri's hillshade upscales from its z=16 native ceiling. Per-tile blending sidesteps the isolation entirely (#168, #169)
+
 ## v0.30.0-beta (2026-04-26)
 
 ### Added
