@@ -137,12 +137,15 @@ export function updateLocateIcon(locateState: LocateState): void {
   }
 }
 
+// Dead code — exported but never called from main.ts. Kept here in case it's
+// re-enabled; position is set to match the new bottom-left cluster so a future
+// reader doesn't have to think about it. Cleanup tracked separately.
 export function addTrackingControl(map: L.Map, onClick: (e: Event) => void): void {
   makeToggleControl({
     id: 'tracking',
     disabledSrc: '/logging-lines-v1.1.svg',
     disabledTitle: 'Tracking Toggle (Disabled)',
-    position: 'bottomright',
+    position: 'bottomleft',
     onClick,
     label: 'Tracking',
   }).addTo(map);

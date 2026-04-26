@@ -319,8 +319,14 @@ versionBadge.setAttribute('aria-expanded', 'false');
 versionBadge.setAttribute('aria-controls', 'changelog-panel');
 // Append to the bottom-left Leaflet cluster so the badge stacks naturally
 // with scale + zoom rather than living as an absolute-positioned overlay.
+// The cluster is guaranteed to exist here because createMap() registers
+// scale + zoom at bottomleft before this code runs; throw loudly rather
+// than silently fall back if that invariant ever breaks.
 const bottomLeftCluster = document.querySelector('.leaflet-bottom.leaflet-left');
-(bottomLeftCluster ?? document.getElementById('map'))?.appendChild(versionBadge);
+if (!bottomLeftCluster) {
+  throw new Error('version-badge: .leaflet-bottom.leaflet-left not found — createMap() must register a bottomleft control before main.ts wires the badge');
+}
+bottomLeftCluster.appendChild(versionBadge);
 
 const changelogPanel = document.createElement('div');
 changelogPanel.id = 'changelog-panel';

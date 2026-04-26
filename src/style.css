@@ -957,8 +957,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .leaflet-bottom.leaflet-right {
   gap: 4px;
-  /* Right-anchor each child to its natural width — stops the attribution
-     control from stretching locate/track to ~250px. */
+  /* Right-anchor any future bottom-right children to their natural width
+     instead of letting one wide child stretch the others. The cluster is
+     currently empty (locate/record/attribution all moved to bottom-left),
+     but the rule is harmless and guards against regressions. */
   align-items: flex-end;
 }
 
@@ -991,7 +993,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 /* Unify the bottom-left cluster visually with the zoom + version-badge,
    but keep the U-shaped left/right/bottom border that visualizes the
    scale's length. Use a darker stroke (#333) than Leaflet's default #777
-   so the bar is readable against light terrain. */
+   so the bar is readable against light terrain.
+   !important is required to beat Leaflet's inline styles on scale-line. */
 .leaflet-bottom.leaflet-left .leaflet-control-scale-line {
   border: 2px solid #333 !important;
   border-top: none !important;
