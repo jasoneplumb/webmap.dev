@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.28.0-beta (2026-04-26)
+
+### Added
+
+- **Programmatic OG / social-preview image** — link previews on Slack / X / Discord / Facebook / iMessage now render a custom 1200×630 image: dark navy with topo-line pattern, "webmap.dev" wordmark + tagline ("Record GPS trails. Offline maps. No account."), three feature pills, and a stylized GPS pulse-dot. Source SVG lives at `public/og-image.svg`; rendered PNG is committed; regenerate with `npm run og` (uses `sharp`). Full `og:*` and `twitter:*` meta tags wired in `index.html` (#112, #152)
+
 ## v0.27.1-beta (2026-04-26)
 
 ### Changed
