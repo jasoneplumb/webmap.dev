@@ -211,29 +211,41 @@ addLocateControl(map, () => {
   }
 });
 
-// Pan while following → drop to passive (map stays on user's panned position)
-map.on('dragstart', () => {
-  if (state.locateState === 'active') {
-    state.locateState = 'passive';
-    updateLocateIcon('passive');
+// Drop locate from active → passive on user-driven map manipulation.
+// Drag and wheel-zoom both translate the map view away from the user's
+// position, so the "follow" semantic no longer holds. Button-zoom
+// (zoom +/− controls) is deliberate and keeps the active center, so
+// it intentionally does not trigger this.
+function dropToPassive(showTouchHint: boolean): void {
+  if (state.locateState !== 'active') return;
+  state.locateState = 'passive';
+  updateLocateIcon('passive');
 
-    if (navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
-      sessionStorage.setItem('locate-hint-shown', '1');
-      showToast('Double-tap map to re-center', 2500);
-    }
-
-    const locateImg = document.getElementById('locate');
-    if (locateImg) {
-      locateImg.classList.remove('locate-passive-pulse');
-      // Force reflow so re-adding the class restarts the animation
-      void locateImg.offsetWidth;
-      locateImg.classList.add('locate-passive-pulse');
-      locateImg.addEventListener('animationend', () => {
-        locateImg.classList.remove('locate-passive-pulse');
-      }, { once: true });
-    }
+  if (showTouchHint && navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
+    sessionStorage.setItem('locate-hint-shown', '1');
+    showToast('Double-tap map to re-center', 2500);
   }
-});
+
+  const locateImg = document.getElementById('locate');
+  if (locateImg) {
+    locateImg.classList.remove('locate-passive-pulse');
+    // Force reflow so re-adding the class restarts the animation
+    void locateImg.offsetWidth;
+    locateImg.classList.add('locate-passive-pulse');
+    locateImg.addEventListener('animationend', () => {
+      locateImg.classList.remove('locate-passive-pulse');
+    }, { once: true });
+  }
+}
+
+map.on('dragstart', () => dropToPassive(true));
+// passive: true is fine — Leaflet handles the wheel-zoom mechanics; we only
+// observe and update locate state.
+map.getContainer().addEventListener(
+  'wheel',
+  () => dropToPassive(false),
+  { passive: true },
+);
 
 // Double-tap on the map re-activates locate (mobile) — when the user has panned
 // away (active → passive), a double-tap snaps back to their position without
