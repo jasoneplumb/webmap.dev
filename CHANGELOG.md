@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.31.3-beta (2026-04-26)
+
+### Fixed
+
+- **Geocode-bar Navigate button silently swallowed taps in peek state** — `.geocode-bar__nav` was missing from the peek-state `pointer-events: auto` opt-in list (`.geocode-bar--peek` is `pointer-events: none` and only specific children opt back in). Mobile Safari has long-standing quirks where `pointer-events: none` propagates to children that don't explicitly override — exactly what was already happening for handle / copy / close / addr. Adding Navigate to the list makes long-press → Navigate fire reliably. This also unblocks the Stop fix from #176: when Navigate doesn't fire, `hideGeocodeBar()` doesn't run, and the bar's drag handle keeps eating taps intended for the guidance pill's Stop button (#177, #178)
+- **Search dropdown stayed open after "Navigate here"** — the `.sheet-result__nav-btn` handler started guidance without closing the dropdown. The dropdown sits at `z-index: 2000` (above the guidance pill) and on smaller viewports could overlap the pill area. Added `hideDropdown()` before `startGuidance()` (#177, #178)
+
 ## v0.31.2-beta (2026-04-26)
 
 ### Fixed
