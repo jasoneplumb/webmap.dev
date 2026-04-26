@@ -19,10 +19,17 @@ const STATIONARY_SPEED_MS = 0.5;
 /** Consecutive stationary fixes before switching to low-accuracy GPS to save battery. */
 const STATIONARY_THRESHOLD = 5;
 
-// divIcon HTML for the blue pulsing dot — styled via .blue-dot CSS in style.css
+// Blue pulsing dot — styled via .blue-dot CSS in style.css.
+// .blue-dot__heading is hidden until a valid GPS course (e.heading) is observed
+// via the .blue-dot--has-heading class set in onLocationFound; rotation is
+// driven by a CSS custom property --heading-deg.
+const BLUE_DOT_HTML =
+  '<div class="blue-dot__heading" aria-hidden="true"></div>' +
+  '<div class="blue-dot__inner"></div>';
+
 const BLUE_DOT_ICON = L.divIcon({
   className: 'blue-dot',
-  html: '<div class="blue-dot__inner"></div>',
+  html: BLUE_DOT_HTML,
   iconSize: [16, 16],
   iconAnchor: [8, 8],
 });
@@ -31,11 +38,17 @@ const BLUE_DOT_ICON = L.divIcon({
 function createGrayDotIcon(): L.DivIcon {
   return L.divIcon({
     className: 'blue-dot blue-dot--gray',
-    html: '<div class="blue-dot__inner"></div>',
+    html: BLUE_DOT_HTML,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
   });
 }
+
+// Hold-last-bearing: GPS course is NaN at low speeds. Keep the wedge pointed in
+// the last valid direction for HEADING_HOLD_MS, then fade it out.
+const HEADING_HOLD_MS = 10_000;
+let lastValidHeadingDeg: number | null = null;
+let lastValidHeadingMs = 0;
 
 /**
  * intent: Accept or reject a GPS fix based on whether we moved meaningfully or accuracy improved
@@ -114,6 +127,30 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
 
     state.lastSpeedMs = isNaN(e.speed) ? 0 : e.speed;
     state.lastAltM = (e.altitude as number | null) !== null ? e.altitude : undefined;
+
+    // Heading wedge: rotate the cone behind the blue dot to match GPS course.
+    // Hold the last valid bearing for ~10s when course is NaN (low speed);
+    // fade out after that so the wedge doesn't lie about direction.
+    if (state.locationMarker !== null && !state.screenOff) {
+      const el = state.locationMarker.getElement();
+      if (el) {
+        const heading = (e as L.LocationEvent & { heading?: number }).heading;
+        if (typeof heading === 'number' && !isNaN(heading)) {
+          lastValidHeadingDeg = heading;
+          lastValidHeadingMs = performance.now();
+          el.style.setProperty('--heading-deg', `${heading}deg`);
+          el.classList.add('blue-dot--has-heading');
+        } else if (
+          lastValidHeadingDeg !== null &&
+          performance.now() - lastValidHeadingMs < HEADING_HOLD_MS
+        ) {
+          el.style.setProperty('--heading-deg', `${lastValidHeadingDeg}deg`);
+          el.classList.add('blue-dot--has-heading');
+        } else {
+          el.classList.remove('blue-dot--has-heading');
+        }
+      }
+    }
 
     updateGuidance(e, state, map);
   }

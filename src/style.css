@@ -44,6 +44,33 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   position: relative;
 }
 
+/* Heading wedge — Google/Apple Maps "direction cone" pattern. Centered on the
+   dot; rotated by --heading-deg set in location.ts on each fix; fades to
+   transparent at the cone edges. Hidden until .blue-dot--has-heading is set. */
+.blue-dot__heading {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  top: -22px;
+  left: -22px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from calc(var(--heading-deg, 0deg) - 30deg),
+    rgba(66, 133, 244, 0.55) 0deg,
+    rgba(66, 133, 244, 0)   60deg,
+    rgba(66, 133, 244, 0)   360deg
+  );
+  -webkit-mask-image: radial-gradient(circle at center, black 0, black 30%, transparent 100%);
+  mask-image: radial-gradient(circle at center, black 0, black 30%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.blue-dot--has-heading .blue-dot__heading {
+  opacity: 1;
+}
+
 /* Pulsing ring on the blue dot */
 .blue-dot__inner::before {
   content: '';
