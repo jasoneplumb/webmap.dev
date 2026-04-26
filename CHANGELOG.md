@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.26.1-beta (2026-04-26)
+
+### Changed
+
+- **Recording pill announces state to screen readers and manages focus** — the recording panel container now has `role="group"` and a state-driven `aria-label` ("Recording controls" / "Recording in progress" / "Recording paused"). Each button gets a plain-text `aria-label` so screen readers don't read the leading emoji glyph. On real state transitions (Record → Pause, Pause → Resume, Resume → Pause) keyboard focus moves to the new primary button, triggering AT announcement of the action. No visual or behavioral changes for sighted users (#143, #146)
+
+### Fixed
+
+- **Dead CSS rules removed** — six `.leaflet-bottom.leaflet-right` rules that targeted the empty post-rebalance cluster are gone; two compact-sizing rules that had been silently broken (targeting the wrong cluster) are now correctly scoped to `.leaflet-bottom.leaflet-left`. Plus `onRemove` cleanup added to LayersControl and the offline-download toggle so their `mouseenter` / `touchstart` / `touchend` / `click` listeners detach if the controls are ever removed and re-added (#141, #145)
+
 ## v0.26.0-beta (2026-04-26)
 
 ### Changed
