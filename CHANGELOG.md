@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.31.2-beta (2026-04-26)
+
+### Fixed
+
+- **Guidance Stop button silently swallowed taps when navigation started from the geocode-bar** — the geocode-bar (`position: fixed; bottom: 0; height: 60vh; z-index: 1500`) in peek state covers the bottom ~130 px of the viewport above all Leaflet controls. Its drag handle has `pointer-events: auto` and spans the bar's full width, sitting at the top of the visible peek area — exactly the y-coordinate of the guidance pill's Stop button at the bottom of the bottom-left control cluster. Every tap intended for Stop hit the handle instead. Hide the bar from its own Navigate click handler before `startGuidance()` runs — the bar is redundant once the pill shows the destination, and the overlap goes away (#175, #176)
+
 ## v0.31.1-beta (2026-04-26)
 
 ### Fixed
