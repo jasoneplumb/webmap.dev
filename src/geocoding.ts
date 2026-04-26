@@ -481,10 +481,7 @@ export function addReverseGeocoding(
       showToast('No destination set');
       return;
     }
-    // Hide the geocode-bar before starting guidance: the bar's drag-handle has
-    // pointer-events: auto and sits at the top of its 130px peek area, which
-    // overlaps the guidance pill's Stop button at the bottom-left and steals
-    // the tap (#175).
+    // Bar's drag-handle overlaps the guidance pill's Stop button at this y-coord (#175).
     hideGeocodeBar();
     void startGuidance(
       state,
