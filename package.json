@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src",
     "size": "size-limit",
-    "og": "node scripts/generate-og-image.mjs"
+    "og": "node scripts/generate-og-image.mjs",
+    "icons": "node scripts/generate-maskable-icons.mjs"
   },
   "dependencies": {
     "esri-leaflet": "^3.0.12",
