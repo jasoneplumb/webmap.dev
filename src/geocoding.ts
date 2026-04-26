@@ -63,7 +63,7 @@ function zoomForAddrType(addrType: string): number {
 // Shared references so addSearchControl can clear the drop pin / geocode bar on marker click.
 let _pinLayer: L.LayerGroup | null = null;
 let _clearSearchSelection: (() => void) | null = null;
-let _showGeocodeBar: ((label: string, copyText: string) => void) | null = null;
+let _showGeocodeBar: ((label: string, copyText: string, latlng: L.LatLng) => void) | null = null;
 
 export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
   // state is read in the results callback (for future extensibility)
@@ -266,7 +266,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
       const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
       const label = resultName !== '' ? resultName : coordText;
       const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
-      _showGeocodeBar?.(label, copyText);
+      _showGeocodeBar?.(label, copyText, L.latLng(lat, lng));
       clearSelection();
       li.classList.add('sheet-result--active');
       li.classList.remove('sheet-result--expanded');
@@ -471,29 +471,22 @@ export function addReverseGeocoding(
   const barNavBtn  = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__nav')!;
   const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
 
-  // "Navigate" button on the geocode-bar — start guidance to the dropped pin's
-  // current latlng. The pin location is on whichever marker is in pinLayer
-  // (there's always at most one when the bar is visible).
+  // "Navigate" button on the geocode-bar — start guidance to the destination
+  // associated with the currently-shown bar. showGeocodeBar() is the single
+  // setter so search-results, long-press, and pin-drag all stay in sync.
   let currentPinLatLng: L.LatLng | null = null;
   let currentPinLabel = '';
   barNavBtn.addEventListener('click', () => {
-    if (currentPinLatLng === null) return;
+    if (currentPinLatLng === null) {
+      showToast('No destination set');
+      return;
+    }
     void startGuidance(
       state,
       map,
       { lat: currentPinLatLng.lat, lng: currentPinLatLng.lng, label: currentPinLabel },
       showToast,
     );
-  });
-
-  // Expose pin position to the Navigate button via closure-captured ref.
-  // Updated by showGeocodeBar through pinLayer inspection on each open.
-  pinLayer.on('layeradd', () => {
-    const layers = pinLayer.getLayers();
-    const pin = layers[layers.length - 1];
-    if (pin instanceof L.Marker) {
-      currentPinLatLng = pin.getLatLng();
-    }
   });
 
   // Tap-to-expand: tapping a truncated address shows the full text for 3s
@@ -589,7 +582,7 @@ export function addReverseGeocoding(
     }
   }
 
-  function showGeocodeBar(label: string, copyText: string): void {
+  function showGeocodeBar(label: string, copyText: string, latlng: L.LatLng): void {
     collapseAddr();
     barAddrEl.textContent = label;
     barAddrEl.title = label;
@@ -597,6 +590,7 @@ export function addReverseGeocoding(
     barCopyBtn.textContent = 'Copy';
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
     currentPinLabel = label;
+    currentPinLatLng = latlng;
 
     if (sheetState === 'hidden') {
       // Render off-screen first so offsetHeight is available, then use double-rAF
@@ -780,12 +774,12 @@ export function addReverseGeocoding(
         if (error || !result) {
           // Geocoding failed — fall back to coordinates.
           document.title = coordLabel;
-          showGeocodeBar(coordLabel, coordLabel);
+          showGeocodeBar(coordLabel, coordLabel, latlng);
           return;
         }
         const addr = result.address.Match_addr;
         document.title = addr;
-        showGeocodeBar(addr, addr);
+        showGeocodeBar(addr, addr, latlng);
       });
   }
 
