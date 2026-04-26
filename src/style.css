@@ -244,8 +244,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   min-width: 0;
   max-width: 360px;
   /* Smooth transition between idle (transparent, no padding) and the
-     expanded states (dark/green, padded). max-width transitions help the
-     pill grow into its content rather than snap. */
+     expanded states (dark/green, padded). The height step comes from
+     injecting STATS_HTML and is intentionally instant — transitioning
+     height on dynamic content requires extra machinery this UI doesn't
+     warrant. */
   transition: padding 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
 }
 
@@ -278,8 +280,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* Fallback class — toggle on .recording-panel to lock it in expanded sizing
-   if the height/padding transition stutters on low-end Android. */
-.recording-panel.recording-pill--always-expanded {
+   if the padding/background transition stutters on low-end Android. */
+.recording-panel.recording-panel--always-expanded {
   background: rgba(0, 0, 0, 0.88);
   color: #fff;
   padding: 12px 16px;

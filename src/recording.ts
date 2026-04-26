@@ -271,13 +271,21 @@ function renderButtons(
   updateStatsBar(state);
 }
 
+// Tracks the active "Saved ✓" timer so a future re-entry can cancel it.
+// Today this is defensive — the saved pill exposes no buttons that could
+// trigger another stop — but a teardown path or a second Finish during the
+// 1.5 s window would otherwise leak a stale callback into the next render.
+let savedTransientTimer: ReturnType<typeof setTimeout> | null = null;
+
 /** Brief "Saved ✓" confirmation after Finish, then collapse back to idle. */
 function showSavedTransient(): void {
   const c = recControlContainer;
   if (!c) return;
+  if (savedTransientTimer !== null) clearTimeout(savedTransientTimer);
   c.className = 'recording-panel recording-panel--saved';
   c.innerHTML = '<div class="rec-saved">Saved ✓</div>';
-  setTimeout(() => {
+  savedTransientTimer = setTimeout(() => {
+    savedTransientTimer = null;
     if (recControlContainer && storedState && storedActivatePolling && storedDeactivatePolling && storedMap) {
       renderButtons(storedState, storedActivatePolling, storedDeactivatePolling, storedMap);
     }
