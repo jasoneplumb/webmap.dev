@@ -211,29 +211,32 @@ addLocateControl(map, () => {
   }
 });
 
-// Pan while following → drop to passive (map stays on user's panned position)
-map.on('dragstart', () => {
-  if (state.locateState === 'active') {
-    state.locateState = 'passive';
-    updateLocateIcon('passive');
+// Drag and wheel-zoom move the view off the user's position; button-zoom is deliberate so it keeps active.
+function dropToPassive(showTouchHint: boolean): void {
+  if (state.locateState !== 'active') return;
+  state.locateState = 'passive';
+  updateLocateIcon('passive');
 
-    if (navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
-      sessionStorage.setItem('locate-hint-shown', '1');
-      showToast('Double-tap map to re-center', 2500);
-    }
-
-    const locateImg = document.getElementById('locate');
-    if (locateImg) {
-      locateImg.classList.remove('locate-passive-pulse');
-      // Force reflow so re-adding the class restarts the animation
-      void locateImg.offsetWidth;
-      locateImg.classList.add('locate-passive-pulse');
-      locateImg.addEventListener('animationend', () => {
-        locateImg.classList.remove('locate-passive-pulse');
-      }, { once: true });
-    }
+  if (showTouchHint && navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
+    sessionStorage.setItem('locate-hint-shown', '1');
+    showToast('Double-tap map to re-center', 2500);
   }
-});
+
+  const locateImg = document.getElementById('locate');
+  if (locateImg) {
+    locateImg.classList.remove('locate-passive-pulse');
+    // Force reflow so re-adding the class restarts the animation
+    void locateImg.offsetWidth;
+    locateImg.classList.add('locate-passive-pulse');
+    locateImg.addEventListener('animationend', () => {
+      locateImg.classList.remove('locate-passive-pulse');
+    }, { once: true });
+  }
+}
+
+map.on('dragstart', () => dropToPassive(true));
+// passive: true — we observe only; Leaflet owns wheel-zoom mechanics.
+map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passive: true });
 
 // Double-tap on the map re-activates locate (mobile) — when the user has panned
 // away (active → passive), a double-tap snaps back to their position without
