@@ -543,9 +543,12 @@ export function addOfflineDownloadControl(
   map: L.Map,
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
+  // Closure-shared so onRemove can detach the listeners onAdd registered.
+  let containerEl: HTMLElement | null = null;
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      containerEl = container;
       container.title = 'Download: Select a region and zoom range to cache for offline use';
 
       const iconSpan = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
@@ -596,6 +599,13 @@ export function addOfflineDownloadControl(
       });
 
       return container;
+    },
+    onRemove(): void {
+      // L.DomEvent.off without a handler arg removes all Leaflet-managed listeners.
+      if (containerEl) {
+        L.DomEvent.off(containerEl);
+        containerEl = null;
+      }
     },
   });
 
