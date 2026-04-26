@@ -891,14 +891,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     padding-right: env(safe-area-inset-right, 0px);
   }
 
-  /* Bottom-right control group: zoom, locate, tracking */
-  .leaflet-bottom.leaflet-right {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    right: calc(10px + env(safe-area-inset-right, 0px));
-  }
+  /* (Bottom-right cluster is empty post-rebalance; rules removed.) */
 
   /* Bottom-left control group: scale — match bottom offset of right group */
   .leaflet-bottom.leaflet-left {
@@ -952,15 +945,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   }
 }
 
-/* Desktop: controls remain at bottom-right in a row */
 @media (min-width: 769px) {
-  .leaflet-bottom.leaflet-right {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    bottom: 10px;
-    right: 10px;
-  }
 
   /* Bottom-left control group: scale — match bottom offset of right group */
   .leaflet-bottom.leaflet-left {
@@ -1004,15 +989,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    with a light shadow and 4px column gap. Recording panel keeps its
    larger CTA sizing. */
 
-.leaflet-bottom.leaflet-right {
-  gap: 4px;
-  /* Right-anchor any future bottom-right children to their natural width
-     instead of letting one wide child stretch the others. The cluster is
-     currently empty (locate/record/attribution all moved to bottom-left),
-     but the rule is harmless and guards against regressions. */
-  align-items: flex-end;
-}
-
 .leaflet-bottom.leaflet-left {
   display: flex;
   flex-direction: column;
@@ -1023,7 +999,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   align-items: flex-start;
 }
 
-.leaflet-bottom.leaflet-right .leaflet-control-toggle {
+.leaflet-bottom.leaflet-left .leaflet-control-toggle {
   height: 28px;
   padding: 0 6px;
   gap: 6px;
@@ -1054,8 +1030,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: rgba(255, 255, 255, 0.9) !important;
 }
 
-.leaflet-bottom.leaflet-right .leaflet-control-toggle img,
-.leaflet-bottom.leaflet-right .leaflet-control-toggle__icon {
+.leaflet-bottom.leaflet-left .leaflet-control-toggle img,
+.leaflet-bottom.leaflet-left .leaflet-control-toggle__icon {
   width: 16px;
   height: 16px;
   font-size: 16px;

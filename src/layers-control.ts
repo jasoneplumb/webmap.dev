@@ -37,6 +37,7 @@ export class LayersControl extends L.Control {
   private popoverEl: HTMLElement | null = null;
   private popoverOpen = false;
   private map: L.Map | null = null;
+  private containerEl: HTMLElement | null = null;
 
   constructor(
     baseMaps: LayerDef[],
@@ -54,6 +55,7 @@ export class LayersControl extends L.Control {
     this.map = map;
 
     const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+    this.containerEl = container;
     container.title = 'Click to choose map layer';
 
     // Icon: layered squares
@@ -388,6 +390,13 @@ export class LayersControl extends L.Control {
   }
 
   onRemove(): void {
+    // Detach the listeners attached in onAdd (mouseenter / touchstart /
+    // touchend / click). L.DomEvent.off without a handler arg removes all
+    // Leaflet-managed listeners on the element.
+    if (this.containerEl) {
+      L.DomEvent.off(this.containerEl);
+      this.containerEl = null;
+    }
     if (this.popoverEl) {
       this.popoverEl.remove();
       this.popoverEl = null;
