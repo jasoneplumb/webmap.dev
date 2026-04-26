@@ -43,7 +43,7 @@ export function showConsentModal(): Promise<boolean> {
           <li><strong>Local only.</strong> All GPS data and app settings stay in your browser. Nothing is sent to our servers.</li>
           <li><strong>No tracking.</strong> No analytics, cookies, or tracking pixels.</li>
           <li><strong>Third-party services.</strong> Map tiles load from OpenStreetMap servers. Address search uses the Esri ArcGIS geocoding API. These services may log standard HTTP request data per their own policies.</li>
-          <li><strong>Turn-by-turn routing.</strong> When you tap "Navigate here", your current location and destination are sent to the FOSSGIS Valhalla service to compute a route. No other location data is transmitted.</li>
+          <li><strong>Turn-by-turn routing.</strong> When you tap "Navigate here", your current location and destination are sent to the FOSSGIS Valhalla service to compute a route. No location data is transmitted except as described above.</li>
           <li><strong>Stored items.</strong> The app stores a consent record and an anonymous install ID in localStorage.</li>
           <li><strong>Deletion.</strong> Clear your browser's site data for webmap.dev to remove everything.</li>
         </ul>

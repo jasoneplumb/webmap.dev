@@ -20,7 +20,7 @@ Replace GPS trail recording with **turn-by-turn routed guidance** powered by:
 
 ### 1. Valhalla via FOSSGIS
 
-Routing requests go to `https://valhalla1.openstreetmap.de/route`, the FOSSGIS public Valhalla instance.
+Routing requests go to the **FOSSGIS public Valhalla instance**. The canonical endpoint URL lives in `src/routing.ts` so this ADR doesn't need to be updated when FOSSGIS shuffles hostnames.
 
 - All three required profiles (`auto`, `pedestrian`, `bicycle`) are served from a single endpoint.
 - Pre-formatted natural-language maneuver instructions in the response (saves ~50 LOC of formatting).
@@ -86,7 +86,7 @@ The heading-cone wedge solves the actually-useful subset of "rotation" (showing 
 The numeric thresholds below are **initial** values chosen for the v1 launch; they will be tuned with field experience and should be read from the source files (`src/guidance.ts`, `src/location.ts`) when current values matter.
 
 - **Module:** `src/routing.ts` — Valhalla client, polyline6 decoder, types (`RouteRequest`, `Route`, `RouteStep`, `Costing`).
-- **State machine:** `idle → routing → guiding ↔ off-route → arrived → idle` (`src/guidance.ts`).
+- **State machine:** `idle → routing → guiding ↔ off-route → arrived → idle` (`src/guidance.ts`). The final `arrived → idle` transition is automatic — the pill displays the "Arrived" message for ~3 s, then `stopGuidance()` collapses the UI back to idle.
 - **Off-route detection:** profile-dependent thresholds (driving 30 m / cycling 20 m / walking 15 m initially) with a 3-fix streak before recalc, throttled to once per 15 s.
 - **Arrived detection:** profile-dependent radius (driving 25 m / cycling 15 m / walking 10 m initially).
 - **Heading hold:** 10 s window after the last valid `e.heading`, then the wedge fades.
