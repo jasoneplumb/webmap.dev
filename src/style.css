@@ -891,7 +891,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
     padding-right: env(safe-area-inset-right, 0px);
   }
 
-  /* (Bottom-right cluster is empty post-rebalance; rules removed.) */
 
   /* Bottom-left control group: scale — match bottom offset of right group */
   .leaflet-bottom.leaflet-left {

@@ -601,7 +601,7 @@ export function addOfflineDownloadControl(
       return container;
     },
     onRemove(): void {
-      // Detach all Leaflet-managed listeners registered in onAdd.
+      // L.DomEvent.off without a handler arg removes all Leaflet-managed listeners.
       if (containerEl) {
         L.DomEvent.off(containerEl);
         containerEl = null;

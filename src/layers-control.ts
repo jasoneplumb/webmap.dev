@@ -390,9 +390,7 @@ export class LayersControl extends L.Control {
   }
 
   onRemove(): void {
-    // Detach the listeners attached in onAdd (mouseenter / touchstart /
-    // touchend / click). L.DomEvent.off without a handler arg removes all
-    // Leaflet-managed listeners on the element.
+    // L.DomEvent.off without a handler arg removes all Leaflet-managed listeners.
     if (this.containerEl) {
       L.DomEvent.off(this.containerEl);
       this.containerEl = null;
