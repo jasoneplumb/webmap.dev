@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.30.0-beta (2026-04-26)
+
+### Added
+
+- **Turn-by-turn routed navigation replaces GPS trail recording** — tap "Navigate here" on any search result or dropped pin and the app fetches a route from the FOSSGIS Valhalla service (driving / cycling / walking) and shows a bottom-left guidance pill with the next maneuver, distance, and ETA. Off-route detection (3-fix streak with profile-dependent thresholds: driving 30 m / cycling 20 m / walking 15 m) triggers automatic recalculation, throttled to once per 15 s. Arrival within a profile-dependent radius (driving 25 m / cycling 15 m / walking 10 m) collapses the pill back to idle after a brief "Arrived" confirmation (#154, #156, #158, #160, #166)
+- **Heading-cone wedge on the GPS dot** — the same Google / Apple Maps idiom: a translucent cone behind the blue dot shows direction of travel from GPS course (`e.heading`). At low speeds where the browser reports `heading: NaN`, the wedge holds the last valid bearing for ~10 s before fading. No map rotation; north always stays up (#162, #165)
+- **ADR-006: Routed Turn-by-Turn Guidance** — documents the architectural decisions: Valhalla via FOSSGIS over OSRM (multi-profile support), heading-cone over `leaflet-rotate` (GPL-3 license clash with the project's MIT), and the privacy regression vs. ADR-004 with explicit mitigations (single egress point, explicit-action only, consent re-acceptance) (#166)
+
+### Changed
+
+- **Consent text discloses routing egress** — added a new "Turn-by-turn routing" privacy bullet that names the FOSSGIS Valhalla service and discloses that current location + destination are sent only when the user explicitly taps "Navigate here". Privacy Policy and Terms of Use updated for the navigation use-case (e.g., "GPS trail recording" → "GPS-based navigation"; safety disclaimer updated to mention routing-direction accuracy). `CONSENT_VERSION` bumped 2.1 → 2.2, forcing re-acceptance from existing users (#166)
+
+### Removed
+
+- **GPS trail recording feature** — `src/recording.ts`, `src/trail-backup.ts`, `recording.test.ts`, the recording pill UI, GPX export (`buildGpx` / `downloadGpx`), localStorage trail-backup crash recovery, and the recording fields on `AppState`. Replaced by the routed guidance feature above. The `Keepalive`, battery monitoring, and GPS-weak-signal hysteresis subsystems carry over and are reused by guidance (#154, #156)
+
+### Fixed
+
+- **Mainline type-check on `lastValidHeading*` fields** — PR #162 introduced `state.lastValidHeadingDeg` / `state.lastValidHeadingMs` references in `src/location.ts` without declaring the corresponding `AppState` fields, breaking `npm run type-check`. Fields added next to the existing GPS-fix metadata; `createInitialState()` defaults updated (#164, #165)
+
 ## v0.29.0-beta (2026-04-26)
 
 ### Added
