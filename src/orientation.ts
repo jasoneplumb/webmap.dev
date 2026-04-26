@@ -1,8 +1,4 @@
-/**
- * Intent: Wrap DeviceOrientationEvent with the iOS permission flow + heading extraction
- * Context: Used by compass.ts; iOS 13+ requires DeviceOrientationEvent.requestPermission() from a user gesture
- * Pattern: Permission is one-shot; subscribeOrientation returns an unsubscribe function for clean teardown
- */
+// DeviceOrientationEvent wrapper: iOS-13+ permission gate + heading extraction. Used by compass.ts.
 
 export type OrientationPermission = 'unknown' | 'unsupported' | 'granted' | 'denied';
 
@@ -10,11 +6,7 @@ interface DeviceOrientationEventStatic {
   requestPermission?: () => Promise<'granted' | 'denied'>;
 }
 
-/**
- * intent: Pull a compass heading (0–360°, clockwise from True North) out of a DeviceOrientationEvent
- * method: Prefer iOS webkitCompassHeading (already true-north calibrated); fall back to W3C alpha (anti-clockwise around z)
- * effect: Returns null when neither field is usable (NaN / unsupported)
- */
+// iOS webkitCompassHeading is already true-north clockwise; W3C alpha is anti-clockwise so flip it.
 export function extractHeading(event: DeviceOrientationEvent): number | null {
   const ios = (event as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading;
   if (typeof ios === 'number' && !isNaN(ios)) {
@@ -26,11 +18,7 @@ export function extractHeading(event: DeviceOrientationEvent): number | null {
   return null;
 }
 
-/**
- * intent: Resolve to the current OrientationPermission state, prompting iOS if needed
- * method: iOS exposes a static requestPermission; non-iOS browsers grant by default
- * effect: Must be called inside a user-gesture handler on iOS or the prompt is suppressed
- */
+// Must be called from inside a user-gesture handler on iOS or the prompt is suppressed.
 export async function requestOrientationPermission(): Promise<OrientationPermission> {
   if (typeof DeviceOrientationEvent === 'undefined') return 'unsupported';
   const cls = DeviceOrientationEvent as unknown as DeviceOrientationEventStatic;
@@ -43,11 +31,7 @@ export async function requestOrientationPermission(): Promise<OrientationPermiss
   }
 }
 
-/**
- * intent: Stream compass headings until the returned unsubscribe is called
- * method: Listen for deviceorientationabsolute when available (true-north without calibration), fall back to deviceorientation
- * effect: Caller is responsible for invoking the returned function to detach the listener
- */
+// 'deviceorientationabsolute' yields true-north headings without calibration when available.
 export function subscribeOrientation(onHeading: (heading: number) => void): () => void {
   const handler = (event: Event): void => {
     const heading = extractHeading(event as DeviceOrientationEvent);

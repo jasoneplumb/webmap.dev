@@ -1,8 +1,4 @@
-/**
- * Intent: Compass widget showing where the device is facing relative to the (north-up) map
- * Context: Mounted top-right; first tap requests DeviceOrientation permission, then updates passively
- * Pattern: Leaflet control + inline SVG; rotation driven by --heading-deg CSS custom property
- */
+// Compass widget — top-right SVG rose that rotates by -deviceHeading so N points at true north.
 import L from 'leaflet';
 import type { AppState } from './types';
 import { requestOrientationPermission, subscribeOrientation } from './orientation';
@@ -15,6 +11,8 @@ const COMPASS_HTML = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg
 </svg>`;
 
 export function addCompassControl(map: L.Map, state: AppState): void {
+  let unsubscribe: (() => void) | null = null;
+
   const Control = L.Control.extend({
     onAdd() {
       const button = L.DomUtil.create('button', 'compass-rose') as HTMLButtonElement;
@@ -26,7 +24,12 @@ export function addCompassControl(map: L.Map, state: AppState): void {
       L.DomEvent.disableClickPropagation(button);
       L.DomEvent.disableScrollPropagation(button);
 
-      let unsubscribe: (() => void) | null = null;
+      // Hide entirely if the platform doesn't expose orientation events at all (desktop).
+      if (typeof DeviceOrientationEvent === 'undefined') {
+        button.classList.add('compass-rose--unavailable');
+        state.compassPermission = 'unsupported';
+        return button;
+      }
 
       L.DomEvent.on(button, 'click', () => {
         if (state.compassPermission === 'granted') return;
@@ -37,7 +40,6 @@ export function addCompassControl(map: L.Map, state: AppState): void {
             button.title = 'Compass';
             button.setAttribute('aria-label', 'Compass');
             unsubscribe = subscribeOrientation((heading) => {
-              state.lastDeviceHeadingDeg = heading;
               button.style.setProperty('--heading-deg', `${-heading}deg`);
             });
           } else {
@@ -48,18 +50,13 @@ export function addCompassControl(map: L.Map, state: AppState): void {
         });
       });
 
-      // Hide the button entirely when the API isn't present (desktop without sensors)
-      if (typeof DeviceOrientationEvent === 'undefined') {
-        button.classList.add('compass-rose--unavailable');
-        state.compassPermission = 'unsupported';
-      }
-
-      // Bind cleanup to the map's remove event so we don't leak the listener if the map is torn down
-      map.on('unload', () => {
-        if (unsubscribe !== null) unsubscribe();
-      });
-
       return button;
+    },
+    onRemove() {
+      if (unsubscribe !== null) {
+        unsubscribe();
+        unsubscribe = null;
+      }
     },
   });
 

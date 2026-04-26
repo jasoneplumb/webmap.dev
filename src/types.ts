@@ -59,8 +59,7 @@ export interface AppState {
   lastValidHeadingDeg: number | null;
   lastValidHeadingMs: number;
 
-  // Device-orientation compass: most recent heading from DeviceOrientationEvent (true-north clockwise)
-  lastDeviceHeadingDeg: number | null;
+  // Device-orientation compass: permission state cached so subsequent taps skip the prompt
   compassPermission: OrientationPermission;
 
   // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
@@ -103,7 +102,6 @@ export function createInitialState(): AppState {
     lastGpsAccuracy: null,
     lastValidHeadingDeg: null,
     lastValidHeadingMs: 0,
-    lastDeviceHeadingDeg: null,
     compassPermission: 'unknown',
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,
