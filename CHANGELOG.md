@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.27.0-beta (2026-04-26)
+
+### Added
+
+- **Hillshade blends with multiply for higher base-map contrast** — the hillshade overlay now uses CSS `mix-blend-mode: multiply` instead of a 0.4 alpha blend. Flat/lit areas (where hillshade is near-white) leave the base map untouched; only shaded slopes darken. Result: street and topo colors stay vivid when hillshade is enabled, while relief is still readable (#149, #150)
+
+### Changed
+
+- **Mouse-wheel zoom drops locate to passive** — wheel zoom translates the view toward the cursor (same effective consequence as a drag), so the "follow" semantic no longer holds. Wheel-zoom now mirrors the existing `dragstart` handler and flips locate from active → passive on the first wheel turn. Subsequent wheel ticks short-circuit; button zoom is unaffected (deliberate, keeps active center) (#147, #148)
+
 ## v0.26.1-beta (2026-04-26)
 
 ### Changed
