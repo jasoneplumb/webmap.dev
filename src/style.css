@@ -8,8 +8,8 @@ html { height: 100%; width: 100%; padding: 0; margin: 0; }
 body { height: 100%; width: 100%; padding: 0; margin: 0; }
 #map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
 
-/* Multiply preserves base-map color in flat areas (hillshade ≈ white there) and only darkens slopes. */
-.hillshade-blend { mix-blend-mode: multiply; }
+/* Per-tile multiply — a container-level blend can isolate under .leaflet-tile-container's translate3d. */
+.hillshade-blend img.leaflet-tile { mix-blend-mode: multiply; }
 
 /* Icon state classes for GPS accuracy filter visual feedback */
 #disabled {
