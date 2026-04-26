@@ -7,6 +7,7 @@
 import type L from 'leaflet';
 import type { Keepalive } from './keepalive';
 import type { Costing, Route } from './routing';
+import type { OrientationPermission } from './orientation';
 
 // Three-state location button: off → active (following) → passive (dot visible, not following)
 export type LocateState = 'off' | 'active' | 'passive';
@@ -58,6 +59,9 @@ export interface AppState {
   lastValidHeadingDeg: number | null;
   lastValidHeadingMs: number;
 
+  // Device-orientation compass: permission state cached so subsequent taps skip the prompt
+  compassPermission: OrientationPermission;
+
   // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
   gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
   gpsStrongStreak: number;      // consecutive fixes with accuracy < (TRAIL_MAX_ACCURACY_M - 5)
@@ -98,6 +102,7 @@ export function createInitialState(): AppState {
     lastGpsAccuracy: null,
     lastValidHeadingDeg: null,
     lastValidHeadingMs: 0,
+    compassPermission: 'unknown',
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,
     gpsWeakBadgeVisible: false,
