@@ -50,7 +50,7 @@ export function showConsentModal(): Promise<boolean> {
         <h3>Terms of Use</h3>
         <ol class="consent-legal">
           <li>This app is for <strong>personal, non-commercial</strong> map viewing and GPS-based navigation.</li>
-          <li>The app is provided <strong>as-is with no warranty</strong>. GPS accuracy varies. Do not rely on it for navigation, emergency response, or safety-critical decisions.</li>
+          <li>The app is provided <strong>as-is with no warranty</strong>. GPS accuracy varies and routing directions may be incorrect. Do not rely on this app as your sole navigation source, or for emergency response or safety-critical decisions.</li>
           <li><strong>You are responsible</strong> for your own safety. Pay attention to your surroundings and obey local laws.</li>
           <li>To the maximum extent permitted by law, the developer is <strong>not liable</strong> for any damages arising from use of this app.</li>
           <li>These terms may be updated. Material changes will require re-acceptance.</li>

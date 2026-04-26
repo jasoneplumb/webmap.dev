@@ -83,10 +83,12 @@ The heading-cone wedge solves the actually-useful subset of "rotation" (showing 
 
 ## Implementation Details
 
+The numeric thresholds below are **initial** values chosen for the v1 launch; they will be tuned with field experience and should be read from the source files (`src/guidance.ts`, `src/location.ts`) when current values matter.
+
 - **Module:** `src/routing.ts` — Valhalla client, polyline6 decoder, types (`RouteRequest`, `Route`, `RouteStep`, `Costing`).
 - **State machine:** `idle → routing → guiding ↔ off-route → arrived → idle` (`src/guidance.ts`).
-- **Off-route detection:** profile-dependent thresholds (driving 30 m / cycling 20 m / walking 15 m) with a 3-fix streak before recalc, throttled to once per 15 s.
-- **Arrived detection:** profile-dependent radius (driving 25 m / cycling 15 m / walking 10 m).
+- **Off-route detection:** profile-dependent thresholds (driving 30 m / cycling 20 m / walking 15 m initially) with a 3-fix streak before recalc, throttled to once per 15 s.
+- **Arrived detection:** profile-dependent radius (driving 25 m / cycling 15 m / walking 10 m initially).
 - **Heading hold:** 10 s window after the last valid `e.heading`, then the wedge fades.
 
 ## Related Decisions
