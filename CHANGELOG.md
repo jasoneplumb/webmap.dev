@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.24.0-beta (2026-04-26)
+
+### Changed
+
+- **Mobile-first control layout (Phase 1 of the layout-rebalance epic)** — relocated frequently-used map controls into a single bottom-left thumb-reach cluster, reading top→bottom: locate, record, zoom +/−, scale, version-badge, attribution. Layers and Download moved to a top-right column; both labels collapse on first hover or touch with the state persisted in `localStorage`. Compact 28×28 sizing with 4px column gap and lighter shadow. The recording dashboard (`#recording-stats`) moves to upper-left during active recording. Honors the project's Mobile-First design principle (#135, #139)
+
+### Fixed
+
+- **Stop-recording dialog text padding** — the `<p>` element no longer butts up against the rounded panel's left edge; added a CSS rule for `#consent-panel > p` (#139)
+- **Scale bar visibility** — restored the U-shaped left/right/bottom border with a darker `#333` stroke for readability against light terrain (#139)
+- **Version badge clickable** — added `pointer-events: auto` to `#version-badge` so the changelog modal opens on click; the badge now lives inside `.leaflet-bottom.leaflet-left` which is `pointer-events: none` by default and only opts `.leaflet-control` children back in (#139)
+
+### Removed
+
+- **ZoomViewer dev indicator** — removed the 200px-wide opacity:0.15 "Zoom level: X.X" overlay from `map.ts` (was barely visible and was forcing the bottom-left cluster width to 200px) (#139)
+
 ## v0.23.0-beta (2026-04-18)
 
 ### Added
