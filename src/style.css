@@ -951,9 +951,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* ── Compact sizing for thumb-cluster controls ───────────────────────────────
-   Override Leaflet's default 26/34px sizing so the bottom-right toggles and
-   bottom-left zoom share a tight, uniform 28×28px footprint with a light
-   shadow and 4px column gap. Recording panel keeps its larger CTA sizing. */
+   Override Leaflet's default 26/34px sizing so the bottom-left toggles
+   (locate) and bottom-left zoom share a tight, uniform 28×28px footprint
+   with a light shadow and 4px column gap. Recording panel keeps its
+   larger CTA sizing. */
 
 .leaflet-bottom.leaflet-right {
   gap: 4px;
@@ -968,8 +969,9 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  /* Left-anchor each child to its natural width — stops the (mostly invisible)
-     ZoomViewer from stretching the zoom buttons to 200px. */
+  /* Left-anchor each child to its natural width — keeps narrow controls
+     (zoom, version-badge) from stretching to match wider siblings like
+     the attribution. */
   align-items: flex-start;
 }
 
