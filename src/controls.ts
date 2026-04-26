@@ -19,7 +19,7 @@ interface ToggleControlConfig {
 }
 
 /** Remove the text label from a control container, leaving only the icon. */
-export function collapseControlLabel(container: HTMLElement): void {
+function collapseControlLabel(container: HTMLElement): void {
   const label = container.querySelector('.leaflet-control-toggle__label');
   if (label) label.remove();
 }
@@ -34,7 +34,7 @@ export function setupCollapsibleLabel(
   if (storageKey !== null) {
     try {
       collapsed = localStorage.getItem(storageKey) === '1';
-    } catch { /* localStorage unavailable (e.g. private browsing) */ }
+    } catch { /* localStorage unavailable */ }
   }
   if (!collapsed) {
     container.appendChild(label);
@@ -44,7 +44,7 @@ export function setupCollapsibleLabel(
     collapseControlLabel(container);
     collapsed = true;
     if (storageKey !== null) {
-      try { localStorage.setItem(storageKey, '1'); } catch { /* ignore */ }
+      try { localStorage.setItem(storageKey, '1'); } catch { /* localStorage unavailable */ }
     }
   };
 }
@@ -70,6 +70,7 @@ export function makeToggleControl(config: ToggleControlConfig): L.Control {
         const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
         label.textContent = config.label;
         if (config.collapseOnFirstUse) {
+          // storageKey is null when config.id is absent — collapse is session-only.
           const storageKey = config.id ? `webmap-ctrl-label-${config.id}` : null;
           collapseAndPersist = setupCollapsibleLabel(container, label, storageKey);
         } else {
