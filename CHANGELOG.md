@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.25.0-beta (2026-04-26)
+
+### Changed
+
+- **Two-step Pause→Finish reveal during recording** — the always-visible Stop button is gone. While recording, only Pause is shown; tapping Pause reveals Resume + Finish in the paused state. The reveal IS the confirmation, so the Stop confirmation modal (`confirmStop()`) and its `#consent-overlay`/`#consent-panel` modal is removed entirely. Strava + AllTrails dominant convention. Renamed `.rec-btn-stop` → `.rec-btn-finish` (#137, #142)
+
 ## v0.24.0-beta (2026-04-26)
 
 ### Changed
