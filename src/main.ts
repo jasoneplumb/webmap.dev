@@ -59,6 +59,13 @@ if (!hasConsent()) {
 
 function initApp(): void {
 
+// One-shot cleanup of localStorage keys written by the now-deleted recording feature.
+// Harmless if absent.
+try {
+  localStorage.removeItem('webmap-trail-backup');
+  localStorage.removeItem('webmap-trail-backup-dismissed');
+} catch { /* localStorage unavailable */ }
+
 const state = createInitialState();
 const map = createMap();
 
@@ -405,8 +412,6 @@ document.addEventListener('visibilitychange', () => {
 initBattery(state);
 
 function applyUpdateWhenSafe(update: () => void): void {
-  // No long-running session to defer for after recording was removed; guidance
-  // (re-)introduces a defer condition in a later phase.
   update();
 }
 
