@@ -8,26 +8,10 @@ import L from 'leaflet';
 import type { AppState } from './types';
 import { updateLocateIcon } from './controls';
 import { setWatchAccuracy } from './timer';
+import { haversineDistance } from './geo';
 
-/** Discard GPS fixes coarser than this threshold for trail recording (metres). */
+/** Discard GPS fixes coarser than this threshold (metres). */
 export const TRAIL_MAX_ACCURACY_M = 30;
-
-/** Haversine great-circle distance between two lat/lng points (metres). */
-export function haversineDistance(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number,
-): number {
-  const p = Math.PI / 180;
-  const f =
-    0.5 -
-    Math.cos((lat1 - lat2) * p) / 2 +
-    (Math.cos(lat2 * p) *
-      Math.cos(lat1 * p) *
-      (1 - Math.cos((lng1 - lng2) * p))) /
-      2;
-  const R = 6371000; // Earth's radius in metres
-  return 2 * R * Math.asin(Math.sqrt(f));
-}
 
 /** Speed below which the user is considered stationary (m/s). 0.5 m/s ~ 1.8 km/h. */
 const STATIONARY_SPEED_MS = 0.5;
