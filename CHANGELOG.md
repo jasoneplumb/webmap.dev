@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.26.0-beta (2026-04-26)
+
+### Changed
+
+- **Recording UI is now a single bottom-left "pill"** — the standalone `#recording-stats` overlay is gone; the recording panel now owns the full lifecycle as a pill with three state-driven appearances. Idle: compact transparent pill with just the green Record button. Active (recording): dark expanded pill with Duration / Dist / Ascent stats above Pause. Active (paused): same dark pill, Resume + Finish in place of Pause. After Finish: 1.5 s green "Saved ✓" confirmation, then collapses back to idle. CSS transitions `padding`, `background-color`, and `box-shadow` over 0.25 s for a smooth idle ↔ active morph; a `.recording-panel--always-expanded` fallback class is shipped for low-end Android. The `createStatsBar()` and `setStatsBarVisible()` helpers are removed in favor of state-driven class + content swaps in `renderButtons()` (#138, #144)
+
 ## v0.25.0-beta (2026-04-26)
 
 ### Changed
