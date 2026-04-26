@@ -211,11 +211,7 @@ addLocateControl(map, () => {
   }
 });
 
-// Drop locate from active → passive on user-driven map manipulation.
-// Drag and wheel-zoom both translate the map view away from the user's
-// position, so the "follow" semantic no longer holds. Button-zoom
-// (zoom +/− controls) is deliberate and keeps the active center, so
-// it intentionally does not trigger this.
+// Drag and wheel-zoom move the view off the user's position; button-zoom is deliberate so it keeps active.
 function dropToPassive(showTouchHint: boolean): void {
   if (state.locateState !== 'active') return;
   state.locateState = 'passive';
@@ -239,13 +235,8 @@ function dropToPassive(showTouchHint: boolean): void {
 }
 
 map.on('dragstart', () => dropToPassive(true));
-// passive: true is fine — Leaflet handles the wheel-zoom mechanics; we only
-// observe and update locate state.
-map.getContainer().addEventListener(
-  'wheel',
-  () => dropToPassive(false),
-  { passive: true },
-);
+// passive: true — we observe only; Leaflet owns wheel-zoom mechanics.
+map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passive: true });
 
 // Double-tap on the map re-activates locate (mobile) — when the user has panned
 // away (active → passive), a double-tap snaps back to their position without
