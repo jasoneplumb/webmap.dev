@@ -5,7 +5,7 @@
  * Future: Only caches OSM tiles (the SW-cached layer); Mapbox/Google layers are not cached and won't benefit from pre-download
  */
 import L from 'leaflet';
-import { collapseControlLabel } from './controls';
+import { setupCollapsibleLabel } from './controls';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -559,22 +559,7 @@ export function addOfflineDownloadControl(
 
       const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
       label.textContent = 'Download';
-
-      const STORAGE_KEY = 'webmap-ctrl-label-offline-dl';
-      let labelCollapsed = false;
-      try {
-        labelCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
-      } catch { /* localStorage unavailable (e.g. private browsing) */ }
-      if (!labelCollapsed) {
-        container.appendChild(label);
-      }
-
-      const collapseAndPersist = (): void => {
-        if (labelCollapsed) return;
-        collapseControlLabel(container);
-        labelCollapsed = true;
-        try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* ignore */ }
-      };
+      const collapseAndPersist = setupCollapsibleLabel(container, label, 'webmap-ctrl-label-offline-dl');
 
       L.DomEvent.disableClickPropagation(container);
 

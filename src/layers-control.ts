@@ -10,7 +10,7 @@
  */
 
 import L from 'leaflet';
-import { collapseControlLabel } from './controls';
+import { setupCollapsibleLabel } from './controls';
 
 export interface LayerDef {
   id: string;
@@ -65,25 +65,9 @@ export class LayersControl extends L.Control {
 
     container.appendChild(icon);
 
-    // Label
     const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
     label.textContent = 'Layers';
-
-    const STORAGE_KEY = 'webmap-ctrl-label-layers';
-    let labelCollapsed = false;
-    try {
-      labelCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
-    } catch { /* localStorage unavailable (e.g. private browsing) */ }
-    if (!labelCollapsed) {
-      container.appendChild(label);
-    }
-
-    const collapseAndPersist = (): void => {
-      if (labelCollapsed) return;
-      collapseControlLabel(container);
-      labelCollapsed = true;
-      try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* ignore */ }
-    };
+    const collapseAndPersist = setupCollapsibleLabel(container, label, 'webmap-ctrl-label-layers');
 
     // Prevent map interaction
     L.DomEvent.disableClickPropagation(container);
