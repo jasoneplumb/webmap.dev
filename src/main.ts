@@ -317,7 +317,10 @@ versionBadge.id = 'version-badge';
 versionBadge.textContent = `v${__APP_VERSION__}`;
 versionBadge.setAttribute('aria-expanded', 'false');
 versionBadge.setAttribute('aria-controls', 'changelog-panel');
-document.getElementById('map')?.appendChild(versionBadge);
+// Append to the bottom-left Leaflet cluster so the badge stacks naturally
+// with scale + zoom rather than living as an absolute-positioned overlay.
+const bottomLeftCluster = document.querySelector('.leaflet-bottom.leaflet-left');
+(bottomLeftCluster ?? document.getElementById('map'))?.appendChild(versionBadge);
 
 const changelogPanel = document.createElement('div');
 changelogPanel.id = 'changelog-panel';

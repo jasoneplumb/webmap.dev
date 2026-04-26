@@ -105,7 +105,7 @@ export function addLocateControl(map: L.Map, onClick: (e: Event) => void): void 
     id: 'locate',
     disabledSrc: '/locate-arrow-lines.svg',
     disabledTitle: 'Locate: Center map on your GPS location',
-    position: 'bottomright',
+    position: 'bottomleft',
     onClick,
     label: 'Locate',
     collapseOnFirstUse: true,

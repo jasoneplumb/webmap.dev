@@ -556,18 +556,34 @@ export function addOfflineDownloadControl(
 
       const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
       label.textContent = 'Download';
-      container.appendChild(label);
+
+      const STORAGE_KEY = 'webmap-ctrl-label-offline-dl';
+      let labelCollapsed = false;
+      try {
+        labelCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
+      } catch { /* localStorage unavailable (e.g. private browsing) */ }
+      if (!labelCollapsed) {
+        container.appendChild(label);
+      }
+
+      const collapseAndPersist = (): void => {
+        if (labelCollapsed) return;
+        collapseControlLabel(container);
+        labelCollapsed = true;
+        try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* ignore */ }
+      };
 
       L.DomEvent.disableClickPropagation(container);
 
-      let labelCollapsed = false;
       function handleClick(): void {
-        if (!labelCollapsed) {
-          collapseControlLabel(container);
-          labelCollapsed = true;
-        }
+        collapseAndPersist();
         openOfflineDownloadPanel(map, showToast);
       }
+
+      // Collapse on tooltip-reveal triggers (hover, long-touch) — once any
+      // of them fires the user has seen the affordance.
+      L.DomEvent.on(container, 'mouseenter', collapseAndPersist);
+      L.DomEvent.on(container, 'touchstart', collapseAndPersist);
 
       L.DomEvent.on(container, 'touchend', (e: Event) => {
         e.preventDefault();
@@ -584,6 +600,6 @@ export function addOfflineDownloadControl(
   });
 
   new (Ctrl as new (opts: L.ControlOptions) => L.Control)({
-    position: 'topleft',
+    position: 'topright',
   }).addTo(map);
 }

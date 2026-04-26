@@ -124,9 +124,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 /* ── Recording stats bar ──────────────────────────────────────────────────── */
 #recording-stats {
   position: absolute;
-  bottom: calc(145px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  /* Top-left corner during recording (the "dashboard"). Sits above any
+     Leaflet controls in the same anchor; pointer-events: none keeps map
+     interactions through the panel. */
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: calc(8px + env(safe-area-inset-left, 0px));
   background: rgba(0, 0, 0, 0.88);
   color: #fff;
   padding: 10px 20px;
@@ -948,6 +950,73 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   }
 }
 
+/* ── Compact sizing for thumb-cluster controls ───────────────────────────────
+   Override Leaflet's default 26/34px sizing so the bottom-right toggles and
+   bottom-left zoom share a tight, uniform 28×28px footprint with a light
+   shadow and 4px column gap. Recording panel keeps its larger CTA sizing. */
+
+.leaflet-bottom.leaflet-right {
+  gap: 4px;
+  /* Right-anchor each child to its natural width — stops the attribution
+     control from stretching locate/track to ~250px. */
+  align-items: flex-end;
+}
+
+.leaflet-bottom.leaflet-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Left-anchor each child to its natural width — stops the (mostly invisible)
+     ZoomViewer from stretching the zoom buttons to 200px. */
+  align-items: flex-start;
+}
+
+.leaflet-bottom.leaflet-right .leaflet-control-toggle {
+  height: 28px;
+  padding: 0 6px;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Bottom-left cluster reading order (top → bottom):
+   locate → recording → zoom → scale → version-badge → attribution.
+   Registration order doesn't match this so we use explicit `order`. */
+.leaflet-bottom.leaflet-left .leaflet-control-toggle { order: 1; }
+.leaflet-bottom.leaflet-left .recording-panel        { order: 2; }
+.leaflet-bottom.leaflet-left .leaflet-control-zoom   { order: 3; }
+.leaflet-bottom.leaflet-left .leaflet-control-scale  { order: 4; }
+.leaflet-bottom.leaflet-left #version-badge          { order: 5; }
+.leaflet-bottom.leaflet-left .leaflet-control-attribution { order: 6; }
+
+/* Unify the bottom-left cluster visually with the zoom + version-badge,
+   but keep the U-shaped left/right/bottom border that visualizes the
+   scale's length. Use a darker stroke (#333) than Leaflet's default #777
+   so the bar is readable against light terrain. */
+.leaflet-bottom.leaflet-left .leaflet-control-scale-line {
+  border: 2px solid #333 !important;
+  border-top: none !important;
+  border-radius: 0 0 4px 4px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.9) !important;
+}
+
+.leaflet-bottom.leaflet-right .leaflet-control-toggle img,
+.leaflet-bottom.leaflet-right .leaflet-control-toggle__icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.leaflet-bottom.leaflet-left .leaflet-control-zoom-in,
+.leaflet-bottom.leaflet-left .leaflet-control-zoom-out {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
 /* ── Search results dropdown ──────────────────────────────────────────────────
    Floats below the geocoder search bar, overlaying the map.
    Position is set programmatically in geocoding.ts (showDropdown).             */
@@ -1035,27 +1104,23 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* ── Version badge ───────────────────────────────────────────────────────────── */
 
+/* Lives as a flex child of .leaflet-bottom.leaflet-left so it stacks with
+   scale + zoom — appears beneath the scale (the cluster's last child).
+   pointer-events: auto re-enables clicks; the parent .leaflet-bottom sets
+   pointer-events: none and only opts .leaflet-control children back in. */
 #version-badge {
-  position: absolute;
-  /* Sits below the layers control which now occupies top-right (26px desktop, 34px touch).
-     Layers control's top is at safe-area-inset-top; badge clears it with an 8px gap. */
-  top: calc(34px + env(safe-area-inset-top, 0px));
-  right: calc(8px + env(safe-area-inset-right, 0px));
-  z-index: 500;
   background: rgba(255, 255, 255, 0.85);
   color: #333;
   font-size: 10px;
   font-family: monospace;
   padding: 2px 6px;
   border-radius: 3px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   border: none;
   cursor: pointer;
   user-select: none;
-}
-
-.leaflet-touch #version-badge {
-  top: calc(42px + env(safe-area-inset-top, 0px));
+  align-self: flex-start;
+  pointer-events: auto;
 }
 
 #version-badge:hover {
@@ -1614,3 +1679,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: #f5f5f5;
   color: #333;
 }
+
+/* Stop-recording dialog reuses #consent-panel but doesn't wrap its <p> in
+   #consent-body, so the text would otherwise butt up against the rounded
+   left edge. The privacy consent flow puts its <p>s inside #consent-body
+   so this direct-child rule doesn't double-pad them. */
+#consent-panel > p {
+  margin: 8px 24px;
+}
+

@@ -209,7 +209,7 @@ export function addRecordingControl(
   });
 
   new (RecCtrl as new (opts: L.ControlOptions) => L.Control)({
-    position: 'bottomright',
+    position: 'bottomleft',
   }).addTo(map);
 }
 
