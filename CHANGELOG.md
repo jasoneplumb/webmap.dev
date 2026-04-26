@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.29.0-beta (2026-04-26)
+
+### Added
+
+- **Maskable PWA icons for Android adaptive shapes** — installed PWAs on Android 13+ now render with proper rounded / squircle / teardrop shapes without corner-cropping the logo. Added `purpose: 'maskable'` icon entries (192×192 and 512×512) generated programmatically from the source SVG with 20%-per-side safe-zone padding, on a white background. Regenerate with `npm run icons` (#56, #153)
+
 ## v0.28.0-beta (2026-04-26)
 
 ### Added
