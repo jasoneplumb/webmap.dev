@@ -26,7 +26,6 @@ import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
-import { addRecordingControl, updateRecordingButtons, maybeRestoreTrailBackup } from './recording';
 import { addOfflineDownloadControl } from './offline-download';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
@@ -93,14 +92,11 @@ map.on('locationerror', (e: L.ErrorEvent) => {
       if (state.locateState === 'off') return; // already handled
       showToast('Location access is denied. On iPhone: Settings > Privacy & Security > Location Services > Safari Websites > Allow', 0);
       state.locateState = 'off';
-      // Force-stop ALL watching regardless of refcount. Without this, an active
-      // recording (refcount > 1) keeps the watch alive, which re-triggers this
-      // error handler in an infinite loop.
+      // Force-stop ALL watching regardless of refcount.
       state.updateCallback = 0;
       stopWatching(map);
       clearLocationMarkers(state, map);
       updateLocateIcon('off');
-      updateRecordingButtons();
     }, 3000);
     return;
   }
@@ -193,7 +189,6 @@ addLocateControl(map, () => {
       // Start locating synchronously so map.locate() fires within the user
       // gesture — iOS Safari silently denies the permission prompt otherwise.
       startLocating();
-      updateRecordingButtons();
       break;
 
     case 'active':
@@ -202,7 +197,6 @@ addLocateControl(map, () => {
       deactivatePolling();
       clearLocationMarkers(state, map);
       updateLocateIcon('off');
-      updateRecordingButtons();
       break;
 
     case 'passive':
@@ -258,16 +252,6 @@ map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passi
   }, { capture: true, passive: false });
 }
 
-// ── Recording (trail with stats) ──────────────────────────────────────────────
-
-addRecordingControl(map, state, activatePolling, deactivatePolling);
-
-// Offer to restore an interrupted trail if a backup exists in localStorage
-if (maybeRestoreTrailBackup(state, map, activatePolling)) {
-  updateRecordingButtons();
-}
-
-
 // Initialize custom layers control with free OSM tile sources
 const tileLayers = getTileLayers();
 
@@ -311,7 +295,7 @@ addLayersControl(map, layerDefs, overlayDefs, ['hillshade']);
 initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
-addReverseGeocoding(map, state);
+addReverseGeocoding(map);
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');
@@ -414,34 +398,16 @@ document.addEventListener('visibilitychange', () => {
       state.accuracyCircle.setRadius(state.lastGpsAccuracy);
     }
     updateLocateIcon(state.locateState);
-    // keepalive is non-null iff recording or paused — reacquire in both cases
-    state.keepalive?.reacquireWakeLock().catch(() => undefined);
   }
 });
 
 // ── Battery monitoring ────────────────────────────────────────────────────────
 initBattery(state);
 
-let pendingSwUpdate: (() => void) | null = null;
-
 function applyUpdateWhenSafe(update: () => void): void {
-  // Apply immediately if idle; defer if recording or paused (paused !== idle)
-  if (state.recordingState === 'idle') {
-    update();
-    return;
-  }
-  if (pendingSwUpdate !== null) return; // already waiting for recording to finish
-  pendingSwUpdate = update;
-  showToast('App update available — will apply after recording stops', 6000);
-  const poll = setInterval(() => {
-    if (state.recordingState === 'idle' && pendingSwUpdate !== null) {
-      clearInterval(poll);
-      const fn = pendingSwUpdate;
-      pendingSwUpdate = null;
-      showToast('Recording saved — applying app update…', 2000);
-      setTimeout(fn, 1500); // brief pause so user sees the toast
-    }
-  }, 2000);
+  // No long-running session to defer for after recording was removed; guidance
+  // (re-)introduces a defer condition in a later phase.
+  update();
 }
 
 // Note: vite-plugin-pwa also exposes onOfflineReady for first-install caching.

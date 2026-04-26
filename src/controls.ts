@@ -151,14 +151,3 @@ export function updateLocateIcon(locateState: LocateState): void {
   }
 }
 
-// Dead code — cleanup tracked separately.
-export function addTrackingControl(map: L.Map, onClick: (e: Event) => void): void {
-  makeToggleControl({
-    id: 'tracking',
-    disabledSrc: '/logging-lines-v1.1.svg',
-    disabledTitle: 'Tracking Toggle (Disabled)',
-    position: 'bottomleft',
-    onClick,
-    label: 'Tracking',
-  }).addTo(map);
-}
