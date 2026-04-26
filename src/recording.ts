@@ -191,10 +191,8 @@ export function addRecordingControl(
   const RecCtrl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'recording-panel');
-      // a11y: marks the pill as a labeled landmark for screen readers; the
-      // aria-label is rewritten per state (idle / recording / paused) by
-      // renderButtons so the announcement matches what's currently rendered.
-      container.setAttribute('role', 'region');
+      // a11y: role="group" gives screen readers a labeled grouping without polluting landmark navigation; aria-label is rewritten per state by renderButtons.
+      container.setAttribute('role', 'group');
       container.setAttribute('aria-label', 'Recording controls');
       recControlContainer = container;
       L.DomEvent.disableClickPropagation(container);
@@ -216,9 +214,7 @@ export function updateRecordingButtons(): void {
   }
 }
 
-// Tracks the most recent recordingState rendered so we can detect transitions
-// and move keyboard focus to the new primary button. Set to null on the initial
-// mount so we don't steal focus from elsewhere on page load.
+// a11y: null on initial mount lets the focus guard skip the very first render.
 let previousRecordingState: AppState['recordingState'] | null = null;
 
 function renderButtons(
@@ -284,10 +280,7 @@ function renderButtons(
   // before the first 1Hz tick of the statsTimer.
   updateStatsBar(state);
 
-  // a11y: move focus to the primary button on a real state transition (Record
-  // → Pause, Pause → Resume, Resume → Pause). Skip on initial mount and on
-  // incidental re-renders (e.g. updateRecordingButtons on locate change) so
-  // we don't steal focus when the user is interacting elsewhere.
+  // a11y: move focus only on real state transitions so locate-state re-renders don't steal focus.
   if (previousRecordingState !== null && previousRecordingState !== state.recordingState) {
     const primarySelector = state.recordingState === 'recording'
       ? '.rec-btn-pause'
@@ -322,8 +315,7 @@ function makeBtn(label: string, className: string, ariaLabel: string, onClick: (
   const btn = document.createElement('button');
   btn.textContent = label;
   btn.className = className;
-  // The visible label leads with an emoji; aria-label gives screen readers a
-  // plain-text affordance instead of the symbol's Unicode name.
+  // a11y: visible label leads with an emoji; aria-label is the plain-text screen-reader affordance.
   btn.setAttribute('aria-label', ariaLabel);
   btn.addEventListener('click', onClick);
   return btn;
