@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.27.1-beta (2026-04-26)
+
+### Changed
+
+- **Shared collapse-helper consolidates label-collapse code across controls** — three near-identical inline patterns in `controls.ts`, `layers-control.ts`, and `offline-download.ts` collapsed into a single `setupCollapsibleLabel` helper exported from `controls.ts`. The new helper skips appending the label entirely when previously collapsed (read from `localStorage`), which incidentally fixes a brief flash-then-collapse the old `makeToggleControl` pattern produced on reload after first use. No user-facing behavior change beyond the eliminated flash (#140, #151)
+
 ## v0.27.0-beta (2026-04-26)
 
 ### Added
