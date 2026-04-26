@@ -249,7 +249,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
       const lng = parseFloat(li.dataset['lng'] ?? '');
       if (isNaN(lat) || isNaN(lng)) return;
       const label = li.dataset['name'] ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      // Hide the search dropdown so it can't overlap the guidance pill (#177).
+      // Dropdown is z-index 2000; close it before the guidance pill appears.
       hideDropdown();
       void startGuidance(state, map, { lat, lng, label }, onNoResults);
       return;
