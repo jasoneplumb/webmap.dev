@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { haversineDistance } from './location';
+import { haversineDistance } from './geo';
 
 describe('haversineDistance', () => {
   it('returns 0 for identical points', () => {

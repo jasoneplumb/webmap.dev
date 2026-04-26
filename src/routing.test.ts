@@ -58,8 +58,27 @@ describe('decodePolyline6', () => {
     });
   });
 
+  it('round-trips Southern Hemisphere coordinates', () => {
+    // Sydney → Melbourne — exercises the negative-lat sign-extension path.
+    const coords: Array<[number, number]> = [
+      [-33.8688, 151.2093],
+      [-37.8136, 144.9631],
+    ];
+    const decoded = decodePolyline6(encodePolyline6(coords));
+    expect(decoded[0]?.lat).toBeCloseTo(-33.8688, 5);
+    expect(decoded[1]?.lat).toBeCloseTo(-37.8136, 5);
+  });
+
   it('returns empty array for empty input', () => {
     expect(decodePolyline6('')).toEqual([]);
+  });
+
+  it('does not throw on truncated input (documented behavior)', () => {
+    // Mid-chunk truncation: past-end charCodeAt returns NaN, which bitwise-
+    // ANDed with 0x1f coerces to 0. The decoder silently returns (0, 0)
+    // rather than throwing. Callers needing strict validation should check
+    // the returned coords against expected counts or extents.
+    expect(() => decodePolyline6('_')).not.toThrow();
   });
 });
 
@@ -135,7 +154,39 @@ describe('fetchRoute', () => {
         dest: L.latLng(1, 1),
         costing: 'auto',
       }),
-    ).rejects.toThrow('HTTP 500');
+    ).rejects.toThrow(/^Routing failed: HTTP 500$/);
+  });
+
+  it('throws before fetch when coordinates are not finite', async () => {
+    // Cast around L.latLng's NaN check to exercise routing's own guard.
+    const bad = { lat: NaN, lng: 0 } as L.LatLng;
+    await expect(
+      fetchRoute({
+        start: bad,
+        dest: L.latLng(1, 1),
+        costing: 'auto',
+      }),
+    ).rejects.toThrow(/invalid coordinates/);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('throws when Valhalla returns multiple legs', async () => {
+    mockOk({
+      trip: {
+        legs: [
+          { shape: '', maneuvers: [] },
+          { shape: '', maneuvers: [] },
+        ],
+        summary: { length: 0, time: 0 },
+      },
+    });
+    await expect(
+      fetchRoute({
+        start: L.latLng(0, 0),
+        dest: L.latLng(1, 1),
+        costing: 'auto',
+      }),
+    ).rejects.toThrow(/multi-leg/);
   });
 
   it('throws when Valhalla returns no legs', async () => {

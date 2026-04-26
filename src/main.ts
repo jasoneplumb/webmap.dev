@@ -309,6 +309,7 @@ addReverseGeocoding(map);
 // real "Navigate here" entry points are wired in.
 if (import.meta.env.DEV) {
   let testRouteLine: L.Polyline | null = null;
+  let testRouteAbort: AbortController | null = null;
   const testBtn = document.createElement('button');
   testBtn.textContent = 'Test route';
   testBtn.style.cssText =
@@ -319,10 +320,12 @@ if (import.meta.env.DEV) {
       showToast('Tap Locate first');
       return;
     }
+    if (testRouteAbort !== null) testRouteAbort.abort();
+    testRouteAbort = new AbortController();
     const start = state.youAreHereLocation;
     // ~1 km offset to the northeast — close enough that any costing finds a route
     const dest = L.latLng(start.lat + 0.01, start.lng + 0.01);
-    fetchRoute({ start, dest, costing: 'auto' })
+    fetchRoute({ start, dest, costing: 'auto', signal: testRouteAbort.signal })
       .then((route) => {
         if (testRouteLine !== null) map.removeLayer(testRouteLine);
         testRouteLine = L.polyline(route.coords, { color: '#4287f5', weight: 4 }).addTo(map);
@@ -332,6 +335,7 @@ if (import.meta.env.DEV) {
         );
       })
       .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
         showToast(`Route failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
       });
   });

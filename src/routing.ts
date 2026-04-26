@@ -1,9 +1,5 @@
-/**
- * Intent: Valhalla routing client for turn-by-turn guidance.
- * Service: https://valhalla1.openstreetmap.de/route — public FOSSGIS instance, no API key, best-effort SLA.
- * Privacy: each request sends start + destination to the public service. The user-facing privacy
- *          tradeoff is documented in ADR-006 and surfaced in the consent flow before any nav action.
- */
+// Privacy: each request sends start + destination to the public FOSSGIS Valhalla
+// instance. ADR-006 + the consent flow document the tradeoff before any nav action.
 import L from 'leaflet';
 
 export type Costing = 'auto' | 'pedestrian' | 'bicycle';
@@ -33,7 +29,7 @@ export interface RouteRequest {
   signal?: AbortSignal;
 }
 
-export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route';
+export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route' as const;
 
 /**
  * Decode Valhalla's polyline6 (precision 6 — twice the resolution of standard Google polyline5).
@@ -91,6 +87,12 @@ interface ValhallaResponse {
 
 /** Fetch a route from Valhalla. AbortController-friendly. */
 export async function fetchRoute(req: RouteRequest): Promise<Route> {
+  if (
+    !isFinite(req.start.lat) || !isFinite(req.start.lng) ||
+    !isFinite(req.dest.lat)  || !isFinite(req.dest.lng)
+  ) {
+    throw new Error('Routing failed: invalid coordinates');
+  }
   const body = {
     locations: [
       { lat: req.start.lat, lon: req.start.lng },
@@ -109,6 +111,12 @@ export async function fetchRoute(req: RouteRequest): Promise<Route> {
     throw new Error(`Routing failed: HTTP ${res.status}`);
   }
   const json = (await res.json()) as ValhallaResponse;
+  if (json.trip.legs.length > 1) {
+    // Two-point requests should always return exactly one leg. Guard against
+    // a future change that introduces multi-waypoint without updating
+    // distance/duration aggregation.
+    throw new Error('Routing returned multi-leg trip — only single leg supported');
+  }
   const leg = json.trip.legs[0];
   if (!leg) throw new Error('Routing returned no legs');
   const coords = decodePolyline6(leg.shape);
