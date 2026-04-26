@@ -184,6 +184,26 @@ describe('updateGuidance — step advance', () => {
   });
 });
 
+describe('startGuidance — re-entry', () => {
+  it('shows a toast and returns when called while not idle', async () => {
+    const { startGuidance } = await import('./guidance');
+    const state = createInitialState();
+    state.guidance.status = 'guiding';
+    state.guidance.destination = { lat: 40, lng: -74, label: 'old' };
+    const map = makeMap();
+    const toasts: string[] = [];
+    await startGuidance(
+      state,
+      map,
+      { lat: 40.1, lng: -73.9, label: 'new' },
+      (m) => toasts.push(m),
+    );
+    expect(state.guidance.status).toBe('guiding'); // unchanged
+    expect(state.guidance.destination?.label).toBe('old');
+    expect(toasts).toEqual(['Stop current navigation first']);
+  });
+});
+
 describe('stopGuidance', () => {
   it('is a no-op when already idle', () => {
     const state = createInitialState();

@@ -8,17 +8,23 @@ import type { Route } from './routing';
 import { fetchRoute } from './routing';
 import { haversineDistance, pointToSegmentMeters } from './geo';
 
-// Profile-dependent thresholds (metres).
-const ARRIVAL_RADIUS_M: Record<string, number> = {
+
+import type { Costing } from './routing';
+
+// Profile-dependent thresholds (metres). `auto` is the default fallback if a
+// future Costing value lands here before the maps are updated.
+const ARRIVAL_RADIUS_M: Record<Costing, number> = {
   auto: 25,
   pedestrian: 10,
   bicycle: 15,
 };
-const OFF_ROUTE_THRESHOLD_M: Record<string, number> = {
+const OFF_ROUTE_THRESHOLD_M: Record<Costing, number> = {
   auto: 30,
   pedestrian: 15,
   bicycle: 20,
 };
+function arrivalRadius(c: Costing): number { return ARRIVAL_RADIUS_M[c] ?? ARRIVAL_RADIUS_M.auto; }
+function offRouteThreshold(c: Costing): number { return OFF_ROUTE_THRESHOLD_M[c] ?? OFF_ROUTE_THRESHOLD_M.auto; }
 const OFF_ROUTE_STREAK = 3;
 const RECALC_THROTTLE_MS = 15_000;
 const ARRIVED_TRANSIENT_MS = 3_000;
@@ -88,7 +94,10 @@ export async function startGuidance(
   dest: { lat: number; lng: number; label: string },
   showToast?: (msg: string, durationMs?: number) => void,
 ): Promise<void> {
-  if (state.guidance.status !== 'idle') return;
+  if (state.guidance.status !== 'idle') {
+    showToast?.('Stop current navigation first', 2500);
+    return;
+  }
   if (state.youAreHereLocation === null) {
     showToast?.('Enable location to navigate', 3000);
     return;
@@ -98,7 +107,6 @@ export async function startGuidance(
   state.guidance.destination = dest;
   render();
 
-  if (state.guidance.recalcInFlight) state.guidance.recalcInFlight.abort();
   const ac = new AbortController();
   state.guidance.recalcInFlight = ac;
 
@@ -152,6 +160,7 @@ export function stopGuidance(state: AppState, map: L.Map): void {
   state.guidance.destMarker = null;
   state.guidance.currentStepIdx = 0;
   state.guidance.distanceToManeuverM = null;
+  state.guidance.distanceToDestinationM = null;
   state.guidance.offRouteStreak = 0;
   state.guidance.arrivedAt = null;
   render();
@@ -173,25 +182,29 @@ export function updateGuidance(e: L.LocationEvent, state: AppState, map: L.Map):
 
   const here = e.latlng;
 
-  // Arrived check: within radius of final destination
+  // Approximate remaining distance: straight-line to destination. Updates the
+  // pill's countdown so it doesn't flash full-route distance until arrival.
   const distToDest = haversineDistance(here.lat, here.lng, dest.lat, dest.lng);
-  if (distToDest <= ARRIVAL_RADIUS_M[state.guidance.costing]!) {
+  state.guidance.distanceToDestinationM = distToDest;
+
+  // Arrived check: within radius of final destination
+  if (distToDest <= arrivalRadius(state.guidance.costing)) {
     setArrived(state, map);
     return;
   }
 
   // Off-route check
-  const offRouteThreshold = OFF_ROUTE_THRESHOLD_M[state.guidance.costing]!;
+  const threshold = offRouteThreshold(state.guidance.costing);
   let minDist = Infinity;
   for (let i = 0; i < route.coords.length - 1; i++) {
     const a = route.coords[i]!;
     const b = route.coords[i + 1]!;
     const d = pointToSegmentMeters(here, a, b);
     if (d < minDist) minDist = d;
-    if (d < offRouteThreshold) break;
+    if (d < threshold) break;
   }
 
-  if (minDist > offRouteThreshold) {
+  if (minDist > threshold) {
     state.guidance.offRouteStreak += 1;
     if (state.guidance.offRouteStreak >= OFF_ROUTE_STREAK) {
       maybeRecalc(state, map);
@@ -342,8 +355,13 @@ function render(): void {
   } else {
     const stepIdx = Math.min(g.currentStepIdx, route.steps.length - 1);
     const step = route.steps[stepIdx];
-    const remaining = route.distanceM;
-    const eta = new Date(Date.now() + route.durationS * 1000);
+    // Remaining distance: prefer the live straight-line update; fall back to
+    // the original route distance for the brief window before the first fix.
+    const remaining = g.distanceToDestinationM ?? route.distanceM;
+    // ETA: scale the route's predicted duration by the share of distance left.
+    const remainingFraction = route.distanceM > 0 ? remaining / route.distanceM : 1;
+    const remainingDurationMs = route.durationS * 1000 * remainingFraction;
+    const eta = new Date(Date.now() + remainingDurationMs);
     const etaStr = eta.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     const dist = g.distanceToManeuverM ?? step?.lengthM ?? 0;
 

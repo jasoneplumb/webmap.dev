@@ -23,6 +23,8 @@ export interface GuidanceState {
   destMarker: L.Marker | null;
   currentStepIdx: number;
   distanceToManeuverM: number | null;
+  /** Approximate straight-line distance from current GPS to destination — refreshed on each fix. */
+  distanceToDestinationM: number | null;
   offRouteStreak: number;
   recalcInFlight: AbortController | null;
   recalcThrottleUntilMs: number;
@@ -110,6 +112,7 @@ export function createInitialState(): AppState {
       destMarker: null,
       currentStepIdx: 0,
       distanceToManeuverM: null,
+      distanceToDestinationM: null,
       offRouteStreak: 0,
       recalcInFlight: null,
       recalcThrottleUntilMs: 0,
