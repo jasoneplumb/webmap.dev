@@ -91,40 +91,36 @@ function formatDistance(m: number): string {
 }
 
 
-// ── Stats bar DOM ─────────────────────────────────────────────────────────────
-
-export function createStatsBar(): void {
-  if (document.getElementById('recording-stats')) return;
-
-  const bar = document.createElement('div');
-  bar.id = 'recording-stats';
-  bar.style.display = 'none';
-  bar.innerHTML =
-    '<div class="stat-item stat-item--full">' +
-    '<span class="stat-label">Duration</span>' +
-    '<span class="stat-value" id="stat-time">00:00</span>' +
-    '</div>' +
-    '<div class="stats-row">' +
-    '<div class="stat-item">' +
-    '<span class="stat-label">Dist</span>' +
-    '<span class="stat-value" id="stat-dist">0 m</span>' +
-    '</div>' +
-    '<div class="stat-item">' +
-    '<span class="stat-label">Ascent</span>' +
-    '<span class="stat-value" id="stat-ascent">-- m</span>' +
-    '</div>' +
-    '</div>' +
-    '<div class="rec-indicator">' +
-    '<span class="rec-dot"></span>' +
-    '<span id="rec-status-label">RECORDING</span>' +
-    '</div>' +
-    '<div class="gps-badge" id="gps-weak-badge">' +
-    'GPS ±<span id="gps-accuracy-val">--</span>m' +
-    '</div>' +
-    '<div class="battery-badge" id="battery-estimate"></div>';
-
-  document.getElementById('map')?.appendChild(bar);
-}
+// ── Stats DOM (rendered inside the recording pill) ────────────────────────────
+// HTML for the stats portion of the pill — Duration, Dist, Ascent, recording
+// dot + label, optional GPS-weak / battery badges. Re-injected on every state
+// transition (renderButtons rebuilds the pill's inner HTML), so the IDs are
+// always present in the DOM while the pill is in its active state.
+const STATS_HTML =
+  '<div class="rec-stats">' +
+  '<div class="stat-item stat-item--full">' +
+  '<span class="stat-label">Duration</span>' +
+  '<span class="stat-value" id="stat-time">00:00</span>' +
+  '</div>' +
+  '<div class="stats-row">' +
+  '<div class="stat-item">' +
+  '<span class="stat-label">Dist</span>' +
+  '<span class="stat-value" id="stat-dist">0 m</span>' +
+  '</div>' +
+  '<div class="stat-item">' +
+  '<span class="stat-label">Ascent</span>' +
+  '<span class="stat-value" id="stat-ascent">-- m</span>' +
+  '</div>' +
+  '</div>' +
+  '<div class="rec-indicator">' +
+  '<span class="rec-dot"></span>' +
+  '<span id="rec-status-label">RECORDING</span>' +
+  '</div>' +
+  '<div class="gps-badge" id="gps-weak-badge">' +
+  'GPS ±<span id="gps-accuracy-val">--</span>m' +
+  '</div>' +
+  '<div class="battery-badge" id="battery-estimate"></div>' +
+  '</div>';
 
 function updateStatsBar(state: AppState): void {
   if (state.screenOff) return; // skip DOM updates when screen is off
@@ -169,11 +165,6 @@ function updateStatsBar(state: AppState): void {
       batteryEl.style.display = 'none';
     }
   }
-}
-
-function setStatsBarVisible(visible: boolean): void {
-  const bar = document.getElementById('recording-stats');
-  if (bar) bar.style.display = visible ? 'flex' : 'none';
 }
 
 // ── Recording control panel ───────────────────────────────────────────────────
@@ -231,6 +222,8 @@ function renderButtons(
   c.innerHTML = '';
 
   if (state.recordingState === 'idle') {
+    // Idle: compact pill — just the Record button. No stats, no background.
+    c.className = 'recording-panel recording-panel--idle';
     const btn = makeBtn('⏺ Record', 'rec-btn rec-btn-start', () => {
       startRecording(state, map, activatePolling);
       renderButtons(state, activatePolling, deactivatePolling, map);
@@ -240,7 +233,14 @@ function renderButtons(
       btn.title = 'Enable location first';
     }
     c.appendChild(btn);
-  } else if (state.recordingState === 'recording') {
+    return;
+  }
+
+  // Active (recording or paused): expanded pill — stats above buttons.
+  c.className = 'recording-panel recording-panel--active';
+  c.innerHTML = STATS_HTML;
+
+  if (state.recordingState === 'recording') {
     // Two-step Stop reveal: only Pause is visible while recording.
     // Tapping Pause is what reveals Finish (the paused branch).
     c.appendChild(
@@ -261,10 +261,35 @@ function renderButtons(
     c.appendChild(
       makeBtn('⏹ Finish', 'rec-btn rec-btn-finish', () => {
         stopRecording(state, deactivatePolling);
-        renderButtons(state, activatePolling, deactivatePolling, map);
+        showSavedTransient();
       }),
     );
   }
+
+  // Populate stats values immediately so the pill doesn't flash placeholders
+  // before the first 1Hz tick of the statsTimer.
+  updateStatsBar(state);
+}
+
+// Tracks the active "Saved ✓" timer so a future re-entry can cancel it.
+// Today this is defensive — the saved pill exposes no buttons that could
+// trigger another stop — but a teardown path or a second Finish during the
+// 1.5 s window would otherwise leak a stale callback into the next render.
+let savedTransientTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Brief "Saved ✓" confirmation after Finish, then collapse back to idle. */
+function showSavedTransient(): void {
+  const c = recControlContainer;
+  if (!c) return;
+  if (savedTransientTimer !== null) clearTimeout(savedTransientTimer);
+  c.className = 'recording-panel recording-panel--saved';
+  c.innerHTML = '<div class="rec-saved">Saved ✓</div>';
+  savedTransientTimer = setTimeout(() => {
+    savedTransientTimer = null;
+    if (recControlContainer && storedState && storedActivatePolling && storedDeactivatePolling && storedMap) {
+      renderButtons(storedState, storedActivatePolling, storedDeactivatePolling, storedMap);
+    }
+  }, 1500);
 }
 
 function makeBtn(label: string, className: string, onClick: () => void): HTMLButtonElement {
@@ -324,7 +349,6 @@ function startRecording(
   state.keepalive = new Keepalive();
   state.keepalive.start().catch(() => undefined);
 
-  setStatsBarVisible(true);
   if (state.statsTimer !== null) clearInterval(state.statsTimer);
   state.statsTimer = setInterval(() => updateStatsBar(state), 1000);
 }
@@ -371,7 +395,8 @@ function stopRecording(state: AppState, deactivatePolling: () => void): void {
     clearInterval(state.statsTimer);
     state.statsTimer = null;
   }
-  setStatsBarVisible(false);
+  // No need to toggle visibility — the pill's own state-driven rendering
+  // (showSavedTransient → renderButtons in idle mode) handles the collapse.
 }
 
 // ── GPX export ────────────────────────────────────────────────────────────────
@@ -570,9 +595,11 @@ export function maybeRestoreTrailBackup(
 
   activatePolling(); // recording refcount
 
-  setStatsBarVisible(true);
   if (state.statsTimer !== null) clearInterval(state.statsTimer);
   state.statsTimer = setInterval(() => updateStatsBar(state), 1000);
+  // Re-render the pill in active state — addRecordingControl initially
+  // rendered idle (Record button) before this restore completed.
+  updateRecordingButtons();
 
   return true;
 }
