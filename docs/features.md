@@ -2,269 +2,285 @@
 
 ## Live GPS Tracking
 
-**What it does:** Shows your real-time location on the map as a blue pulsing dot with an accuracy circle.
+**What it does.** Shows your real-time location on the map as a blue dot with an accuracy circle, plus a translucent heading-cone wedge that points in your GPS course.
 
 **How to use:**
-1. Tap the **Locate button** (arrow icon) in the top-left toolbar.
+
+1. Tap the **Locate button** (arrow icon) in the bottom-left thumb cluster.
 2. Your location appears as a blue dot; the gray circle around it shows the GPS accuracy (wider circle = less accurate).
-3. The map automatically centers on your position and keeps following you as you move.
+3. The map automatically centers on your position and follows you as you move.
 
-**Three-state button** (all states use the same outline arrow shape, differing only in color):
-- **Off** (dark outline) — Location disabled; no blue dot
-- **Active** (blue outline) — Following your location; map pans as you move
-- **Passive** (gray outline) — Blue dot visible but map stopped following (appears when you pan away); tap the button again to re-center
+**Three-state button** (all states share the same outline arrow shape, only the color changes):
 
-The "Locate" text label is shown on first load for discoverability, then collapses to icon-only after the first tap.
+- **Off** (dark outline) — Location disabled; no blue dot, no polling.
+- **Active** (blue) — Following — map pans to keep you centered on each accepted GPS fix.
+- **Passive** (gray) — Blue dot visible but the map stops following (auto-entered when you drag or wheel-zoom). Tap the button to re-center; or, on touch devices, **double-tap the map** to re-center.
 
-**Accuracy circle:**
-- Larger circle = GPS is less accurate (typical: 10–50 meters)
-- Smaller circle = GPS is very accurate (typical: 5–10 meters indoors/tunnels)
-- Circle opacity fades as accuracy improves (more opaque = less precise)
+The "Locate" text label is shown on first load for discoverability and collapses to icon-only after the first tap (persisted in `localStorage`).
+
+**Heading-cone wedge.** When GPS reports a course (`e.heading` from the Geolocation API), a translucent cone behind the blue dot rotates to match. At low speeds the browser reports `NaN`; the wedge holds the last valid bearing for ~10 seconds before fading out. The map itself never rotates — north stays up.
+
+**Accuracy circle.**
+
+- Larger circle = GPS is less accurate (typical: 10–50 m).
+- Smaller circle = GPS is precise (typical: 5–10 m, often degraded indoors / in tunnels).
+- Fill opacity scales with accuracy: more transparent when precise, more opaque when imprecise.
+
+**GPS weak-signal badge.** When fixes are coarser than 30 m for 2 consecutive samples, a weak-signal badge appears. It hides again after 2 consecutive samples better than 25 m. The 25–30 m deadband prevents flicker.
+
+**Adaptive accuracy.** After 5 consecutive stationary fixes (`speed < 0.5 m/s`) the watch downgrades to coarse GPS to save battery. On movement it restores high-accuracy. There's a brief gap during the switch — acceptable trade-off.
+
+**Permission denial debouncing.** iOS Safari sometimes fires a transient `PERMISSION_DENIED` error before the first valid fix arrives. The locate flow waits 3 seconds for a fix to override the error before showing the "Location access is denied" sticky toast.
 
 **Known limitations:**
-- GPS requires clear sky view; accuracy degrades indoors or in dense urban canyons
-- Accuracy circle is estimated; actual error may be different
-- Passive mode appears after panning; locate state shows in the title bar if available
+
+- GPS requires a clear view of the sky; accuracy degrades indoors and in dense urban canyons.
+- Heading wedge doesn't show direction-of-travel below ~1 m/s — use the compass widget for stationary orientation.
 
 ---
 
-## Trail Recording
+## Turn-by-Turn Routed Navigation
 
-**What it does:** Records your journey as a colored line on the map with real-time stats (elapsed time, distance, current speed).
+**What it does.** Fetches a driving / cycling / walking route from the [FOSSGIS Valhalla](https://valhalla1.openstreetmap.de/) public service and guides you with a maneuver pill, ETA, off-route recalculation, and arrival detection.
 
 **How to use:**
-1. Enable the Locate button first (required for recording).
-2. Tap the **Record button** (⏺ icon) in the bottom-right.
-3. A blue trail line appears as you move; stats bar shows in real-time at the top.
-4. To pause: tap the **Pause button** (⏸); the stats bar shows "PAUSED".
-5. To resume: tap the **Resume button** (▶).
-6. To stop: tap the **Stop button** (⏹); a confirmation dialog appears.
 
-**Stats displayed during recording:**
-- **Time**: Elapsed time (MM:SS or H:MM:SS); paused time is not counted
-- **Distance**: Total trail distance in meters or kilometers
-- **Speed**: Current speed from GPS (km/h); shows "-- km/h" if stopped
-- **Battery estimate**: Estimated remaining recording time based on battery drain rate (shown when Battery API is available)
+1. Search for a destination, or long-press / right-click to drop a pin.
+2. Tap **Navigate here** in the search dropdown row, or in the geocode-bar that appears at the bottom of the screen.
+3. The bottom-left guidance pill enters **routing** state with a spinner, then transitions to **guiding** when the route arrives.
+4. Follow the maneuver instructions; the pill updates on every accepted GPS fix with the current step, distance to maneuver, total remaining, and ETA.
+5. Tap **Stop** at any time to cancel.
 
-**Trail visualization:**
-- **Main line**: Solid blue polyline showing your path
-- **Glow effect**: Subtle semi-transparent blue layer beneath the main line (visual depth)
-- **Direction arrows**: Small markers placed every ~50 meters showing your travel direction
+**Travel modes.**
 
-**Trail filtering:**
-- Points closer than 5 meters apart are skipped (GPS jitter reduction)
-- Only accepted GPS fixes are recorded (haversine filter; see architecture.md)
-- Very slow or stationary movement is still recorded
+- **auto** (driving) — default
+- **pedestrian** (walking)
+- **bicycle** (cycling)
+
+The mode chip in the pill shows the active profile.
+
+**State machine.** `idle → routing → guiding ↔ off-route → arrived → idle`. The full flow is documented in [docs/architecture.md §5](architecture.md#5-routed-guidance-state-machine-guidancets--routingts).
+
+**Off-route recalculation.** A 3-fix streak farther than the profile threshold (driving 30 m / cycling 20 m / walking 15 m) from the route polyline triggers a recalc — throttled to once per 15 seconds. The pill displays "Off route — recalculating…" while the new route is being fetched. Recovery within tolerance returns the pill to the guiding state without recalculating.
+
+**Arrival.** Triggered when straight-line distance to destination is within the profile radius (driving 25 m / cycling 15 m / walking 10 m). The pill displays "Arrived" for 3 seconds, then collapses.
+
+**ETA.** Computed by scaling Valhalla's predicted leg duration by the share of distance still remaining — degrades gracefully if you stop or detour.
+
+**Privacy disclosure.** Each route request sends start + destination to FOSSGIS. This is the only outbound traffic that depends on user-controlled coordinates beyond explicit search. The consent modal lists this explicitly; current `CONSENT_VERSION` is `2.2`.
 
 **Known limitations:**
-- Pause/resume works, but total distance doesn't decrease (only forward distance counts)
-- Speed is from GPS; may lag 1–2 seconds behind actual movement
-- Very long trails (thousands of points) may impact map performance
+
+- The FOSSGIS public Valhalla server has no SLA — failures show a "Routing failed: …" toast and require a manual retry.
+- Off-route detection uses point-to-segment distance, not on-route projection — it can confuse parallel paths (e.g., divided highways) by a few meters.
+- ETA assumes Valhalla's posted-speed model and ignores live traffic.
 
 ---
 
-## GPX Export
+## Device-Orientation Compass
 
-**What it does:** Saves your recorded trail in GPX format, a standard file format compatible with all mapping software (Strava, AllTrails, Google Maps, Garmin, etc.).
+**What it does.** Top-right compass rose that rotates so true north stays at the top, regardless of how the device is physically held. Complements the heading-cone wedge (which only works while moving).
 
 **How to use:**
-1. Record a trail (see Trail Recording above).
-2. When you tap Stop, the app automatically generates and downloads a `.gpx` file.
-3. The file is named with the start date/time (e.g., `2026-03-31 14:30:45.gpx`).
-4. Open the file in any mapping app to view, share, or upload.
 
-**What's included in the GPX file:**
-- **Track name**: ISO timestamp of when recording started
-- **Track segment**: Full list of waypoints
-- **Each waypoint**:
-  - Latitude and longitude (7 decimal places = ~1 cm precision)
-  - Timestamp (ISO 8601 format)
-  - Speed (m/s) from GPS (if available)
+1. Tap the compass rose to enable.
+2. On iOS 13+ the browser shows a permission prompt — tap **Allow**.
+3. Once granted, the rose rotates with the device.
 
-**Example GPX:**
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="webmap.dev" xmlns="http://www.topografix.com/GPX/1/1">
-  <trk>
-    <name>2026-03-31 14:30:45</name>
-    <trkseg>
-      <trkpt lat="37.1234567" lon="-122.1234567">
-        <time>2026-03-31T14:30:46.000Z</time>
-        <extensions><speed>2.5432</speed></extensions>
-      </trkpt>
-      <!-- more points -->
-    </trkseg>
-  </trk>
-</gpx>
-```
+**Why two heading indicators?** The heading-cone wedge shows GPS course (direction of travel) and works only while moving. The compass shows where the device is physically pointing and works while stationary — most useful at junctions, when matching the map to your surroundings.
+
+**Heading source.** Prefers iOS's `webkitCompassHeading` (true-north calibrated, clockwise). Falls back to the W3C `alpha` (anti-clockwise, flipped to clockwise) and the `deviceorientationabsolute` event when available.
 
 **Known limitations:**
-- GPX is only generated when the trail has at least one recorded point
-- Paused sections are not marked in the GPX file; the track is continuous
-- Some mapping apps require manual import; some auto-detect `.gpx` files
+
+- Desktop platforms with no `DeviceOrientationEvent` hide the rose entirely.
+- iOS-13+ permission must be requested from a user gesture; the prompt is silently suppressed if you call from a timer.
+- Magnetic interference (cars, cases with magnets, indoor steel) can throw the heading off — a calibration figure-8 helps.
 
 ---
 
 ## Address Search & Autocomplete
 
-**What it does:** Find places, streets, and addresses by typing; results appear in a list in the bottom sheet (mobile) or side panel (desktop).
+**What it does.** Find places, addresses, and intersections via ESRI ArcGIS geocoding; results appear in a floating dropdown.
 
 **How to use:**
-1. Tap the **Search box** at the top of the map (if you see one).
-2. Type at least 3 characters (e.g., "Golden Gate", "market street").
-3. The app shows suggestions as you type (autocomplete).
-4. Tap a result to select it; the map zooms to that location.
-5. The location details are displayed in the info panel.
 
-**Supported search types:**
-- **Places**: "Eiffel Tower", "Apple Park", "Golden Gate Bridge"
-- **Addresses**: "123 Main St, San Francisco"
-- **Intersections**: "Mission St and Market St"
-- **Landmarks**: "Tower of London", "Central Park"
+1. Tap the **Search box** (top-left).
+2. Type at least 3 characters (e.g., "Golden Gate", "market street").
+3. The control debounces 250 ms between keystrokes; suggestions update as you type.
+4. Tap a result to fly the map to that location and drop a numbered marker.
+5. Each result row has two actions: **Go to location** (fly + show geocode bar) and **Navigate here** (start turn-by-turn guidance).
 
 **Search behavior:**
-- Minimum 3 characters required before searches start
-- Results are biased toward the current map center (not your GPS location)
-- Up to 15 results are shown
-- Autocomplete narrows results as you type
+
+- **3-character minimum** — shorter queries don't fire.
+- Results are biased toward the current map center when zoomed in to level 7+; below that, the bbox is omitted (avoids the world-bbox returning no results at low zoom).
+- Up to 15 results.
+- Numbered markers (1–15) show on the map; the active result is highlighted.
+- iOS keyboard "Done" button is honored as a synthetic Enter so search fires on blur.
+
+**Error handling.** Search and suggest errors are logged to the console and presented as empty result sets — no broken UI, no error toasts on every keystroke.
 
 **Known limitations:**
-- Search requires internet; offline mode cannot search
-- Results come from ESRI ArcGIS service; coverage is worldwide but may miss very small/local places
-- Spelling matters; "Sn Frsiscco" won't find "San Francisco"
-- Non-Latin characters may have inconsistent results
+
+- Search requires internet; it silently returns nothing offline.
+- ESRI coverage is worldwide but small / very local places may be missing.
+- Spelling matters: "Sn Frsiscco" won't find "San Francisco".
+- Without `VITE_ESRI_API_KEY` configured, the search control is skipped entirely at startup.
 
 ---
 
 ## Reverse Geocoding (Pin Drop)
 
-**What it does:** Drop a pin on the map and look up the address at that location.
+**What it does.** Drop a pin anywhere on the map and look up the address at that location.
 
 **How to use:**
 
-**On Desktop:**
-1. Right-click (context menu) on any location on the map.
-2. The info panel opens showing the address.
+- **Desktop:** double-click on any location.
+- **Mobile:** long-press (~700 ms) on any location.
 
-**On Mobile:**
-1. Long-press (2–3 seconds) on any location on the map.
-2. The info panel slides up showing the address.
+A pin drops at the tapped position and a **geocode bar** slides up at the bottom of the screen with:
 
-**What appears in the info panel:**
-- **Address**: Human-readable address (street, city, region, postal code)
-- **Coordinates**: Latitude and longitude (6 decimal places) — shown as a fallback when geocoding fails or returns no result
+- **Address** — human-readable (street, city, region, postal code), or the coordinates as a fallback when geocoding has nothing usable.
+- **Copy** — copies the address + coordinates to the clipboard.
+- **Navigate** — starts turn-by-turn guidance to the pin.
+- **Close** — dismisses the bar (the pin stays).
 
-**Clipboard copy:**
-There's a **Clipboard toggle button** (copy icon) in the top-left toolbar that you can enable to automatically copy dropped-pin coordinates to your clipboard when you drop a pin.
+The pin can be dragged to refine the location; the geocode bar updates with the new address.
 
 **Known limitations:**
-- Reverse geocoding requires internet; offline mode cannot look up addresses
-- Results are approximate; nearby pins may return the same address
-- Some locations (oceans, mountains, remote areas) may not have usable addresses
 
----
-
-## Changelog
-
-**What it does:** Shows the full release history inline without leaving the app.
-
-**How to use:**
-1. Tap the **version badge** (e.g., `v0.11.0-beta`) in the upper-right corner of the map.
-2. A scrollable panel slides in listing all past releases with their changes.
-3. Dismiss by tapping the badge again, pressing the **✕** button, or pressing **Escape**.
-
-**Known limitations:**
-- Changelog content is bundled at build time; it reflects the version of the app you have installed.
+- Reverse geocoding requires internet; offline drops show coordinates only.
+- Some remote locations (oceans, mountains) have no usable address.
 
 ---
 
 ## Layer Switching
 
-**What it does:** Switch between base maps (OpenStreetMap, Mapbox, Google Satellite) and toggle overlays (hillshade) via a custom popover.
+**What it does.** Switch between four base maps and toggle the hillshade overlay.
+
+**Base maps:**
+
+- **CyclOSM Trails** — emphasizes hiking and cycling routes (default)
+- **OSM Streets** — general-purpose street map with labels
+- **OpenTopo** — contour lines and topographic relief
+- **Humanitarian (Parks & POIs)** — highlights amenities and features
+
+**Overlay:**
+
+- **Hillshade** (Esri World Hillshade) — multiplied with the base map for contrast on slopes; near-white pixels pass through, only shaded slopes darken.
 
 **How to use:**
-1. Tap the **Layers button** (gear icon) in the top-left toolbar.
-2. A popover appears with radio buttons for base maps and checkboxes for overlays.
-3. Select a base map; the map switches immediately.
-4. Toggle overlays on or off.
-5. Close the popover by tapping the close button, pressing Escape, or tapping outside.
 
-**Persistence:** Your layer selection is saved to localStorage and restored on next visit.
+1. Tap the **Layers button** (top-right).
+2. The popover opens with radio buttons (base maps) and checkboxes (overlays).
+3. Tap a base map to switch immediately; toggle the hillshade checkbox to overlay relief.
+4. Close the popover by tapping outside, the close button, or pressing Escape.
 
-The "Layers" text label collapses to icon-only after the first tap.
+**Persistence.** Both selections are saved to `localStorage` and restored on next visit. The "Layers" text label collapses to icon-only after the first tap.
 
 ---
 
 ## Offline Tile Download
 
-**What it does:** Pre-cache map tiles for a selected region and zoom range so you can view them offline.
+**What it does.** Pre-cache map tiles for a region and zoom range so they load instantly when offline.
 
 **How to use:**
-1. Tap the **Download button** (arrow icon) in the top-left toolbar.
-2. A selection rectangle with draggable corner handles appears on the map.
-3. Drag the corners to define the region you want to cache.
-4. Adjust the **Min zoom** and **Max zoom** sliders to control detail level.
-5. The tile count and estimated size update in real-time.
-6. Tap **Download** to start caching tiles.
-7. A progress bar shows completion; already-cached tiles are skipped.
 
-**Mobile:** The panel anchors to the bottom of the screen. Tap the header to collapse/expand the panel while adjusting the selection rectangle.
-
-**Limits:**
-- Safari has a ~50MB cache quota; a warning appears if the estimate exceeds it.
-- Only caches OSM tiles (the service-worker-cached layer).
-- Download requires internet; tiles are stored in the Cache API for offline use.
+1. Tap the **Download button** (top-right).
+2. A draggable selection rectangle with corner handles appears on the map.
+3. Drag the corners to define the region.
+4. Adjust the **min zoom** and **max zoom** sliders.
+5. The tile count and estimated size update in real time.
+6. Tap **Download**; a progress bar shows completion. Already-cached tiles are skipped.
 
 The "Download" text label collapses to icon-only after the first tap.
+
+**Mobile.** The panel anchors to the bottom of the screen so it doesn't block the selection handles. Tap the header to collapse / expand the panel while dragging.
+
+**Limits:**
+
+- Safari has a ~50 MB cache quota; a warning surfaces if your estimate exceeds it.
+- Only OSM tiles are cached by both the service worker and the proactive download (CyclOSM, OpenTopo, and Humanitarian are not — see [ADR-005](adr/ADR-005-offline-tile-strategy.md)).
+- Download requires internet; tiles land in the same Cache API store the service worker uses.
+
+---
+
+## Background-GPS Keepalive
+
+**What it does.** Keeps GPS fixes flowing while navigation is active, even with the screen off.
+
+**How it works.** When guidance enters the **guiding** state, the app:
+
+1. Requests a screen wake lock (`navigator.wakeLock.request('screen')`) — keeps the display on where supported.
+2. Starts a silent `AudioBufferSourceNode` looped at 1 Hz — iOS Safari treats audio playback as a foreground activity, so the JS event loop keeps running and the geolocation watch keeps dispatching fixes.
+
+The audio is silent (zero-amplitude buffer); no sound plays. Both mechanisms are released cleanly when guidance stops.
+
+**Why both?** Wake Lock isn't supported on iOS Safari; silent audio is. Wake Lock works on Chrome / Firefox; silent audio also keeps Chrome from throttling background timers as aggressively. Belt and suspenders.
 
 ---
 
 ## Consent Dialog
 
-**What it does:** Shows a privacy policy and terms of use on first launch, blocking app usage until accepted.
+**What it does.** First-run modal that blocks app initialization until the user accepts the privacy policy and terms of use.
 
-**How it works:**
-- Appears on first visit or when the consent version is bumped.
-- Title and buttons are pinned (sticky); legal text scrolls independently.
-- Privacy Policy is listed first, followed by Terms of Use.
-- Accepting stores a consent record and anonymous install ID in localStorage.
-- Declining dismisses the dialog and prevents app initialization.
+**Layout.** Three zones — sticky title, scrollable body (Privacy Policy first, then Terms of Use), sticky button row. The action buttons remain visible on small screens where the legal text needs scrolling.
+
+**Storage on accept.** `webmap-consent-version`, `webmap-consent-accepted-at` (ISO timestamp), and `webmap-consent-install-id` (anonymous UUID generated once via `crypto.randomUUID()`) are written to `localStorage`.
+
+**Re-acceptance.** `CONSENT_VERSION` is the gate. Bumping it forces every existing user to re-accept on the next visit. Current value is `2.2` (bumped when turn-by-turn guidance landed because routing introduced a new third-party egress — FOSSGIS Valhalla).
+
+**Disclosed third-party services:**
+
+- **OpenStreetMap** (and its derivative tile servers) — every map tile request
+- **Esri ArcGIS** — every search query and pin-drop reverse geocode
+- **FOSSGIS Valhalla** — only when the user explicitly taps "Navigate here"
+
+---
+
+## Changelog
+
+**What it does.** Read the full release history without leaving the app.
+
+**How to use:**
+
+1. Tap the **version badge** (e.g., `v0.31.4-beta`) in the bottom-left thumb cluster.
+2. A scrollable panel slides in listing every release with its changes.
+3. Dismiss by tapping the badge again, the **✕** button, the panel backdrop, or pressing Escape.
+
+The changelog content is bundled at build time from `CHANGELOG.md` — it reflects the version of the app you have installed.
 
 ---
 
 ## Offline Mode
 
-**What it does:** Caches map tiles and app code so you can use the app without internet (limited functionality).
-
 **What works offline:**
-- ✅ View cached map tiles (Mapbox, OpenStreetMap, Google Imagery)
-- ✅ Pan and zoom the map
-- ✅ Record your trail (GPS works without internet on most phones)
-- ✅ View the live blue dot and accuracy circle
-- ✅ All UI interactions (buttons, controls, bottom sheet)
+
+- Cached map tiles (OSM, including the proactively-downloaded region)
+- Pan and zoom the map
+- The live blue dot, accuracy circle, and heading-cone wedge (GPS works without internet on most phones)
+- All UI controls (locate, layers, compass, consent, changelog)
+- Tile-error fallback: when a tile is missing, the app crops a parent-zoom tile from the cache onto a canvas — degraded but visible
 
 **What requires internet:**
-- ❌ Address search (queries ESRI API)
-- ❌ Reverse geocoding (queries ESRI API)
-- ❌ Tile caching (cached tiles expire after 30 days of no use)
 
-**How to populate the offline cache:**
-1. **Passive caching:** Use the app normally with internet; tiles are cached automatically as you view them.
-2. **Proactive download:** Use the Download button to pre-cache a specific region and zoom range (see Offline Tile Download above).
-3. Each tile layer (Mapbox, OSM, Google) caches up to 500 tiles via service worker; the Download feature caches additional tiles via the Cache API.
-4. Cached tiles stay for 30 days; using them refreshes the timer.
+- Address search (ESRI; silently empty offline)
+- Reverse geocoding (ESRI; the geocode bar shows coordinates only)
+- Turn-by-turn navigation (FOSSGIS Valhalla; routing fails with a clear toast)
+- Tile cache refresh (cached tiles still serve; expired entries fall through to error fallback)
 
-**Enabling offline mode:**
-- The app detects when internet is lost and shows an "Offline" banner at the top.
-- No action needed; the app continues to work with cached data.
-- Search and geocoding buttons remain visible but won't function.
+**How to populate the cache:**
 
-**Offline banner:**
-- Appears when the browser detects `navigator.onLine === false`
-- Disappears when internet returns
-- Does not disable the map or trail recording
+1. **Passive** — use the app normally with internet; tiles you've viewed are cached automatically.
+2. **Proactive** — use the Download button to pre-cache a specific region and zoom range.
+
+Cached tiles stay for 30 days; using them refreshes the timer (`StaleWhileRevalidate`).
+
+**Offline banner.** The app watches `navigator.onLine` and shows a banner at the top when it goes false. The banner clears automatically when connectivity returns. The banner does not disable any UI — controls remain visible and offline-capable features keep working.
 
 **Known limitations:**
-- Offline functionality depends on your browser's PWA/service worker support (works on all modern browsers and mobile apps)
-- Tiles are cached per device; offline use on a new device requires fetching tiles first
-- Very old cached tiles may be inaccurate if the map changed significantly
+
+- Offline depends on browser PWA / service worker support — works on all modern browsers and the installed PWA.
+- Tiles cache per device; a fresh device must fetch tiles before they're available offline.
+- Very old cached tiles can be stale if the map data has changed significantly since they were fetched.

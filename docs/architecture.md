@@ -1,10 +1,10 @@
 # Architecture
 
-webmap.dev is built around a **single shared AppState object** that flows through all modules by reference. No event emitters, no Redux, no observable chains — just TypeScript and mutable state. This section covers the eight key architectural patterns.
+webmap.dev is built around a **single shared `AppState` object** that flows through all modules by reference. No event emitters, no Redux, no observable chains — just TypeScript and mutable state. This document covers the patterns that make that work.
 
-## 1. Single Shared State (types.ts)
+## 1. Single Shared State (`types.ts`)
 
-The entire application state lives in one TypeScript interface (`AppState`) defined in `types.ts`:
+The entire application state lives in one TypeScript interface (`AppState`) defined in `src/types.ts`:
 
 ```typescript
 export interface AppState {
@@ -12,554 +12,327 @@ export interface AppState {
   youAreHereLocation: L.LatLng | null;
   youAreHereLocationlat: number;
   youAreHereLocationlng: number;
-  prior: number; // last known accuracy in meters
+  prior: number;                    // best accuracy seen (m); used by haversine jitter filter
 
-  // Control toggle states
-  copyToClipboard: boolean;
-  locateState: LocateState; // 'off' | 'active' | 'passive'
+  // Three-state locate button: 'off' | 'active' | 'passive'
+  locateState: LocateState;
 
-  // Timer/polling state
-  updateCallback: number; // refcount: 0=stopped, 1+=running
-  timer: ReturnType<typeof setTimeout> | undefined;
-  initialZoom: boolean;
+  // GPS watch refcount — each consumer (locate, guidance) increments by 1
+  updateCallback: number;
+  initialZoom: boolean;             // zoom-to-16 on first fix only
 
-  // Recording state machine
-  recordingState: RecordingState; // 'idle' | 'recording' | 'paused'
-  recordingStartMs: number;
-  recordingPauseMs: number;
-  recordingPauseStart: number | null;
-  totalDistance: number;
-  trailPoints: Array<{ latlng: L.LatLng; t: number; speedMs: number }>;
-  // ... more fields for trail visualization
+  // Live blue dot + accuracy circle
+  locationMarker: L.Marker | null;
+  accuracyCircle: L.Circle | null;
+
+  // Per-fix metadata reused by guidance
+  lastSpeedMs: number;
+  lastAltM: number | undefined;
+  lastGpsAccuracy: number | null;
+
+  // Heading-cone wedge: hold last valid GPS bearing for ~10 s when course is NaN
+  lastValidHeadingDeg: number | null;
+  lastValidHeadingMs: number;
+
+  // Device-orientation compass permission state
+  compassPermission: OrientationPermission;
+
+  // GPS weak-signal hysteresis (badge debounce)
+  gpsWeakStreak: number;
+  gpsStrongStreak: number;
+  gpsWeakBadgeVisible: boolean;
+
+  // Battery efficiency
+  stationaryFixCount: number;       // consecutive low-speed fixes → coarse GPS
+  screenOff: boolean;               // Page Visibility API
+  batteryLevel: number | null;
+  batteryCharging: boolean;
+  batteryDrainStartLevel: number | null;
+  batteryDrainStartMs: number;
+
+  // Background-GPS keepalive (Wake Lock + silent audio)
+  keepalive: Keepalive | null;
+
+  // Routed-guidance state machine
+  guidance: GuidanceState;
 }
 ```
 
-**Why single state?** At this application scale, the indirection of event buses, actions, and dispatch functions adds more code than it saves. TypeScript's strict mode (`noUncheckedIndexedAccess`, strict equality) prevents the worst footguns of mutable state.
+**Why single state?** At this scale, the indirection of action creators, dispatchers, and selectors costs more than it saves. TypeScript strict mode (`noUncheckedIndexedAccess`, strict equality) catches the mutable-state footguns at compile time.
 
-**Pattern:** `main.ts` calls `createInitialState()` once, then passes the state object by reference to all module initialization functions. Each module mutates state directly:
+**Pattern.** `main.ts` calls `createInitialState()` once, then passes the state object by reference to every initialization function. Modules mutate state directly:
 
 ```typescript
 // main.ts
 const state = createInitialState();
-addLocateControl(map, () => {
-  // Toggle the state directly
-  state.locateState = state.locateState === 'off' ? 'active' : 'off';
-});
-
-// controls.ts receives state from main.ts and mutates it
-state.copyToClipboard = !state.copyToClipboard;
+const map = createMap();
+addLocateControl(map, () => { /* mutates state.locateState directly */ });
+addGuidanceControl(map, state, activatePolling, deactivatePolling);
 ```
 
-**Type safety:** AppState enforces all properties and types at compile-time. Typos, wrong types, and undefined fields are caught immediately.
+See [ADR-001](adr/ADR-001-single-mutable-state.md) for the full rationale and trade-offs.
 
 ---
 
-## 2. GPS Polling Refcount (timer.ts + main.ts)
+## 2. GPS Polling Refcount (`timer.ts` + `main.ts`)
 
-Leaflet's `map.locate()` is one-shot; to track the user continuously, we need a polling loop. **Two independent features need GPS polling:**
-1. **Locate button** (following the user)
-2. **Recording** (capturing trail points)
+Two independent features need GPS fixes:
 
-Both must request/release polling independently without interfering.
+1. **Locate** (following the user's blue dot)
+2. **Guidance** (turn-by-turn navigation)
 
-**The refcount solution:**
+Both must be able to start and stop polling without disturbing the other.
+
+**The refcount.** `state.updateCallback` is an integer; each consumer increments it on activation and decrements on release:
 
 ```typescript
-// In AppState
-updateCallback: number; // 0 = stopped, 1 = locate active, 2 = locate + recording
-
-// In main.ts
 function activatePolling(): void {
   state.updateCallback += 1;
-  if (state.updateCallback === 1) {
-    scheduleUpdateCallback(state, map, 3000); // initial delay
-  }
+  if (state.updateCallback === 1) startWatching(map);   // 0 → 1
 }
 
 function deactivatePolling(): void {
+  state.prior = 1000;                                    // reset jitter filter
   state.updateCallback -= 1;
-  if (state.updateCallback === 0) {
-    cancelUpdateCallback(state, map); // stop the timer entirely
-  }
+  if (state.updateCallback === 0) stopWatching(map);     // 1 → 0
 }
 ```
 
-**How it works:**
-- When locate turns on, `activatePolling()` increments the refcount from 0 → 1 and starts the timer.
-- When recording starts, `activatePolling()` increments again: 1 → 2 (timer already running, so do nothing).
-- When recording stops, `deactivatePolling()` decrements: 2 → 1 (timer keeps running for locate).
-- When locate turns off, `deactivatePolling()` decrements: 1 → 0 (timer stops).
+`startWatching()` calls `map.locate({ watch: true, enableHighAccuracy: true })`; `stopWatching()` calls `map.stopLocate()`. There is no internal polling loop — Leaflet's watch dispatches `locationfound` events directly.
 
-**timer.ts implementation:**
+**Adaptive accuracy.** `setWatchAccuracy(map, false)` re-runs `map.locate()` with `enableHighAccuracy: false` and `maximumAge: 5000` after the fix-handler observes 5+ consecutive stationary samples (`speed < 0.5 m/s`). On movement it restores high-accuracy. This trades brief gaps for meaningful battery savings during long stops.
 
-```typescript
-export function scheduleUpdateCallback(state: AppState, map: L.Map, delayMs = 500): void {
-  if (state.timer !== undefined) clearTimeout(state.timer);
-  state.timer = setTimeout(() => updateLocation(state, map), delayMs);
-}
-
-function updateLocation(state: AppState, map: L.Map): void {
-  map.stopLocate();
-  if (state.initialZoom) {
-    map.setZoom(16);
-    state.initialZoom = false;
-  }
-  map.locate({ setView: false, maxZoom: map.getZoom() });
-  scheduleUpdateCallback(state, map); // reschedule for next cycle
-}
-```
-
-**Why the 3-second initial delay?** When the locate button is clicked, `map.locate()` is called immediately (within the user gesture so iOS Safari shows the permission prompt). The 3-second delay gives that request time to resolve before the 500ms polling loop starts.
+**Refcount safety.** `main.ts` warns in dev when the count drifts above 2 (likely activate-leak) or below 0 (double-release). See [ADR-002](adr/ADR-002-refcount-gps-polling.md) for why pub/sub was rejected.
 
 ---
 
 ## 3. Three-State Locate Button
 
-The locate button has three distinct states, each with different behavior:
-
 | State | Icon | Behavior |
 |-------|------|----------|
-| **off** | Lines (disabled) | Location disabled; no polling |
-| **active** | Color (blue) | Following user; map pans to position on each update |
-| **passive** | B&W (gray) | Dot visible but not following; tap to re-center |
+| **off** | Lines (gray outline) | No polling; no markers |
+| **active** | Color (blue arrow) | Following — map pans on each fix |
+| **passive** | B&W (gray arrow) | Dot visible, map free; tap to re-center |
 
-**State transitions (in main.ts):**
+**Transitions** (in `main.ts`):
 
-```typescript
-addLocateControl(map, () => {
-  switch (state.locateState) {
-    case 'off':
-      state.locateState = 'active';
-      map.locate({ setView: false, maxZoom: map.getZoom() }); // immediate request
-      activatePolling(); // start timer
-      updateLocateIcon('active');
-      break;
+- **off → active** — synchronous within the click handler so iOS Safari shows the permission prompt; calls `activatePolling()`.
+- **active → off** — `deactivatePolling()`, clear the blue dot and accuracy circle.
+- **passive → active** — `flyTo()` the last known position; no refcount change (already polling).
+- **active → passive** — automatic on `dragstart` or first wheel-zoom; a one-shot toast tells touch users to "Double-tap map to re-center".
+- **passive → active (touch)** — a double-tap on the map at capture-phase calls `reactivateLocate()` and `preventDefault()`s the synthesized `dblclick` so the browser doesn't zoom in.
 
-    case 'active':
-      state.locateState = 'off'; // turn off
-      deactivatePolling(); // stop timer
-      clearLocationMarkers(state, map);
-      updateLocateIcon('off');
-      break;
-
-    case 'passive':
-      state.locateState = 'active'; // re-center
-      map.flyTo(state.youAreHereLocation, map.getZoom(), { duration: 0.8 });
-      updateLocateIcon('active');
-      break;
-  }
-});
-
-// Pan while following → drop to passive
-map.on('dragstart', () => {
-  if (state.locateState === 'active') {
-    state.locateState = 'passive';
-    updateLocateIcon('passive');
-  }
-});
-```
-
-**Why three states?** Users expect to swipe/pan the map freely without the app fighting them. The active→passive transition lets them view other parts of the map while keeping the blue dot visible as a "return to me" button.
+GPS errors with `code === 1` (PERMISSION_DENIED) are debounced: a 3-second timer waits for a fix to arrive, since iOS Safari sometimes fires a spurious permission-denied right before the first valid `locationfound`. If the fix arrives the timer is cancelled; otherwise the state collapses to `off` and a sticky toast explains how to re-grant permission.
 
 ---
 
-## 4. Haversine Jitter Filter (location.ts)
+## 4. Haversine Jitter Filter + Heading-Cone Wedge (`location.ts`)
 
-GPS fixes arrive noisy: standing still, you get position updates every 500ms within a ~10m circle. Recording every fix wastes memory and creates jagged trails. The haversine formula filters redundant updates.
+GPS fixes arrive every ~1 s within a ~10 m circle when standing still. Without filtering, the blue dot wanders.
 
-**The filter rule (in location.ts):**
+**The filter rule:**
 
 ```typescript
-// Accept update if accuracy improved OR we've moved meaningfully
 if (e.accuracy < state.prior || dist > e.accuracy / 2) {
   state.prior = e.accuracy;
-  state.youAreHereLocationlat = e.latlng.lat;
-  state.youAreHereLocationlng = e.latlng.lng;
-  // update markers, trail, etc.
+  // accept the update
 }
 ```
 
-**How it works:**
-- `state.prior` tracks the best accuracy we've ever seen (lower = better).
-- When a new fix arrives, calculate the haversine distance from the last position.
-- If accuracy improved (e.g., 15m → 10m), accept the update even if we didn't move — the dot becomes more precise.
-- If we moved more than half the accuracy radius (e.g., moved 6m when accuracy is 12m), accept the update — we've moved meaningfully.
-- Otherwise, ignore the fix — it's just noise.
+- If accuracy improved (15 m → 10 m), accept — the dot becomes more precise.
+- If we moved farther than half the accuracy radius, accept — real motion.
+- Otherwise drop the fix.
 
-**Haversine formula (great-circle distance):**
+The pure haversine, bearing, and point-to-segment helpers live in `src/geo.ts` and are independently unit-tested.
+
+**Heading-cone wedge.** A translucent CSS cone rendered behind the blue dot rotates to match `e.heading` (GPS course, 0–360°). It's the same idiom as Google Maps and Apple Maps — direction of travel without rotating the map.
+
+Two implementation details matter:
+
+1. **Hold last bearing for 10 s** when `e.heading` is `NaN` (typical at speeds < 1 m/s). After the hold window, the wedge fades.
+2. **`--heading-deg` CSS custom property** drives a `conic-gradient` masked by a `radial-gradient`, with a 0.12 s transition for jitter smoothing.
+
+The map itself does **not** rotate — this is the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md), chosen over `leaflet-rotate` (GPL-3 license clash) and CSS-transform rotation (per-overlay coordinate inversion).
+
+**GPS weak-signal hysteresis.** A badge surfaces in the UI when fixes degrade. Two-fix streaks debounce the badge in either direction with a deadband (25–30 m) so flickering signal doesn't toggle the badge.
+
+---
+
+## 5. Routed-Guidance State Machine (`guidance.ts` + `routing.ts`)
+
+The guidance feature replaced GPS trail recording in v0.30.0 (see [ADR-006](adr/ADR-006-routed-guidance.md)). It is a five-state machine:
+
+```
+idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
+                            │                        │
+                            ▼                        ▼
+                          idle ◀───arrived───── arrived
+                                      ▲              │
+                                      │              ▼
+                                  off-route ◀───off-route streak (3)
+```
+
+- **idle** — pill is hidden; no refcount held.
+- **routing** — POSTs to FOSSGIS Valhalla; spinner pill with "Cancel". Fetch is `AbortController`-friendly so a newer route supersedes a stale in-flight request.
+- **guiding** — refcount incremented; route polyline + glow + destination marker drawn; pill shows next maneuver, distance to maneuver, total remaining, ETA, and the `auto`/`pedestrian`/`bicycle` chip.
+- **off-route** — set after `OFF_ROUTE_STREAK = 3` consecutive fixes farther than the profile threshold from the route polyline. Throttled recalc fires once per 15 s; recovery within tolerance returns the status to `guiding`.
+- **arrived** — entered when straight-line distance ≤ profile arrival radius. The pill displays "Arrived" for 3 s, then `stopGuidance()` collapses to idle.
+
+**Profile-dependent thresholds** (initial v1 values in `src/guidance.ts`):
+
+| Profile | Arrival radius | Off-route threshold |
+|---------|----------------|---------------------|
+| auto (driving) | 25 m | 30 m |
+| pedestrian | 10 m | 15 m |
+| bicycle | 15 m | 20 m |
+
+**Routing client (`src/routing.ts`).** Single `fetchRoute()` POSTs to `https://valhalla1.openstreetmap.de/route` with the start, destination, and `costing`, requesting kilometer units. The response carries pre-formatted natural-language maneuver instructions and a polyline6-encoded shape; a 25-LOC inline decoder converts the shape to `L.LatLng[]`. The endpoint URL is the **single egress point** — replacing the routing provider is a one-line change.
+
+**Render survives GPS jitter.** `updateGuidance()` runs on every accepted fix and ends with `render()`, which rebuilds the pill's inner HTML. Click handlers are bound by **delegation on the persistent panel element** (not on the buttons themselves) so iOS Safari's touch-to-click synthesis still finds a target after re-render. The Stop tap-drop bug from #180 is the cautionary tale.
+
+**Privacy egress.** Each route request sends start + destination to FOSSGIS. This is the first feature that intentionally breaks the local-only invariant of [ADR-004](adr/ADR-004-local-only-data.md); the consent modal explicitly names FOSSGIS Valhalla and `CONSENT_VERSION` was bumped 2.1 → 2.2 to force re-acceptance.
+
+---
+
+## 6. Device-Orientation Compass (`compass.ts` + `orientation.ts`)
+
+A top-right SVG compass rose rotates by `-deviceHeading` so true north stays at the top. It complements the heading-cone wedge: the wedge shows GPS course (works while moving), the compass shows where the device is physically pointing (works while stationary).
+
+**Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture. `compass.ts` calls it in the click handler, caches the result on `state.compassPermission`, and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
+
+**Heading extraction (`orientation.ts`).** Prefers iOS's `webkitCompassHeading` (already true-north calibrated, clockwise). Falls back to W3C `alpha`, flipped from anti-clockwise to clockwise. Subscribes to `deviceorientationabsolute` when available — it provides true-north headings without manual calibration.
+
+The rose is driven by a `--heading-deg` CSS custom property (same pattern as the wedge) with a 0.12 s transition for smoothing.
+
+---
+
+## 7. Background-GPS Keepalive (`keepalive.ts`)
+
+Mobile browsers throttle JS timers and pause `geolocation.watchPosition` when the screen is off. The `Keepalive` class works around it with **two complementary mechanisms**:
+
+1. **Wake Lock API** — `navigator.wakeLock.request('screen')` keeps the screen on (where supported). Released cleanly on stop.
+2. **Silent audio loop** — A 1-second silent `AudioBufferSourceNode` looped via Web Audio. iOS Safari treats audible playback as a foreground activity even when the screen is off, which keeps the JS event loop alive long enough for GPS fixes to dispatch. The buffer is silent (zeros) so no sound plays.
+
+`startSilentAudio()` runs synchronously **before** the `await` in `start()` — it must execute inside the user-gesture stack frame for iOS Safari to honor it. `acquireWakeLock()` runs after, since wake-lock has no gesture requirement.
+
+The keepalive is owned by guidance (started on `enterGuiding`, stopped on `stopGuidance`). A `reacquireWakeLock()` method exists for the page-visibility-change path where the OS releases the lock when the tab backgrounds.
+
+---
+
+## 8. Bottom Sheet / Side Panel (`bottom-sheet.ts`)
+
+webmap.dev adapts its info panel between mobile and desktop:
+
+- **Mobile** (≤ 768 px): bottom sheet with four snap points (`hidden`, `peek`, `half`, `full`)
+- **Desktop** (> 768 px): slide-in left side panel
+
+**Snap points (mobile):**
+
+| Snap | Position | Use |
+|------|----------|-----|
+| hidden | Off-screen below | Nothing to show |
+| peek | 72 px visible | Hint to swipe up |
+| half | Half viewport | Reading search results |
+| full | Nearly full viewport | Long lists, detailed view |
+
+**Drag gestures.** Drag handle for snap-changes; Escape dismisses. `> 60 px` deltas snap to the next level.
+
+**iOS Safari `offsetHeight` trick.** Snap-point math uses the rendered element's `offsetHeight`, not `window.innerHeight` or CSS `vh` units. On older iOS Safari, `vh` is based on the largest viewport (toolbar hidden) while `innerHeight` reflects the current viewport — they disagree by up to ~75 px during scroll. `offsetHeight` matches what the user actually sees. See [ADR-003](adr/ADR-003-offsetheight-ios-safari.md).
+
+The sheet is positioned `fixed` and translated with `translateY()` for GPU-accelerated animation. The CSS fallback `translateY(110%)` keeps it hidden until JS takes over.
+
+**Map offset (mobile only).** When the sheet is at half height, the map center shifts upward so the focal point stays visible above the sheet. Desktop ignores the offset.
+
+---
+
+## 9. Consent Modal (`consent.ts`)
+
+A first-run dialog blocks app initialization until the user accepts the privacy policy and terms of use. `CONSENT_VERSION` is the gate: `hasConsent()` returns true only when `localStorage.getItem('webmap-consent-version') === CONSENT_VERSION`. Bumping `CONSENT_VERSION` forces every existing user to re-accept.
+
+**Layout.** A flex column with three zones — sticky title, scrollable body (Privacy then Terms), sticky button row. This keeps the action buttons visible on small screens where the legal text needs scrolling.
+
+**Storage on accept.** `webmap-consent-version`, `webmap-consent-accepted-at` (ISO timestamp), and `webmap-consent-install-id` (anonymous UUID via `crypto.randomUUID()`). The install ID is generated once and never changes between accepts.
+
+The current text discloses three third-party services: OpenStreetMap (tiles), Esri ArcGIS (geocoding), and FOSSGIS Valhalla (routing on explicit "Navigate here" only). `CONSENT_VERSION` was bumped to 2.2 when guidance landed.
+
+---
+
+## 10. Layers Control + Adaptive Control Labels (`layers-control.ts`, `controls.ts`)
+
+A custom popover replaces Leaflet's native `L.control.layers`:
+
+- One toggle button in the top-right column
+- Radio buttons for base maps (CyclOSM Trails, OSM Streets, OpenTopo, Humanitarian)
+- Checkboxes for overlays (Esri hillshade, defaulted on)
+- Selection persisted to `localStorage` (`webmap-layer-selection`, `webmap-overlay-selection`)
+- Re-stacks overlays above the base map after switching
+
+**Adaptive labels.** Locate, Layers, and Download buttons start with a text label for discoverability and collapse to icon-only after first use. The shared `setupCollapsibleLabel()` helper in `controls.ts` reads `webmap-ctrl-label-<id>` from `localStorage`, skips appending the label when previously collapsed (avoiding a flash-then-collapse on reload), and persists the collapse on first click.
+
+---
+
+## 11. Offline Tile Strategy
+
+Two layers of offline support work together — see [ADR-005](adr/ADR-005-offline-tile-strategy.md):
+
+**Passive: Workbox runtime caching (`vite.config.ts`).** OSM tile requests (`*.tile.openstreetmap.org`) are intercepted with `StaleWhileRevalidate`: serve the cached tile immediately, refetch in the background. 500-entry cap, 30-day expiration. ESRI geocode requests are `NetworkOnly` — there is no useful offline behavior for a search query.
 
 ```typescript
-const p = Math.PI / 180;
-const f =
-  0.5 -
-  Math.cos((latA - latB) * p) / 2 +
-  (Math.cos(latB * p) * Math.cos(latA * p) * (1 - Math.cos((lngA - lngB) * p))) / 2;
-const R = 6371000; // Earth's radius in meters
-const dist = 2 * R * Math.asin(Math.sqrt(f));
-```
-
-**Effect on trail recording:** Trail points are appended via `appendTrailPoint()` only when:
-1. The haversine filter accepts the location update, AND
-2. The new point is at least 5m from the previous trail point (MIN_TRAIL_DIST_M).
-
-This gives clean, compressed trails.
-
----
-
-## 5. Recording State Machine (recording.ts)
-
-Trail recording is a three-state machine: **idle** → **recording** → **paused** (or back to idle).
-
-**State diagram:**
-```
-idle
-  ↓ (click Record button; requires locate on)
-recording
-  ├→ (click Pause button) → paused
-  └→ (click Stop button) → [export GPX] → idle
-paused
-  ├→ (click Resume button) → recording
-  └→ (click Stop button) → [export GPX] → idle
-```
-
-**Key state fields:**
-
-```typescript
-recordingState: 'idle' | 'recording' | 'paused';
-recordingStartMs: number;               // performance.now() when started
-recordingPauseMs: number;               // total accumulated pause duration (ms)
-recordingPauseStart: number | null;     // performance.now() when paused (null if not paused)
-totalDistance: number;                  // total distance in meters
-trailPoints: Array<{
-  latlng: L.LatLng;                    // position
-  t: number;                           // performance.now() timestamp
-  speedMs: number;                     // m/s from GPS
-}>;
-trail: L.Polyline | null;              // main trail line (blue)
-trailGlow: L.Polyline | null;          // glow underneath (transparent blue)
-arrowMarkers: L.Marker[];              // direction arrows every ~50m
-```
-
-**Trail visualization:**
-
-When recording starts, two Leaflet polylines are created:
-1. **Glow layer** (beneath): semi-transparent blue, weight 14, creates depth illusion
-2. **Main trail** (on top): solid blue, weight 4, sharp edges
-
-Direction arrows are placed every 50m (`MIN_ARROW_DIST_M`) to show travel direction.
-
-**Elapsed time calculation (accounting for pauses):**
-
-```typescript
-function elapsedMs(state: AppState): number {
-  const currentPause =
-    state.recordingPauseStart !== null
-      ? performance.now() - state.recordingPauseStart
-      : 0;
-  return performance.now() - state.recordingStartMs - state.recordingPauseMs - currentPause;
-}
-```
-
-This ensures paused time doesn't count toward the elapsed display.
-
-**Stats bar (real-time display):**
-
-Every 1 second, the stats bar updates with:
-- **Time**: formatted elapsed (H:MM:SS or MM:SS)
-- **Distance**: total distance (km or m)
-- **Speed**: current speed from the latest GPS fix (km/h or "-- km/h" if stopped)
-- **Status indicator**: pulsing red dot (animated, paused state dims it)
-
-**GPX export:**
-
-When recording stops, if trail points exist, `downloadGpx()` generates a GPX 1.1 file:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="webmap.dev" xmlns="http://www.topografix.com/GPX/1/1">
-  <trk>
-    <name>2026-03-31 12:34:56</name>
-    <trkseg>
-      <trkpt lat="37.123456" lon="-122.123456">
-        <time>2026-03-31T12:34:56.000Z</time>
-        <extensions><speed>5.1234</speed></extensions>
-      </trkpt>
-      <!-- more points -->
-    </trkseg>
-  </trk>
-</gpx>
-```
-
-The file is automatically downloaded via `createElement('a') + click()`.
-
----
-
-## 6. Bottom Sheet / Side Panel (bottom-sheet.ts)
-
-webmap.dev adapts its UI between mobile and desktop:
-
-- **Mobile** (≤768px width): Bottom sheet with four snap points (hidden, peek, half, full)
-- **Desktop** (>768px): Slide-in side panel (left side)
-
-Both show search results, reverse geocode locations, and any other contextual info.
-
-**Mobile bottom sheet snap points:**
-
-| Snap Point | Position | Use Case |
-|-----------|----------|----------|
-| **hidden** | Off-screen below | No info to show |
-| **peek** | Bottom 72px visible | "Swipe up to see results" hint |
-| **half** | Half viewport height | Reading search results |
-| **full** | Nearly full viewport | Detailed view, long lists |
-
-**Drag gesture (mobile only):**
-
-- Users can drag the handle to snap to different heights.
-- Swipe down (> 60px delta) → next lower snap point.
-- Swipe up (< -60px delta) → next higher snap point.
-- Keyboard: Escape key dismisses the sheet.
-
-**Implementation:**
-
-`fullHeightPx()` uses `_el.offsetHeight` (the actual rendered element height) rather than computing from `window.innerHeight`. On older iOS Safari, CSS `vh` units and `window.innerHeight` disagree — `vh` is based on the largest viewport (toolbar hidden) while `innerHeight` reflects the current visible viewport. Using `offsetHeight` keeps snap-point calculations consistent with the rendered sheet size.
-
-```typescript
-function fullHeightPx(): number {
-  if (_el) return _el.offsetHeight;
-  return Math.round(window.innerHeight * SHEET_VH);
-}
-```
-
-The sheet is positioned absolutely and transformed via `translateY()` for smooth GPU-accelerated animations. The CSS fallback `translateY(110%)` keeps it hidden until JS takes over.
-
-**Map offset (mobile only):**
-
-When the sheet is at half height, the map center shifts upward so the point of interest stays visible above the sheet. Desktop ignores the offset.
-
----
-
-## 7. Consent Modal (consent.ts)
-
-A first-run consent dialog blocks app usage until the user accepts privacy policy and terms of use. Re-prompts when `CONSENT_VERSION` changes.
-
-**Layout:** The dialog uses a flex-column layout with three zones:
-- **Title** (sticky top): One-line summary pinned at the top
-- **Body** (scrollable): Privacy Policy followed by Terms of Use
-- **Buttons** (sticky bottom): "I agree" and "Decline" pinned at the bottom
-
-This ensures the title and action buttons remain visible on small screens where the legal text requires scrolling.
-
-**Consent storage:** On acceptance, three values are written to localStorage:
-- `webmap-consent-version` — current consent version string
-- `webmap-consent-accepted-at` — ISO timestamp
-- `webmap-consent-install-id` — anonymous UUID (generated once via `crypto.randomUUID()`)
-
-**Version gating:** `hasConsent()` checks `localStorage.getItem('webmap-consent-version') === CONSENT_VERSION`. Bumping `CONSENT_VERSION` forces all users to re-accept.
-
----
-
-## 8. Layers Control (layers-control.ts)
-
-A custom layers popover replaces Leaflet's native `L.control.layers`. It provides a curated button + popover UI for base maps (radio buttons) and overlays (checkboxes).
-
-**Features:**
-- Single toggle button in top-left toolbar (label collapses to icon-only after first use)
-- Popover with radio buttons for base maps and checkboxes for overlays
-- Persists selection to localStorage (`webmap-layer-selection`, `webmap-overlay-selection`)
-- Re-stacks overlays above the base map after switching layers
-
-**Implementation:** `LayersControl` extends `L.Control`. The popover is positioned relative to the toggle button and dismisses on outside click, Escape key, or close button.
-
----
-
-## 9. Offline Tile Download (offline-download.ts)
-
-Proactive region pre-download supplements the passive service worker caching strategy. Users select a bounding box and zoom range, and the app pre-fetches tiles into the Cache API.
-
-**Flow:**
-1. User taps Download button → panel opens (bottom-anchored on mobile, collapsible header)
-2. A draggable selection rectangle with corner handles appears on the map
-3. Zoom range sliders (min/max) control which zoom levels to cache
-4. Tile count and estimated size are calculated in real-time
-5. Download fetches tiles in parallel (6 concurrent fetches, matching browser per-domain limit)
-6. Already-cached tiles are skipped; progress bar shows completion
-
-**Mobile UX:** The panel anchors to the bottom of the screen (not top) so it doesn't block the selection handles. The header is tappable to collapse/expand the panel body.
-
-**Tile math:** `lng2tile()` and `lat2tile()` convert geographic bounds to tile coordinates at each zoom level. `countTiles()` sums across all requested zoom levels for the estimate.
-
----
-
-## 10. Adaptive Control Labels (controls.ts)
-
-Locate, Layers, and Download toolbar buttons start with text labels (e.g., "Locate", "Layers", "Download") for discoverability. After the first tap, the label is removed and only the icon remains, reclaiming screen space.
-
-**Implementation:** `collapseControlLabel()` removes the `.leaflet-control-toggle__label` span from the control container. For controls using the `makeToggleControl` factory, a `collapseOnFirstUse` flag triggers this on first click. Layers and Download wire it independently via a `labelCollapsed` boolean in their click handlers.
-
----
-
-## 11. PWA / Offline Strategy (vite.config.ts)
-
-webmap.dev uses **vite-plugin-pwa** and **Workbox** to cache assets and enable offline use.
-
-**Offline capabilities:**
-- ✅ Maps (Mapbox, OpenStreetMap, Google Imagery) cached for 30 days
-- ✅ App code (JS, CSS, HTML) cached indefinitely
-- ✅ Reverse geocoding results (from the blue dot marker) cached
-- ❌ Address search requires internet (API calls not cached)
-
-**Caching strategies (Workbox):**
-
-```typescript
-workbox: {
-  runtimeCaching: [
-    // Mapbox tiles (SWR: stale-while-revalidate)
-    {
-      urlPattern: /^https:\/\/api\.mapbox\.com\/styles\/.*/,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'mapbox-tiles',
-        expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
-      },
+runtimeCaching: [
+  {
+    urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
+    handler: 'StaleWhileRevalidate',
+    options: {
+      cacheName: OSM_TILE_CACHE_NAME,
+      expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
     },
-    // OpenStreetMap tiles (SWR)
-    {
-      urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'osm-tiles',
-        expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
-      },
-    },
-    // Google Imagery (SWR)
-    {
-      urlPattern: /^https:\/\/.*\.google\.com\/vt\/.*/,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'google-imagery',
-        expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
-      },
-    },
-    // ESRI Geocode API (NetworkOnly: must have internet)
-    {
-      urlPattern: /^https:\/\/geocode\.arcgis\.com\/.*/,
-      handler: 'NetworkOnly',
-      options: { cacheName: 'geocode-api' },
-    },
-  ],
-  skipWaiting: true,
-  navigateFallback: null,
-}
+  },
+  {
+    urlPattern: /^https:\/\/geocode\.arcgis\.com\/.*/,
+    handler: 'NetworkOnly',
+  },
+]
 ```
 
-**SWR strategy:** Serve cached tiles immediately; fetch fresh tiles in the background. On the next visit, fresh tiles appear.
+**Proactive: Cache API pre-download (`offline-download.ts`).** Users select a bounding box and a min/max zoom range; the app pre-fetches every tile in the region directly into the same OSM tile cache (6 concurrent fetches matching browser per-domain limit, skipping already-cached tiles). The shared `OSM_TILE_CACHE_NAME` constant in `sw-constants.ts` is referenced by both the Vite config and the runtime download to avoid drift.
 
-**Manifest (for install prompt):**
+**Tile error fallback (`map.ts`).** When a tile request fails offline, `initOfflineTileFallback()` looks up the parent zoom-level tile in the OSM cache (up to 3 zoom levels above) and crops it onto a 256×256 canvas — degraded but visible. A 10-second cooldown limits the "tiles unavailable" toast to one fire per cluster of failures.
 
-```typescript
-manifest: {
-  name: 'webmap.dev',
-  short_name: 'webmap',
-  description: 'GPS mapping and trail recording with offline support',
-  display: 'standalone',
-  start_url: '/',
-  scope: '/',
-  theme_color: '#4CAF50',
-  icons: [
-    { src: '/logo-color-v1.1.svg', sizes: '192x192', type: 'image/svg+xml' },
-    { src: '/logo-color-v1.1.svg', sizes: '512x512', type: 'image/svg+xml' },
-  ],
-}
-```
-
-Browsers show "Add to Home Screen" prompts when visited from a mobile browser.
+**App code** is precached by the build (Vite's PWA plugin). `clientsClaim: true` means a new SW activates on the next page load and `location.reload()` is fired automatically once the new SW takes control.
 
 ---
 
 ## 12. nginx Infrastructure
 
-Production deployment uses **nginx** as a reverse proxy, serving the Vite build from `/var/www/webmap/web/dist/`.
+Production deploys land in `/var/www/webmap/web/dist/` and are served by nginx:
 
-**Key nginx patterns:**
+- **HSTS** — `Strict-Transport-Security: max-age=31536000; includeSubDomains`. Browsers cache for 1 year.
+- **SPA fallback** — `try_files $uri $uri/ /index.html` so client-side routing works without 404s.
+- **Asset caching** — Hashed Vite assets (`*.js`, `*.css`, images, fonts) get `expires 1y; Cache-Control "public, immutable"`. Code changes get a new hash, so the immutable promise is safe.
+- **HTML uncached** — `index.html` always re-fetches: `expires -1; Cache-Control "no-cache, no-store, must-revalidate"`.
+- **Gzip** — JS/CSS/JSON compressed (~70% size reduction).
+- **TLS** — Let's Encrypt certs via certbot; HTTP/2; auto-renew.
+- **Apex redirect** — `webmap.dev` 301s to `https://www.webmap.dev`.
+- **Hidden file lock-down** — `location ~ /\.` denies all (no `.env`, no `.git` exposure).
+- **Security headers** — `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
 
-**HSTS (HTTP Strict Transport Security):**
-```nginx
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-```
-Browsers cache this for 1 year; all future visits are HTTPS-only, even if the user types `http://`.
-
-**SPA fallback (single-page app routing):**
-```nginx
-location / {
-  try_files $uri $uri/ /index.html;
-}
-```
-This tells nginx: if a request matches a file, serve it; if not, serve `/index.html`. The SPA router (Leaflet events) handles all URL routing client-side.
-
-**Asset caching (hashed files):**
-```nginx
-location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-  expires 1y;
-  add_header Cache-Control "public, immutable";
-}
-```
-Vite appends content hashes to filenames (e.g., `main.a1b2c3d4.js`). Changing code = new hash = new URL = no cache clash. Safe to cache for 1 year.
-
-**HTML (never cached):**
-```nginx
-location ~* \.html$ {
-  expires -1;
-  add_header Cache-Control "no-cache, no-store, must-revalidate";
-}
-```
-`index.html` changes on every deploy. Browsers must re-fetch to see updates.
-
-**Gzip compression:**
-```nginx
-gzip on;
-gzip_types text/plain text/css text/xml text/javascript application/javascript application/json;
-```
-Compresses text assets (~70% size reduction) without CPU overhead on modern hardware.
-
-**Security headers:**
-```nginx
-add_header X-Frame-Options SAMEORIGIN always;
-add_header X-Content-Type-Options nosniff always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-```
-
-**Deny hidden files:**
-```nginx
-location ~ /\. {
-  deny all;
-  access_log off;
-  log_not_found off;
-}
-```
-Prevents accidental exposure of `.env`, `.git`, etc.
-
-**TLS/SSL:**
-- Certificates from Let's Encrypt (via certbot)
-- HTTP → HTTPS redirect (automatic)
-- Apex domain (`webmap.dev`) redirects to `www.webmap.dev`
-- HTTP/2 enabled for multiplexing
+See `infrastructure/nginx/www.webmap.dev.conf` for the canonical config.
 
 ---
 
 ## Summary
 
-These twelve patterns work together to create a lightweight, responsive GPS app:
+These patterns work together to keep webmap.dev small, responsive, and offline-tolerant:
 
 1. **Single state** keeps the codebase simple and type-safe.
-2. **Refcounting** lets locate and recording share the GPS polling loop.
-3. **Three-state button** gives users intuitive control.
-4. **Haversine filter** prevents trail jitter.
-5. **State machine** cleanly handles recording start/pause/resume/stop.
-6. **Responsive UI** adapts between mobile and desktop (with iOS Safari compatibility).
-7. **Consent modal** gates first-run usage with sticky header/footer layout.
-8. **Layers control** provides curated base map and overlay switching.
-9. **Offline download** enables proactive tile pre-caching for offline use.
-10. **Adaptive controls** collapse labels to icons after first use.
-11. **Service worker** enables passive offline caching.
-12. **nginx** handles HTTPS, caching, and SPA routing at the edge.
+2. **Refcount** lets locate and guidance share GPS without coordination.
+3. **Three-state locate button** matches the user's mental model of "follow / look / off".
+4. **Haversine filter + heading wedge** clean up GPS noise and show direction without rotating the map.
+5. **Guidance state machine** owns the routing → guiding ↔ off-route → arrived lifecycle.
+6. **Device-orientation compass** complements the wedge while stationary.
+7. **Keepalive** keeps GPS flowing with the screen off on iOS.
+8. **Responsive sheet** adapts to mobile and desktop with the iOS `offsetHeight` workaround.
+9. **Consent modal** gates third-party egress with explicit re-acceptance on `CONSENT_VERSION` bumps.
+10. **Layers control + adaptive labels** keep the toolbar clean after first use.
+11. **Two-tier offline** combines passive Workbox SWR with proactive Cache API pre-download.
+12. **nginx** owns HTTPS, caching, and the SPA fallback at the edge.
