@@ -7,7 +7,8 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { startGuidance } from './guidance';
+import { setGuidanceCosting, startGuidance } from './guidance';
+import type { Costing } from './routing';
 
 // Escape text for safe insertion into innerHTML
 function escapeHtml(str: string): string {
@@ -64,6 +65,7 @@ function zoomForAddrType(addrType: string): number {
 let _pinLayer: L.LayerGroup | null = null;
 let _clearSearchSelection: (() => void) | null = null;
 let _showGeocodeBar: ((label: string, copyText: string, latlng: L.LatLng) => void) | null = null;
+const SEARCH_PLACEHOLDER = '';
 
 export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
   // state is read in the results callback (for future extensibility)
@@ -71,16 +73,14 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
 
   const apikey = import.meta.env.VITE_ESRI_API_KEY;
 
-  // Without an API key the search control is non-functional — skip adding it
-  // entirely so users see no broken UI rather than a silently broken one.
   if (!apikey) {
     console.warn(
       'VITE_ESRI_API_KEY is not configured. ' +
-      'Search functionality will not work. ' +
+      'Search requests may fail if ArcGIS requires authentication. ' +
       'Set VITE_ESRI_API_KEY in your .env file.'
     );
-    return;
   }
+  const logProviderErrors = Boolean(apikey);
 
   // Wrap a provider so that errors in results() and suggest() are logged and
   // silenced rather than propagated. Wrapping before construction avoids
@@ -101,7 +101,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
         cb: (err: null, results: unknown[]) => void,
       ): unknown {
         return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
-          if (error) console.warn('Search provider error:', error);
+          if (error && logProviderErrors) console.warn('Search provider error:', error);
           cb(null, error ? [] : results);
         });
       };
@@ -118,10 +118,10 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   // ourselves in the results handler and on blur.
   const MIN_CHARS = 3;
   const searchControl = geosearch({
-    placeholder: '',
+    placeholder: SEARCH_PLACEHOLDER,
     title: 'Search for places or addresses',
     position: 'topleft',
-    expanded: false,
+    expanded: true,
     useMapBounds: 7,
     zoomToResult: false,
     collapseAfterResult: false,
@@ -173,7 +173,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   // or when the input loses focus. Does not close the dropdown (results stay visible).
   function collapseSearch(): void {
     input.value = '';
-    input.placeholder = '';
+    input.placeholder = SEARCH_PLACEHOLDER;
     input.dispatchEvent(new Event('input'));
     L.DomUtil.removeClass(wrapper, 'geocoder-control-expanded');
   }
@@ -461,6 +461,11 @@ export function addReverseGeocoding(
     '  <div class="geocode-bar__handle-pill"></div>' +
     '</div>' +
     '<div class="geocode-bar__body">' +
+    '  <div class="geocode-bar__profile" role="group" aria-label="Navigation type">' +
+    '    <button type="button" class="geocode-bar__profile-btn geocode-bar__profile-btn--active" data-costing="auto" aria-pressed="true">Drive</button>' +
+    '    <button type="button" class="geocode-bar__profile-btn" data-costing="bicycle" aria-pressed="false">Bike</button>' +
+    '    <button type="button" class="geocode-bar__profile-btn" data-costing="pedestrian" aria-pressed="false">Walk</button>' +
+    '  </div>' +
     '  <button class="geocode-bar__nav" aria-label="Navigate here">Navigate</button>' +
     '  <button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
     '  <span class="geocode-bar__addr"></span>' +
@@ -472,6 +477,33 @@ export function addReverseGeocoding(
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
   const barNavBtn  = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__nav')!;
   const barHandle  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__handle')!;
+  const barProfile = geocodeBar.querySelector<HTMLElement>('.geocode-bar__profile')!;
+  const profileButtons = Array.from(
+    barProfile.querySelectorAll<HTMLButtonElement>('.geocode-bar__profile-btn'),
+  );
+
+  function renderCosting(costing: Costing): void {
+    for (const btn of profileButtons) {
+      const isActive = btn.dataset['costing'] === costing;
+      btn.classList.toggle('geocode-bar__profile-btn--active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    }
+  }
+
+  function setCosting(costing: Costing): void {
+    renderCosting(costing);
+    void setGuidanceCosting(state, map, costing, showToast).then((updated) => {
+      if (!updated) renderCosting(state.guidance.costing);
+    });
+  }
+
+  barProfile.addEventListener('click', (e: MouseEvent) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.geocode-bar__profile-btn');
+    const costing = btn?.dataset['costing'];
+    if (costing === 'auto' || costing === 'bicycle' || costing === 'pedestrian') {
+      setCosting(costing);
+    }
+  });
 
   // "Navigate" button on the geocode-bar — start guidance to the destination
   // associated with the currently-shown bar. showGeocodeBar() is the single
@@ -483,8 +515,7 @@ export function addReverseGeocoding(
       showToast('No destination set');
       return;
     }
-    // Bar's drag-handle overlaps the guidance pill's Stop button at this y-coord (#175).
-    hideGeocodeBar();
+    snapTo('peek');
     void startGuidance(
       state,
       map,

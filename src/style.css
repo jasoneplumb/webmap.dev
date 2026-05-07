@@ -657,6 +657,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 .geocode-bar--peek .geocode-bar__handle,
+.geocode-bar--peek .geocode-bar__profile,
+.geocode-bar--peek .geocode-bar__profile-btn,
 .geocode-bar--peek .geocode-bar__nav,
 .geocode-bar--peek .geocode-bar__copy,
 .geocode-bar--peek .geocode-bar__close,
@@ -700,6 +702,36 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   min-height: 44px;
   flex-shrink: 0;
+}
+
+.geocode-bar__profile {
+  display: flex;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.geocode-bar__profile-btn {
+  border: 0;
+  border-right: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  padding: 3px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.geocode-bar__profile-btn:last-child {
+  border-right: 0;
+}
+
+.geocode-bar__profile-btn--active {
+  background: #111827;
+  color: #fff;
 }
 
 .geocode-bar__copy {
@@ -1740,4 +1772,3 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 .compass-rose--active { opacity: 1; cursor: default; }
 .compass-rose--unavailable { display: none; }
-

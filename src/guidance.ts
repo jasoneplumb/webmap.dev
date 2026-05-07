@@ -4,12 +4,10 @@
 
 import L from 'leaflet';
 import type { AppState } from './types';
-import type { Route } from './routing';
+import type { Costing, Route } from './routing';
 import { fetchRoute } from './routing';
 import { haversineDistance, pointToSegmentMeters } from './geo';
 
-
-import type { Costing } from './routing';
 
 // Profile-dependent thresholds (metres). `auto` is the default fallback if a
 // future Costing value lands here before the maps are updated.
@@ -30,18 +28,34 @@ const RECALC_THROTTLE_MS = 15_000;
 const ARRIVED_TRANSIENT_MS = 3_000;
 const STEP_ADVANCE_RADIUS_M = 10;
 
-const ROUTE_LINE_OPTS: L.PolylineOptions = {
-  color: '#4287f5',
-  weight: 4,
-  smoothFactor: 2,
-  interactive: false,
+const ROUTE_COLORS: Record<Costing, string> = {
+  auto: '#4287f5',
+  bicycle: '#16a34a',
+  pedestrian: '#9333ea',
 };
-const ROUTE_GLOW_OPTS: L.PolylineOptions = {
-  color: 'rgba(66,135,245,0.25)',
-  weight: 14,
-  smoothFactor: 2,
-  interactive: false,
+const ROUTE_GLOW_COLORS: Record<Costing, string> = {
+  auto: 'rgba(66,135,245,0.25)',
+  bicycle: 'rgba(22,163,74,0.25)',
+  pedestrian: 'rgba(147,51,234,0.25)',
 };
+function routeColor(c: Costing): string { return ROUTE_COLORS[c] ?? ROUTE_COLORS.auto; }
+function routeGlowColor(c: Costing): string { return ROUTE_GLOW_COLORS[c] ?? ROUTE_GLOW_COLORS.auto; }
+function routeLineOpts(c: Costing): L.PolylineOptions {
+  return {
+    color: routeColor(c),
+    weight: 4,
+    smoothFactor: 2,
+    interactive: false,
+  };
+}
+function routeGlowOpts(c: Costing): L.PolylineOptions {
+  return {
+    color: routeGlowColor(c),
+    weight: 14,
+    smoothFactor: 2,
+    interactive: false,
+  };
+}
 
 const DEST_ICON = L.divIcon({
   className: 'guidance-dest-marker',
@@ -132,6 +146,67 @@ export async function startGuidance(
     state.guidance.destination = null;
     render();
     showToast?.(`Routing failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+  }
+}
+
+export async function setGuidanceCosting(
+  state: AppState,
+  map: L.Map,
+  costing: Costing,
+  showToast?: (msg: string, durationMs?: number) => void,
+): Promise<boolean> {
+  if (state.guidance.costing === costing) return true;
+
+  const previousCosting = state.guidance.costing;
+  state.guidance.costing = costing;
+
+  const shouldReroute =
+    state.guidance.status === 'routing' ||
+    state.guidance.status === 'guiding' ||
+    state.guidance.status === 'off-route';
+
+  if (!shouldReroute) {
+    render();
+    return true;
+  }
+
+  const dest = state.guidance.destination;
+  const here = state.youAreHereLocation;
+  if (!dest || !here) {
+    render();
+    showToast?.('Enable location to update route type', 3000);
+    return true;
+  }
+
+  if (state.guidance.recalcInFlight) {
+    state.guidance.recalcInFlight.abort();
+    state.guidance.recalcInFlight = null;
+  }
+
+  const ac = new AbortController();
+  state.guidance.recalcInFlight = ac;
+  applyRouteStyle(state);
+  render();
+
+  try {
+    const route = await fetchRoute({
+      start: here,
+      dest: L.latLng(dest.lat, dest.lng),
+      costing,
+      signal: ac.signal,
+    });
+    if (state.guidance.recalcInFlight !== ac) return false;
+    state.guidance.recalcInFlight = null;
+    enterGuiding(state, map, route);
+    return true;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') return false;
+    if (state.guidance.recalcInFlight === ac) state.guidance.recalcInFlight = null;
+    state.guidance.costing = previousCosting;
+    applyRouteStyle(state);
+    render();
+    showToast?.(`Route type failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+    return false;
   }
 }
 
@@ -252,8 +327,8 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
 
   if (state.guidance.routePolyline) map.removeLayer(state.guidance.routePolyline);
   if (state.guidance.routeGlow) map.removeLayer(state.guidance.routeGlow);
-  state.guidance.routeGlow = L.polyline(route.coords, ROUTE_GLOW_OPTS).addTo(map);
-  state.guidance.routePolyline = L.polyline(route.coords, ROUTE_LINE_OPTS).addTo(map);
+  state.guidance.routeGlow = L.polyline(route.coords, routeGlowOpts(state.guidance.costing)).addTo(map);
+  state.guidance.routePolyline = L.polyline(route.coords, routeLineOpts(state.guidance.costing)).addTo(map);
 
   if (state.guidance.destMarker) map.removeLayer(state.guidance.destMarker);
   if (state.guidance.destination) {
@@ -264,6 +339,11 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
   }
 
   render();
+}
+
+function applyRouteStyle(state: AppState): void {
+  state.guidance.routePolyline?.setStyle(routeLineOpts(state.guidance.costing));
+  state.guidance.routeGlow?.setStyle(routeGlowOpts(state.guidance.costing));
 }
 
 function maybeRecalc(state: AppState, map: L.Map): void {
@@ -316,7 +396,7 @@ function setArrived(state: AppState, map: L.Map): void {
 function render(): void {
   if (!panelEl || !storedState) return;
   const g = storedState.guidance;
-  panelEl.className = 'guidance-panel';
+  panelEl.className = 'leaflet-control guidance-panel';
   panelEl.innerHTML = '';
 
   if (g.status === 'idle') {
@@ -357,6 +437,12 @@ function render(): void {
       '<span class="guidance-spinner" aria-hidden="true"></span>' +
       '<span>Off route — recalculating…</span>' +
       '</div>';
+  } else if (g.recalcInFlight) {
+    panelEl.innerHTML =
+      '<div class="guidance-row guidance-row--maneuver">' +
+      '<span class="guidance-spinner" aria-hidden="true"></span>' +
+      `<span>Updating ${escapeHtml(costingLabel(g.costing))} route…</span>` +
+      '</div>';
   } else {
     const stepIdx = Math.min(g.currentStepIdx, route.steps.length - 1);
     const step = route.steps[stepIdx];
@@ -386,6 +472,14 @@ function render(): void {
   }
 
   appendButton('Stop', 'guidance-btn--stop', 'Stop navigation');
+}
+
+function costingLabel(c: Costing): string {
+  switch (c) {
+    case 'auto': return 'drive';
+    case 'bicycle': return 'bike';
+    case 'pedestrian': return 'walk';
+  }
 }
 
 function appendButton(label: string, modifier: string, ariaLabel: string): void {

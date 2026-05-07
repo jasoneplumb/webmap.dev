@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import L from 'leaflet';
-import { updateGuidance, stopGuidance } from './guidance';
+import { addGuidanceControl, setGuidanceCosting, updateGuidance, stopGuidance } from './guidance';
 import { createInitialState } from './types';
 import type { AppState } from './types';
 import type { Route, RouteStep } from './routing';
@@ -47,6 +47,24 @@ function fakeFix(lat: number, lng: number): L.LocationEvent {
     type: 'locationfound',
   } as unknown as L.LocationEvent;
 }
+
+function mockRouteFetch(): ReturnType<typeof vi.fn> {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      trip: {
+        legs: [{ shape: '', maneuvers: [] }],
+        summary: { length: 1, time: 60 },
+      },
+    }),
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('updateGuidance — status gating', () => {
   let state: AppState;
@@ -204,6 +222,42 @@ describe('startGuidance — re-entry', () => {
   });
 });
 
+describe('setGuidanceCosting', () => {
+  it('updates the preferred costing while idle without fetching a route', async () => {
+    const state = createInitialState();
+    const map = makeMap();
+    const fetchMock = mockRouteFetch();
+
+    await expect(setGuidanceCosting(state, map, 'bicycle')).resolves.toBe(true);
+
+    expect(state.guidance.costing).toBe('bicycle');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetches a replacement route for the current destination while guiding', async () => {
+    const state = createInitialState();
+    const map = makeMap();
+    const route = makeRoute([[40, -74], [40, -73.99]]);
+    const fetchMock = mockRouteFetch();
+    const routeLine = { setStyle: vi.fn() } as unknown as L.Polyline;
+    const routeGlow = { setStyle: vi.fn() } as unknown as L.Polyline;
+    state.youAreHereLocation = L.latLng(40, -74);
+    setGuiding(state, route, { lat: 40, lng: -73.99, label: 'X' });
+    state.guidance.routePolyline = routeLine;
+    state.guidance.routeGlow = routeGlow;
+
+    await expect(setGuidanceCosting(state, map, 'pedestrian')).resolves.toBe(true);
+
+    expect(state.guidance.costing).toBe('pedestrian');
+    expect(state.guidance.status).toBe('guiding');
+    expect(routeLine.setStyle).toHaveBeenCalledWith(expect.objectContaining({ color: '#9333ea' }));
+    expect(routeGlow.setStyle).toHaveBeenCalledWith(expect.objectContaining({ color: 'rgba(147,51,234,0.25)' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { costing: string };
+    expect(body.costing).toBe('pedestrian');
+  });
+});
+
 describe('stopGuidance', () => {
   it('is a no-op when already idle', () => {
     const state = createInitialState();
@@ -245,5 +299,23 @@ describe('stopGuidance', () => {
     stopGuidance(state, map);
     expect(ac.signal.aborted).toBe(true);
     expect(state.guidance.recalcInFlight).toBeNull();
+  });
+});
+
+describe('guidance control rendering', () => {
+  it('preserves Leaflet control class across active renders', () => {
+    document.body.innerHTML = '<div id="map" style="height: 400px; width: 400px"></div>';
+    const map = L.map(document.getElementById('map')!);
+    const state = createInitialState();
+    const route = makeRoute([[40, -74], [40, -73.99]]);
+
+    addGuidanceControl(map, state, () => undefined, () => undefined);
+    setGuiding(state, route, { lat: 40, lng: -73.99, label: 'X' });
+    updateGuidance(fakeFix(40, -74), state, map);
+
+    const panel = document.querySelector('.guidance-panel');
+    expect(panel?.classList.contains('leaflet-control')).toBe(true);
+
+    map.remove();
   });
 });

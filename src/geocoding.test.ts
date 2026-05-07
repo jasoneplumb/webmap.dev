@@ -19,6 +19,7 @@ function makeWrapper(): HTMLElement {
 }
 
 type ProviderCb = (err: unknown, results: unknown[]) => void;
+const SEARCH_PLACEHOLDER = '';
 interface FakeProvider {
   results: (text: unknown, key: unknown, bounds: unknown, cb: ProviderCb) => void;
   suggest: (text: unknown, key: unknown, bounds: unknown, cb: ProviderCb) => void;
@@ -63,7 +64,7 @@ function makeCollapseController(input: HTMLInputElement, wrapper: HTMLElement) {
 
   function collapseSearch() {
     input.value = '';
-    input.placeholder = '';
+    input.placeholder = SEARCH_PLACEHOLDER;
     wrapper.classList.remove('geocoder-control-expanded');
   }
 
@@ -136,6 +137,7 @@ describe('collapse controller', () => {
     input.value = 'Seattle';
     ctrl.collapseSearch();
     expect(input.value).toBe('');
+    expect(input.placeholder).toBe(SEARCH_PLACEHOLDER);
     expect(wrapper.classList.contains('geocoder-control-expanded')).toBe(false);
   });
 
