@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import L from 'leaflet';
-import { addGuidanceControl, setGuidanceCosting, updateGuidance, stopGuidance } from './guidance';
+import { setGuidanceCosting, updateGuidance, stopGuidance } from './guidance';
 import { createInitialState } from './types';
 import type { AppState } from './types';
 import type { Route, RouteStep } from './routing';
@@ -299,23 +299,5 @@ describe('stopGuidance', () => {
     stopGuidance(state, map);
     expect(ac.signal.aborted).toBe(true);
     expect(state.guidance.recalcInFlight).toBeNull();
-  });
-});
-
-describe('guidance control rendering', () => {
-  it('preserves Leaflet control class across active renders', () => {
-    document.body.innerHTML = '<div id="map" style="height: 400px; width: 400px"></div>';
-    const map = L.map(document.getElementById('map')!);
-    const state = createInitialState();
-    const route = makeRoute([[40, -74], [40, -73.99]]);
-
-    addGuidanceControl(map, state, () => undefined, () => undefined);
-    setGuiding(state, route, { lat: 40, lng: -73.99, label: 'X' });
-    updateGuidance(fakeFix(40, -74), state, map);
-
-    const panel = document.querySelector('.guidance-panel');
-    expect(panel?.classList.contains('leaflet-control')).toBe(true);
-
-    map.remove();
   });
 });

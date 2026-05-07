@@ -3,7 +3,7 @@
 [![CI](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml/badge.svg)](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![TypeScript](https://img.shields.io/badge/TypeScript-ES2020-blue)
-![Bundle Size](https://img.shields.io/badge/bundle-%E2%89%A4100kB_gzip-brightgreen)
+![Bundle Size](https://img.shields.io/badge/bundle-%E2%89%A4103kB_gzip-brightgreen)
 
 > A mobile-first Progressive Web App for live GPS navigation and offline map exploration.
 
@@ -93,7 +93,7 @@ npm run preview      # Preview production build
 npm run type-check   # TypeScript validation
 npm run lint         # ESLint
 npm test             # Run unit tests
-npm run size         # size-limit check (≤100 kB gzipped)
+npm run size         # size-limit check (≤103 kB gzipped)
 npm run og           # Regenerate the social-preview OG image
 npm run icons        # Regenerate maskable PWA icons
 ```

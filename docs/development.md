@@ -39,7 +39,7 @@ npm run preview      # Preview production bundle locally
 npm run type-check   # TypeScript compiler in check-only mode
 npm run lint         # ESLint
 npm test             # Run unit tests (vitest)
-npm run size         # size-limit check (≤100 kB gzipped)
+npm run size         # size-limit check (≤103 kB gzipped)
 npm run og           # Regenerate the social-preview OG image (uses sharp)
 npm run icons        # Regenerate the maskable PWA icons
 ```
@@ -339,7 +339,7 @@ All four must pass. CI runs `npm test`; the other three are local-only checks th
 - **Adaptive accuracy** — high-accuracy GPS is the dominant battery cost; the 5-fix stationary downgrade saves significant power on long stops.
 - **Trail / route polylines** — `preferCanvas: true` on the map gives meaningfully better performance than the default SVG renderer for polylines and many markers.
 - **Tile caching** — both passive (Workbox SWR) and proactive (Cache API pre-download) write to the same `OSM_TILE_CACHE_NAME` so they share storage.
-- **Bundle size** — `npm run size` enforces a 100 kB gzipped budget on `dist/assets/index-*.js`.
+- **Bundle size** — `npm run size` enforces a 103 kB gzipped budget on `dist/assets/index-*.js`.
 
 ## Debugging
 

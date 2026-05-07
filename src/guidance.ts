@@ -64,9 +64,6 @@ const DEST_ICON = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-let panelEl: HTMLElement | null = null;
-let storedState: AppState | null = null;
-let storedMap: L.Map | null = null;
 let storedActivatePolling: (() => void) | null = null;
 let storedDeactivatePolling: (() => void) | null = null;
 let arrivedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -78,32 +75,10 @@ export function addGuidanceControl(
   activatePolling: () => void,
   deactivatePolling: () => void,
 ): void {
-  storedState = state;
-  storedMap = map;
+  void map;
+  void state;
   storedActivatePolling = activatePolling;
   storedDeactivatePolling = deactivatePolling;
-
-  const Ctrl = L.Control.extend({
-    onAdd(): HTMLElement {
-      const c = L.DomUtil.create('div', 'guidance-panel guidance-panel--idle');
-      c.setAttribute('role', 'group');
-      c.setAttribute('aria-label', 'Navigation');
-      panelEl = c;
-      L.DomEvent.disableClickPropagation(c);
-      L.DomEvent.disableScrollPropagation(c);
-      // Delegate clicks on .guidance-btn to a single persistent listener so
-      // every-GPS-fix re-renders don't destroy the button mid-tap.
-      L.DomEvent.on(c, 'click', (e: Event) => {
-        if ((e.target as HTMLElement).closest('.guidance-btn')) onStop();
-      });
-      render();
-      return c;
-    },
-  });
-
-  new (Ctrl as new (opts: L.ControlOptions) => L.Control)({
-    position: 'bottomleft',
-  }).addTo(map);
 }
 
 // ── Public state-machine API ───────────────────────────────────────────────
@@ -451,13 +426,7 @@ function setArrived(state: AppState, map: L.Map): void {
 // ── Render ─────────────────────────────────────────────────────────────────
 
 function render(): void {
-  if (!storedState) return;
   for (const listener of guidanceRenderListeners) listener();
-  if (!panelEl) return;
-  panelEl.className = 'leaflet-control guidance-panel';
-  panelEl.innerHTML = '';
-
-  panelEl.classList.add('guidance-panel--idle');
 }
 
 function costingLabel(c: Costing): string {
@@ -473,10 +442,6 @@ function guidanceStatusHtml(text: string): string {
     '<span class="guidance-spinner" aria-hidden="true"></span>' +
     `<span>${text}</span>` +
     '</div>';
-}
-
-function onStop(): void {
-  if (storedState && storedMap) stopGuidance(storedState, storedMap);
 }
 
 function maneuverIcon(type: number): string {
