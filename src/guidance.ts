@@ -70,6 +70,7 @@ let storedMap: L.Map | null = null;
 let storedActivatePolling: (() => void) | null = null;
 let storedDeactivatePolling: (() => void) | null = null;
 let arrivedTimer: ReturnType<typeof setTimeout> | null = null;
+const guidanceRenderListeners = new Set<() => void>();
 
 export function addGuidanceControl(
   map: L.Map,
@@ -106,6 +107,62 @@ export function addGuidanceControl(
 }
 
 // ── Public state-machine API ───────────────────────────────────────────────
+
+export function onGuidanceRender(listener: () => void): () => void {
+  guidanceRenderListeners.add(listener);
+  return () => {
+    guidanceRenderListeners.delete(listener);
+  };
+}
+
+export function renderGuidanceDashboard(state: AppState): string {
+  const g = state.guidance;
+
+  if (g.status === 'idle') return '';
+
+  if (g.status === 'routing') {
+    return guidanceStatusHtml(`Routing to ${escapeHtml(g.destination?.label ?? '?')}…`);
+  }
+
+  if (g.status === 'arrived') {
+    return '<div class="guidance-arrived">' +
+      `Arrived${g.destination ? ' at ' + escapeHtml(g.destination.label) : ''}` +
+      '</div>';
+  }
+
+  const route = g.route;
+  if (!route) return '';
+
+  if (g.status === 'off-route') {
+    return guidanceStatusHtml('Off route — recalculating…');
+  }
+
+  if (g.recalcInFlight) {
+    return guidanceStatusHtml(`Updating ${escapeHtml(costingLabel(g.costing))} route…`);
+  }
+
+  const stepIdx = Math.min(g.currentStepIdx, route.steps.length - 1);
+  const step = route.steps[stepIdx];
+  const remaining = g.distanceToDestinationM ?? route.distanceM;
+  const remainingFraction = route.distanceM > 0 ? remaining / route.distanceM : 1;
+  const remainingDurationMs = route.durationS * 1000 * remainingFraction;
+  const eta = new Date(Date.now() + remainingDurationMs);
+  const etaStr = eta.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const dist = g.distanceToManeuverM ?? step?.lengthM ?? 0;
+
+  return '<div class="guidance-row guidance-row--maneuver">' +
+    `<span class="maneuver-icon">${maneuverIcon(step?.type ?? 0)}</span>` +
+    `<span class="maneuver-distance">${formatDist(dist)}</span>` +
+    `<span class="maneuver-text">${escapeHtml(step?.instruction ?? '')}</span>` +
+    '</div>' +
+    '<div class="guidance-row guidance-row--summary">' +
+    `<span>${formatDist(remaining)}</span>` +
+    '<span class="guidance-row__sep">·</span>' +
+    `<span>ETA ${escapeHtml(etaStr)}</span>` +
+    '<span class="guidance-row__sep">·</span>' +
+    `<span class="guidance-mode-chip">${escapeHtml(g.costing)}</span>` +
+    '</div>';
+}
 
 export async function startGuidance(
   state: AppState,
@@ -394,84 +451,13 @@ function setArrived(state: AppState, map: L.Map): void {
 // ── Render ─────────────────────────────────────────────────────────────────
 
 function render(): void {
-  if (!panelEl || !storedState) return;
-  const g = storedState.guidance;
+  if (!storedState) return;
+  for (const listener of guidanceRenderListeners) listener();
+  if (!panelEl) return;
   panelEl.className = 'leaflet-control guidance-panel';
   panelEl.innerHTML = '';
 
-  if (g.status === 'idle') {
-    panelEl.classList.add('guidance-panel--idle');
-    return;
-  }
-
-  if (g.status === 'routing') {
-    panelEl.classList.add('guidance-panel--routing');
-    panelEl.innerHTML =
-      '<div class="guidance-row guidance-row--maneuver">' +
-      '<span class="guidance-spinner" aria-hidden="true"></span>' +
-      `<span>Routing to ${escapeHtml(g.destination?.label ?? '?')}…</span>` +
-      '</div>';
-    appendButton('Cancel', 'guidance-btn--cancel', 'Cancel routing');
-    return;
-  }
-
-  if (g.status === 'arrived') {
-    panelEl.classList.add('guidance-panel--arrived');
-    panelEl.innerHTML =
-      '<div class="guidance-arrived">' +
-      `Arrived${g.destination ? ' at ' + escapeHtml(g.destination.label) : ''}` +
-      '</div>';
-    return;
-  }
-
-  // guiding | off-route
-  panelEl.classList.add('guidance-panel--active');
-  if (g.status === 'off-route') panelEl.classList.add('guidance-panel--off-route');
-
-  const route = g.route;
-  if (!route) return;
-
-  if (g.status === 'off-route') {
-    panelEl.innerHTML =
-      '<div class="guidance-row guidance-row--maneuver">' +
-      '<span class="guidance-spinner" aria-hidden="true"></span>' +
-      '<span>Off route — recalculating…</span>' +
-      '</div>';
-  } else if (g.recalcInFlight) {
-    panelEl.innerHTML =
-      '<div class="guidance-row guidance-row--maneuver">' +
-      '<span class="guidance-spinner" aria-hidden="true"></span>' +
-      `<span>Updating ${escapeHtml(costingLabel(g.costing))} route…</span>` +
-      '</div>';
-  } else {
-    const stepIdx = Math.min(g.currentStepIdx, route.steps.length - 1);
-    const step = route.steps[stepIdx];
-    // Remaining distance: prefer the live straight-line update; fall back to
-    // the original route distance for the brief window before the first fix.
-    const remaining = g.distanceToDestinationM ?? route.distanceM;
-    // ETA: scale the route's predicted duration by the share of distance left.
-    const remainingFraction = route.distanceM > 0 ? remaining / route.distanceM : 1;
-    const remainingDurationMs = route.durationS * 1000 * remainingFraction;
-    const eta = new Date(Date.now() + remainingDurationMs);
-    const etaStr = eta.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    const dist = g.distanceToManeuverM ?? step?.lengthM ?? 0;
-
-    panelEl.innerHTML =
-      '<div class="guidance-row guidance-row--maneuver">' +
-      `<span class="maneuver-icon">${maneuverIcon(step?.type ?? 0)}</span>` +
-      `<span class="maneuver-distance">${formatDist(dist)}</span>` +
-      `<span class="maneuver-text">${escapeHtml(step?.instruction ?? '')}</span>` +
-      '</div>' +
-      '<div class="guidance-row guidance-row--summary">' +
-      `<span>${formatDist(remaining)}</span>` +
-      '<span class="guidance-row__sep">·</span>' +
-      `<span>ETA ${escapeHtml(etaStr)}</span>` +
-      '<span class="guidance-row__sep">·</span>' +
-      `<span class="guidance-mode-chip">${escapeHtml(g.costing)}</span>` +
-      '</div>';
-  }
-
-  appendButton('Stop', 'guidance-btn--stop', 'Stop navigation');
+  panelEl.classList.add('guidance-panel--idle');
 }
 
 function costingLabel(c: Costing): string {
@@ -482,15 +468,11 @@ function costingLabel(c: Costing): string {
   }
 }
 
-function appendButton(label: string, modifier: string, ariaLabel: string): void {
-  if (!panelEl) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = `guidance-btn ${modifier}`;
-  btn.textContent = label;
-  btn.setAttribute('aria-label', ariaLabel);
-  // Click handling lives on panelEl via delegation — see addGuidanceControl.
-  panelEl.appendChild(btn);
+function guidanceStatusHtml(text: string): string {
+  return '<div class="guidance-row guidance-row--maneuver">' +
+    '<span class="guidance-spinner" aria-hidden="true"></span>' +
+    `<span>${text}</span>` +
+    '</div>';
 }
 
 function onStop(): void {

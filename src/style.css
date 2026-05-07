@@ -316,6 +316,14 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: #16a34a;
 }
 
+.geocode-bar__nav--stop {
+  background: #ef4444;
+}
+
+.geocode-bar__nav--stop:hover {
+  background: #dc2626;
+}
+
 /* Search-result Navigate button — green primary, sits before the Go button */
 .sheet-result__nav-btn {
   padding: 6px 12px;
@@ -657,6 +665,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 .geocode-bar--peek .geocode-bar__handle,
+.geocode-bar--peek .geocode-bar__dashboard,
 .geocode-bar--peek .geocode-bar__profile,
 .geocode-bar--peek .geocode-bar__profile-btn,
 .geocode-bar--peek .geocode-bar__nav,
@@ -697,11 +706,29 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .geocode-bar__body {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 0 8px;
   padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   min-height: 44px;
   flex-shrink: 0;
+}
+
+.geocode-bar__dashboard {
+  display: none;
+  flex: 1 0 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #fff;
+}
+
+.geocode-bar__dashboard--visible {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .geocode-bar__profile {

@@ -7,7 +7,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { setGuidanceCosting, startGuidance } from './guidance';
+import { onGuidanceRender, renderGuidanceDashboard, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
 import type { Costing } from './routing';
 
 // Escape text for safe insertion into innerHTML
@@ -251,6 +251,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
       const label = li.dataset['name'] ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
       // Dropdown is z-index 2000; close it before the guidance pill appears.
       hideDropdown();
+      _showGeocodeBar?.(label, label, L.latLng(lat, lng));
       void startGuidance(state, map, { lat, lng, label }, onNoResults);
       return;
     }
@@ -461,18 +462,20 @@ export function addReverseGeocoding(
     '  <div class="geocode-bar__handle-pill"></div>' +
     '</div>' +
     '<div class="geocode-bar__body">' +
+    '  <div class="geocode-bar__dashboard"></div>' +
     '  <div class="geocode-bar__profile" role="group" aria-label="Navigation type">' +
     '    <button type="button" class="geocode-bar__profile-btn geocode-bar__profile-btn--active" data-costing="auto" aria-pressed="true">Drive</button>' +
     '    <button type="button" class="geocode-bar__profile-btn" data-costing="bicycle" aria-pressed="false">Bike</button>' +
     '    <button type="button" class="geocode-bar__profile-btn" data-costing="pedestrian" aria-pressed="false">Walk</button>' +
     '  </div>' +
-    '  <button class="geocode-bar__nav" aria-label="Navigate here">Navigate</button>' +
+    '  <button class="geocode-bar__nav" aria-label="Start navigation">Start</button>' +
     '  <button class="geocode-bar__copy" aria-label="Copy address">Copy</button>' +
     '  <span class="geocode-bar__addr"></span>' +
     '  <button class="geocode-bar__close" aria-label="Dismiss">\u00d7</button>' +
     '</div>';
   document.body.appendChild(geocodeBar);
 
+  const dashboardEl = geocodeBar.querySelector<HTMLElement>('.geocode-bar__dashboard')!;
   const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
   const barNavBtn  = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__nav')!;
@@ -505,12 +508,32 @@ export function addReverseGeocoding(
     }
   });
 
+  function isNavigating(): boolean {
+    return state.guidance.status !== 'idle';
+  }
+
+  function renderNavigationTray(): void {
+    dashboardEl.innerHTML = renderGuidanceDashboard(state);
+    dashboardEl.classList.toggle('geocode-bar__dashboard--visible', dashboardEl.innerHTML !== '');
+    barNavBtn.textContent = isNavigating() ? 'Stop' : 'Start';
+    barNavBtn.setAttribute('aria-label', isNavigating() ? 'Stop navigation' : 'Start navigation');
+    barNavBtn.classList.toggle('geocode-bar__nav--stop', isNavigating());
+    renderCosting(state.guidance.costing);
+  }
+
+  onGuidanceRender(renderNavigationTray);
+
   // "Navigate" button on the geocode-bar — start guidance to the destination
   // associated with the currently-shown bar. showGeocodeBar() is the single
   // setter so search-results, long-press, and pin-drag all stay in sync.
   let currentPinLatLng: L.LatLng | null = null;
   let currentPinLabel = '';
   barNavBtn.addEventListener('click', () => {
+    if (isNavigating()) {
+      stopGuidance(state, map);
+      renderNavigationTray();
+      return;
+    }
     if (currentPinLatLng === null) {
       showToast('No destination set');
       return;
@@ -522,6 +545,7 @@ export function addReverseGeocoding(
       { lat: currentPinLatLng.lat, lng: currentPinLatLng.lng, label: currentPinLabel },
       showToast,
     );
+    renderNavigationTray();
   });
 
   // Tap-to-expand: tapping a truncated address shows the full text for 3s
@@ -626,6 +650,7 @@ export function addReverseGeocoding(
     barCopyBtn.classList.remove('geocode-bar__copy--copied');
     currentPinLabel = label;
     currentPinLatLng = latlng;
+    renderNavigationTray();
 
     if (sheetState === 'hidden') {
       // Render off-screen first so offsetHeight is available, then use double-rAF

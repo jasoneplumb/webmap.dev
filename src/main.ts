@@ -213,6 +213,7 @@ addLocateControl(map, () => {
       break;
   }
 });
+startLocating();
 
 // Drag and wheel-zoom move the view off the user's position; button-zoom is deliberate so it keeps active.
 function dropToPassive(showTouchHint: boolean): void {
