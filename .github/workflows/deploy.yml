@@ -32,10 +32,15 @@ jobs:
 
       - name: Resolve and check out release tag
         id: release
+        # Pass trigger context via env, never interpolate ${{ }} into the
+        # shell — a crafted tag name would otherwise be executed.
+        env:
+          GH_EVENT: ${{ github.event_name }}
+          GH_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
+          if [ "$GH_EVENT" = "push" ]; then
             # Tag push — deploy exactly the tag that was pushed.
-            TAG="${{ github.ref_name }}"
+            TAG="$GH_REF_NAME"
           else
             # Manual dispatch — deploy the latest version tag.
             TAG=$(git tag -l 'v*' --sort=-v:refname | head -n1)
