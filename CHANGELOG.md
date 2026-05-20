@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.32.0-beta (2026-05-20)
+
+### Added
+
+- **Locale-aware distance units** — turn-by-turn maneuver distances and route summaries now display in miles/feet or kilometres/metres based on the browser locale (imperial for US/GB/MM/LR regions, metric elsewhere). Valhalla is queried with matching units so its instruction text agrees with the pill display (#184)
+
+### Changed
+
+- Moved the navigation dashboard into the tray and trimmed the tray navigation bundle
+
+### Fixed
+
+- **Opaque CORS error when routing was unreachable** — `fetch()` rejects with a raw `TypeError` on any network-level failure (DNS, connection refused, TLS, blocked CORS preflight), which the browser surfaces as an opaque "CORS request did not succeed / Status (null)" console error and a cryptic toast. `fetchRoute()` now converts these into an actionable "routing service unavailable" message while letting `AbortError` propagate unchanged; also fixed a double-prefixed HTTP-error message (#182)
+- Fixed routed guidance controls
+
 ## v0.31.4-beta (2026-04-26)
 
 ### Fixed
