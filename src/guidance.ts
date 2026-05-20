@@ -8,6 +8,20 @@ import type { Costing, Route } from './routing';
 import { fetchRoute } from './routing';
 import { haversineDistance, pointToSegmentMeters } from './geo';
 import { formatDistance } from './units';
+import { showAlertDialog } from './dialog';
+
+/**
+ * Surface a routing failure in a modal dialog rather than a toast. The
+ * geocode-bar tray (z-index 1500) covers the toast (z-index 1000), so a
+ * "routing service unavailable" toast goes unseen exactly when it matters.
+ */
+function showRoutingError(err: unknown): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  showAlertDialog({
+    title: 'Routing unavailable',
+    message: detail.charAt(0).toUpperCase() + detail.slice(1),
+  });
+}
 
 
 // Profile-dependent thresholds (metres). `auto` is the default fallback if a
@@ -178,7 +192,7 @@ export async function startGuidance(
     state.guidance.status = 'idle';
     state.guidance.destination = null;
     render();
-    showToast?.(`Routing failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+    showRoutingError(err);
   }
 }
 
@@ -238,7 +252,7 @@ export async function setGuidanceCosting(
     state.guidance.costing = previousCosting;
     applyRouteStyle(state);
     render();
-    showToast?.(`Route type failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+    showRoutingError(err);
     return false;
   }
 }
