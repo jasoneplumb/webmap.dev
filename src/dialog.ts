@@ -14,10 +14,16 @@ interface AlertDialogOptions {
   buttonLabel?: string;
 }
 
+// Cleanup for the dialog currently open, if any. Lets a replacement fully
+// tear down the previous dialog — including its document keydown listener.
+let activeCleanup: (() => void) | null = null;
+
 /** Show a modal alert dialog. Replaces any dialog already open. */
 export function showAlertDialog(opts: AlertDialogOptions): void {
   // Never stack dialogs — a newer message supersedes an unacknowledged one.
-  document.getElementById('app-dialog-overlay')?.remove();
+  activeCleanup?.();
+
+  const previouslyFocused = document.activeElement as HTMLElement | null;
 
   const overlay = document.createElement('div');
   overlay.id = 'app-dialog-overlay';
@@ -50,8 +56,10 @@ export function showAlertDialog(opts: AlertDialogOptions): void {
   document.body.appendChild(overlay);
 
   function cleanup(): void {
+    if (activeCleanup === cleanup) activeCleanup = null;
     overlay.remove();
     document.removeEventListener('keydown', onKey);
+    previouslyFocused?.focus();
   }
   function onKey(e: KeyboardEvent): void {
     if (e.key === 'Escape') cleanup();
@@ -63,6 +71,7 @@ export function showAlertDialog(opts: AlertDialogOptions): void {
     if (e.target === overlay) cleanup();
   });
   document.addEventListener('keydown', onKey);
+  activeCleanup = cleanup;
 
   okBtn.focus();
 }

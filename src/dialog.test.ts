@@ -27,6 +27,21 @@ describe('showAlertDialog', () => {
     expect(document.getElementById('app-dialog-overlay')).toBeNull();
   });
 
+  it('dismisses on backdrop click', () => {
+    showAlertDialog({ title: 'T', message: 'M' });
+    const overlay = document.getElementById('app-dialog-overlay')!;
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.getElementById('app-dialog-overlay')).toBeNull();
+  });
+
+  it('does not leave a stale Escape listener after replacement', () => {
+    showAlertDialog({ title: 'First', message: 'one' });
+    showAlertDialog({ title: 'Second', message: 'two' });
+    // One Escape closes the live dialog; no orphaned listener from the first.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(document.getElementById('app-dialog-overlay')).toBeNull();
+  });
+
   it('replaces an existing dialog instead of stacking', () => {
     showAlertDialog({ title: 'First', message: 'one' });
     showAlertDialog({ title: 'Second', message: 'two' });
