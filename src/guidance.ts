@@ -8,6 +8,16 @@ import type { Costing, Route } from './routing';
 import { fetchRoute } from './routing';
 import { haversineDistance, pointToSegmentMeters } from './geo';
 import { formatDistance } from './units';
+import { showAlertDialog } from './dialog';
+
+// Surface a routing failure in a dialog — a toast is hidden behind the tray.
+function showRoutingError(err: unknown, title = 'Routing unavailable'): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  const message = detail
+    ? detail.charAt(0).toUpperCase() + detail.slice(1)
+    : 'Could not reach the routing service. Please try again.';
+  showAlertDialog({ title, message });
+}
 
 
 // Profile-dependent thresholds (metres). `auto` is the default fallback if a
@@ -178,7 +188,7 @@ export async function startGuidance(
     state.guidance.status = 'idle';
     state.guidance.destination = null;
     render();
-    showToast?.(`Routing failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+    showRoutingError(err);
   }
 }
 
@@ -238,7 +248,7 @@ export async function setGuidanceCosting(
     state.guidance.costing = previousCosting;
     applyRouteStyle(state);
     render();
-    showToast?.(`Route type failed: ${err instanceof Error ? err.message : String(err)}`, 5000);
+    showRoutingError(err, "Couldn't change route type");
     return false;
   }
 }

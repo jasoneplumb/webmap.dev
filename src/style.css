@@ -1775,6 +1775,70 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin: 8px 24px;
 }
 
+/* Modal alert dialog (dialog.ts) — for important messages a toast can't
+   reliably surface because the geocode-bar tray (z-index 1500) covers it. */
+.app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+.app-dialog-panel {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-width: 420px;
+  width: calc(100% - 32px);
+  font-family: system-ui, sans-serif;
+  color: #222;
+  line-height: 1.5;
+}
+
+.app-dialog-title {
+  margin: 0;
+  padding: 20px 24px 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+}
+
+.app-dialog-message {
+  margin: 0;
+  padding: 0 24px 4px;
+  font-size: 14px;
+}
+
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 24px 20px;
+}
+
+.app-dialog-ok {
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: #4287f5;
+  color: #fff;
+  cursor: pointer;
+}
+
+.app-dialog-ok:hover {
+  background: #2f6fd8;
+}
+
+.app-dialog-ok:focus-visible {
+  outline: 2px solid #1b4fa8;
+  outline-offset: 2px;
+}
+
 /* Device-orientation compass (top-right). Initial state is muted; first tap requests permission
    on iOS, after which .compass-rose--active rotates the SVG by --heading-deg. */
 .compass-rose {
