@@ -1,6 +1,12 @@
 // Privacy: each request sends start + destination to the public FOSSGIS Valhalla
 // instance. ADR-006 + the consent flow document the tradeoff before any nav action.
 import L from 'leaflet';
+import {
+  type UnitSystem,
+  unitSystem,
+  valhallaUnits,
+  metersPerValhallaUnit,
+} from './units';
 
 export type Costing = 'auto' | 'pedestrian' | 'bicycle';
 
@@ -27,6 +33,8 @@ export interface RouteRequest {
   dest: L.LatLng;
   costing: Costing;
   signal?: AbortSignal;
+  /** Unit system for Valhalla's instruction text. Defaults to the session locale. */
+  units?: UnitSystem;
 }
 
 export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route' as const;
@@ -66,7 +74,7 @@ export function decodePolyline6(s: string): L.LatLng[] {
 interface ValhallaManeuver {
   type: number;
   instruction: string;
-  length: number; // km (we requested kilometers)
+  length: number; // in the units requested via directions_options
   time: number; // seconds
   street_names?: string[];
   begin_shape_index: number;
@@ -79,7 +87,7 @@ interface ValhallaResponse {
       maneuvers: ValhallaManeuver[];
     }>;
     summary: {
-      length: number; // km
+      length: number; // in the units requested via directions_options
       time: number; // seconds
     };
   };
@@ -93,13 +101,14 @@ export async function fetchRoute(req: RouteRequest): Promise<Route> {
   ) {
     throw new Error('Routing failed: invalid coordinates');
   }
+  const system = req.units ?? unitSystem();
   const body = {
     locations: [
       { lat: req.start.lat, lon: req.start.lng },
       { lat: req.dest.lat, lon: req.dest.lng },
     ],
     costing: req.costing,
-    directions_options: { units: 'kilometers' },
+    directions_options: { units: valhallaUnits(system) },
   };
   let res: Response;
   try {
@@ -131,11 +140,12 @@ export async function fetchRoute(req: RouteRequest): Promise<Route> {
   }
   const leg = json.trip.legs[0];
   if (!leg) throw new Error('Routing returned no legs');
+  const mPerUnit = metersPerValhallaUnit(system);
   const coords = decodePolyline6(leg.shape);
   const steps: RouteStep[] = leg.maneuvers.map((m) => ({
     instruction: m.instruction,
     type: m.type,
-    lengthM: m.length * 1000,
+    lengthM: m.length * mPerUnit,
     durationS: m.time,
     streetNames: m.street_names ?? [],
     beginShapeIndex: m.begin_shape_index,
@@ -143,7 +153,7 @@ export async function fetchRoute(req: RouteRequest): Promise<Route> {
   return {
     coords,
     steps,
-    distanceM: json.trip.summary.length * 1000,
+    distanceM: json.trip.summary.length * mPerUnit,
     durationS: json.trip.summary.time,
   };
 }

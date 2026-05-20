@@ -112,6 +112,7 @@ describe('fetchRoute', () => {
       start: L.latLng(40, -74),
       dest: L.latLng(40.1, -73.9),
       costing: 'auto',
+      units: 'metric',
     });
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -126,6 +127,32 @@ describe('fetchRoute', () => {
     ]);
     expect(body.costing).toBe('auto');
     expect(body.directions_options).toEqual({ units: 'kilometers' });
+  });
+
+  it('requests miles from Valhalla and converts lengths when units=imperial', async () => {
+    mockOk({
+      trip: {
+        legs: [{
+          shape: '',
+          maneuvers: [
+            { type: 1, instruction: 'Drive 1 mile', length: 1, time: 60, begin_shape_index: 0 },
+          ],
+        }],
+        summary: { length: 2, time: 120 },
+      },
+    });
+    const r = await fetchRoute({
+      start: L.latLng(0, 0),
+      dest: L.latLng(1, 1),
+      costing: 'auto',
+      units: 'imperial',
+    });
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(body.directions_options).toEqual({ units: 'miles' });
+    // Valhalla reports `length` in miles when miles are requested.
+    expect(r.distanceM).toBeCloseTo(2 * 1609.344, 3);
+    expect(r.steps[0]?.lengthM).toBeCloseTo(1609.344, 3);
   });
 
   it.each(['auto', 'pedestrian', 'bicycle'] as const)(
@@ -250,6 +277,7 @@ describe('fetchRoute', () => {
       start: L.latLng(0, 0),
       dest: L.latLng(1, 1),
       costing: 'auto',
+      units: 'metric',
     });
     expect(r.distanceM).toBe(1500);
     expect(r.durationS).toBe(300);
@@ -285,6 +313,7 @@ describe('fetchRoute', () => {
       start: L.latLng(0, 0),
       dest: L.latLng(1, 1),
       costing: 'auto',
+      units: 'metric',
     });
     expect(r.steps).toHaveLength(2);
     expect(r.steps[0]?.instruction).toBe('Drive east on Main St');
