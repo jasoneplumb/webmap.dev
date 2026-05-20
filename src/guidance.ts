@@ -10,15 +10,11 @@ import { haversineDistance, pointToSegmentMeters } from './geo';
 import { formatDistance } from './units';
 import { showAlertDialog } from './dialog';
 
-/**
- * Surface a routing failure in a modal dialog rather than a toast. The
- * geocode-bar tray (z-index 1500) covers the toast (z-index 1000), so a
- * "routing service unavailable" toast goes unseen exactly when it matters.
- */
-function showRoutingError(err: unknown): void {
+// Surface a routing failure in a dialog — a toast is hidden behind the tray.
+function showRoutingError(err: unknown, title = 'Routing unavailable'): void {
   const detail = err instanceof Error ? err.message : String(err);
   showAlertDialog({
-    title: 'Routing unavailable',
+    title,
     message: detail.charAt(0).toUpperCase() + detail.slice(1),
   });
 }
@@ -252,7 +248,7 @@ export async function setGuidanceCosting(
     state.guidance.costing = previousCosting;
     applyRouteStyle(state);
     render();
-    showRoutingError(err);
+    showRoutingError(err, "Couldn't change route type");
     return false;
   }
 }

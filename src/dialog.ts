@@ -1,11 +1,9 @@
-/**
- * Intent: Modal alert dialog for notifications that must not be missed.
- * Context: Use instead of showToast() when the message is important and a
- *   toast would be obscured by other UI — the geocode-bar tray (z-index 1500)
- *   covers the toast (z-index 1000). The dialog sits at the consent-overlay
- *   layer (z-index 3000), above all app chrome.
- * Pattern: Single message, single acknowledge button; no AppState dependency.
- */
+// Modal alert dialog for messages a toast can't reliably surface — the
+// geocode-bar tray (z-index 1500) covers the toast (z-index 1000); this
+// sits at z-index 3000, above all app chrome.
+
+const TITLE_ID = 'app-dialog-title';
+const MESSAGE_ID = 'app-dialog-message';
 
 interface AlertDialogOptions {
   title: string;
@@ -33,13 +31,16 @@ export function showAlertDialog(opts: AlertDialogOptions): void {
   panel.className = 'app-dialog-panel';
   panel.setAttribute('role', 'alertdialog');
   panel.setAttribute('aria-modal', 'true');
-  panel.setAttribute('aria-label', opts.title);
+  panel.setAttribute('aria-labelledby', TITLE_ID);
+  panel.setAttribute('aria-describedby', MESSAGE_ID);
 
   const heading = document.createElement('h2');
+  heading.id = TITLE_ID;
   heading.className = 'app-dialog-title';
   heading.textContent = opts.title;
 
   const body = document.createElement('p');
+  body.id = MESSAGE_ID;
   body.className = 'app-dialog-message';
   body.textContent = opts.message;
 
@@ -62,7 +63,14 @@ export function showAlertDialog(opts: AlertDialogOptions): void {
     previouslyFocused?.focus();
   }
   function onKey(e: KeyboardEvent): void {
-    if (e.key === 'Escape') cleanup();
+    if (e.key === 'Escape') {
+      cleanup();
+    } else if (e.key === 'Tab') {
+      // Focus trap: the OK button is the only focusable element, so honour
+      // aria-modal by keeping focus on it.
+      e.preventDefault();
+      okBtn.focus();
+    }
   }
 
   okBtn.addEventListener('click', cleanup);

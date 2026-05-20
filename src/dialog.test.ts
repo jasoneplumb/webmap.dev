@@ -53,4 +53,22 @@ describe('showAlertDialog', () => {
     showAlertDialog({ title: 'T', message: 'M', buttonLabel: 'Got it' });
     expect(document.querySelector('.app-dialog-ok')?.textContent).toBe('Got it');
   });
+
+  it('wires aria-labelledby and aria-describedby to the title and message', () => {
+    showAlertDialog({ title: 'Heads up', message: 'Details here' });
+    const panel = document.querySelector('[role="alertdialog"]')!;
+    const titleId = panel.getAttribute('aria-labelledby')!;
+    const msgId = panel.getAttribute('aria-describedby')!;
+    expect(document.getElementById(titleId)?.textContent).toBe('Heads up');
+    expect(document.getElementById(msgId)?.textContent).toBe('Details here');
+    expect(panel.hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('traps Tab focus on the OK button', () => {
+    showAlertDialog({ title: 'T', message: 'M' });
+    const okBtn = document.querySelector('.app-dialog-ok') as HTMLButtonElement;
+    okBtn.blur();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+    expect(document.activeElement).toBe(okBtn);
+  });
 });
