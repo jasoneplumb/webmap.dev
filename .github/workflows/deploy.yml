@@ -1,8 +1,14 @@
 name: Deploy to Production
 
+# Deploy runs ONLY for releases — never on plain pushes to mainline:
+#   - automatically when a version tag (v*) is pushed
+#   - manually via workflow_dispatch (the /deploy skill), which deploys the
+#     latest version tag
+# In both cases the full CI quality gate runs against the release tag's
+# code first; the deploy steps run only if every check passes.
 on:
   push:
-    branches: [mainline]
+    tags: ['v*']
   workflow_dispatch:
 
 # Only one deployment at a time
@@ -17,8 +23,30 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and check out release tag
+        id: release
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Tag push — deploy exactly the tag that was pushed.
+            TAG="${{ github.ref_name }}"
+          else
+            # Manual dispatch — deploy the latest version tag.
+            TAG=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::No version tag found to deploy"
+            exit 1
+          fi
+          git checkout --quiet "refs/tags/$TAG"
+          echo "Deploying release tag: $TAG ($(git rev-parse --short HEAD))"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,12 +57,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ── CI quality gate — deploy proceeds only if all of these pass ──
+      # Mirrors ci.yml; kept inline so the gate runs against the release
+      # tag's code rather than whatever ref triggered the workflow.
+      - name: Test
+        run: npm test
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
       - name: Build
         env:
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
           VITE_ESRI_API_KEY: ${{ secrets.VITE_ESRI_API_KEY }}
         run: npm run build
 
+      - name: Verify build output
+        run: |
+          test -f dist/index.html || { echo "ERROR: dist/index.html not found"; exit 1; }
+          grep -q 'type="module"' dist/index.html || { echo "ERROR: Missing type=module in dist/index.html"; exit 1; }
+          echo "Build verification passed"
+
+      - name: Bundle size check
+        run: npm run size
+
+      # ── Deploy — only reached when every gate step above passed ──
       - name: Create deployment package
         run: tar -czf webmap-deploy.tar.gz -C dist .
 
@@ -50,11 +100,12 @@ jobs:
           SSH_OPTS="-i ~/.ssh/deploy_key -o ConnectTimeout=60 -o ServerAliveInterval=30"
           SSH_TARGET="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
           VERSION=$(node -p "require('./package.json').version")
+          DEPLOY_SHA=$(git rev-parse HEAD)
 
           source "$GITHUB_WORKSPACE/scripts/ssh-retry.sh"
 
           ssh_retry "scp $SSH_OPTS scripts/deploy-webmap.sh $SSH_TARGET:/tmp/deploy-webmap.sh"
-          ssh_retry "cat webmap-deploy.tar.gz | ssh $SSH_OPTS $SSH_TARGET 'DEPLOY_SHA=${{ github.sha }} DEPLOY_VERSION=$VERSION bash /tmp/deploy-webmap.sh'"
+          ssh_retry "cat webmap-deploy.tar.gz | ssh $SSH_OPTS $SSH_TARGET 'DEPLOY_SHA=$DEPLOY_SHA DEPLOY_VERSION=$VERSION bash /tmp/deploy-webmap.sh'"
 
       - name: Cleanup SSH key
         if: always()
