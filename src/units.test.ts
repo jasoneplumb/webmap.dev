@@ -56,9 +56,19 @@ describe('formatDistance', () => {
   it('formats imperial distances in miles and feet', () => {
     expect(formatDistance(0, 'imperial')).toBe('0 ft');
     expect(formatDistance(30, 'imperial')).toBe('100 ft');
-    // 0.1 mi is the miles/feet crossover.
     expect(formatDistance(1609.344, 'imperial')).toBe('1.0 mi');
     expect(formatDistance(4828, 'imperial')).toBe('3.0 mi');
+  });
+
+  it('switches from feet to miles at the 0.1 mi boundary', () => {
+    expect(formatDistance(160, 'imperial')).toBe('520 ft'); // just under 0.1 mi
+    expect(formatDistance(161, 'imperial')).toBe('0.1 mi'); // just over 0.1 mi
+  });
+
+  it('rounds sub-10 ft distances down to 0 ft (documented behavior)', () => {
+    // Feet are rounded to the nearest 10; Valhalla never reports a step this
+    // short, so the loss of precision below ~1.5 m is intentional.
+    expect(formatDistance(1, 'imperial')).toBe('0 ft');
   });
 
   it('returns an em dash for invalid input', () => {
