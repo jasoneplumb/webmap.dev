@@ -66,8 +66,8 @@ export function showAlertDialog(opts: AlertDialogOptions): void {
     if (e.key === 'Escape') {
       cleanup();
     } else if (e.key === 'Tab') {
-      // Focus trap: the OK button is the only focusable element, so honour
-      // aria-modal by keeping focus on it.
+      // Focus trap: keep Tab and Shift+Tab on the OK button (the only
+      // focusable element) to honour aria-modal.
       e.preventDefault();
       okBtn.focus();
     }

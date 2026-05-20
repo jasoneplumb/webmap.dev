@@ -13,10 +13,10 @@ import { showAlertDialog } from './dialog';
 // Surface a routing failure in a dialog — a toast is hidden behind the tray.
 function showRoutingError(err: unknown, title = 'Routing unavailable'): void {
   const detail = err instanceof Error ? err.message : String(err);
-  showAlertDialog({
-    title,
-    message: detail.charAt(0).toUpperCase() + detail.slice(1),
-  });
+  const message = detail
+    ? detail.charAt(0).toUpperCase() + detail.slice(1)
+    : 'Could not reach the routing service. Please try again.';
+  showAlertDialog({ title, message });
 }
 
 
