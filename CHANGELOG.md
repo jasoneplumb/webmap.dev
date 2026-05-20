@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.32.1-beta (2026-05-20)
+
+### Fixed
+
+- **Routing failures were hidden behind the navigation tray** — routing errors (e.g. the Valhalla service being unreachable) were shown in a toast (`z-index 1000`) that the geocode-bar tray (`z-index 1500`) covered, so the message went unseen exactly when navigating from the tray. Routing failures now appear in a modal dialog above all app chrome, with distinct titles for an initial route failure vs. a route-type change failure (#188)
+
+### Changed
+
+- **Production deploys now run only on releases** — the deploy workflow triggered on every push to `mainline`, shipping unreleased work and running independently of CI. It now runs only on a version-tag (`v*`) push or manual `/deploy`, and only after the full CI quality gate passes against the release tag (#187)
+
 ## v0.32.0-beta (2026-05-20)
 
 ### Added
