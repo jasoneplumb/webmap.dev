@@ -49,6 +49,13 @@ jobs:
             exit 1
           fi
           git checkout --quiet "refs/tags/$TAG"
+          # The tag and package.json version must agree, or the deployed
+          # version metadata would be wrong. Read without node (not set up yet).
+          PKG_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
+          if [ "$TAG" != "v$PKG_VERSION" ]; then
+            echo "::error::Release tag $TAG does not match package.json version (v$PKG_VERSION)"
+            exit 1
+          fi
           echo "Deploying release tag: $TAG ($(git rev-parse --short HEAD))"
 
       - name: Setup Node.js
