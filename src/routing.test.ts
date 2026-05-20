@@ -154,7 +154,33 @@ describe('fetchRoute', () => {
         dest: L.latLng(1, 1),
         costing: 'auto',
       }),
-    ).rejects.toThrow(/^Routing failed: HTTP 500$/);
+    ).rejects.toThrow(/^HTTP 500$/);
+  });
+
+  it('converts a network-level fetch failure into an actionable message', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    );
+    await expect(
+      fetchRoute({
+        start: L.latLng(0, 0),
+        dest: L.latLng(1, 1),
+        costing: 'auto',
+      }),
+    ).rejects.toThrow(/routing service unavailable/);
+  });
+
+  it('propagates an AbortError unchanged', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new DOMException('aborted', 'AbortError'),
+    );
+    await expect(
+      fetchRoute({
+        start: L.latLng(0, 0),
+        dest: L.latLng(1, 1),
+        costing: 'auto',
+      }),
+    ).rejects.toThrow(/aborted/);
   });
 
   it('throws before fetch when coordinates are not finite', async () => {

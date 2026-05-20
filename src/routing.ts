@@ -101,14 +101,26 @@ export async function fetchRoute(req: RouteRequest): Promise<Route> {
     costing: req.costing,
     directions_options: { units: 'kilometers' },
   };
-  const res = await fetch(VALHALLA_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: req.signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(VALHALLA_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: req.signal,
+    });
+  } catch (err) {
+    // An aborted request must propagate unchanged so callers can detect it.
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    // fetch() rejects with a TypeError for any network-level failure (DNS,
+    // connection refused, TLS, blocked CORS preflight). The browser surfaces
+    // these in the console as an opaque "CORS request did not succeed" with a
+    // null status — there is no HTTP response to inspect. Convert it into a
+    // message a user can act on instead of leaking the raw TypeError.
+    throw new Error('routing service unavailable — check your connection or try again later');
+  }
   if (!res.ok) {
-    throw new Error(`Routing failed: HTTP ${res.status}`);
+    throw new Error(`HTTP ${res.status}`);
   }
   const json = (await res.json()) as ValhallaResponse;
   if (json.trip.legs.length > 1) {
