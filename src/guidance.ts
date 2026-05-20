@@ -7,6 +7,7 @@ import type { AppState } from './types';
 import type { Costing, Route } from './routing';
 import { fetchRoute } from './routing';
 import { haversineDistance, pointToSegmentMeters } from './geo';
+import { formatDistance } from './units';
 
 
 // Profile-dependent thresholds (metres). `auto` is the default fallback if a
@@ -127,11 +128,11 @@ export function renderGuidanceDashboard(state: AppState): string {
 
   return '<div class="guidance-row guidance-row--maneuver">' +
     `<span class="maneuver-icon">${maneuverIcon(step?.type ?? 0)}</span>` +
-    `<span class="maneuver-distance">${formatDist(dist)}</span>` +
+    `<span class="maneuver-distance">${formatDistance(dist)}</span>` +
     `<span class="maneuver-text">${escapeHtml(step?.instruction ?? '')}</span>` +
     '</div>' +
     '<div class="guidance-row guidance-row--summary">' +
-    `<span>${formatDist(remaining)}</span>` +
+    `<span>${formatDistance(remaining)}</span>` +
     '<span class="guidance-row__sep">·</span>' +
     `<span>ETA ${escapeHtml(etaStr)}</span>` +
     '<span class="guidance-row__sep">·</span>' +
@@ -456,12 +457,6 @@ function maneuverIcon(type: number): string {
     case 17: case 18: return '↑'; // continue / straight
     default: return '→';
   }
-}
-
-function formatDist(m: number): string {
-  if (!isFinite(m) || m < 0) return '—';
-  if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
-  return `${Math.round(m)} m`;
 }
 
 function escapeHtml(s: string): string {
