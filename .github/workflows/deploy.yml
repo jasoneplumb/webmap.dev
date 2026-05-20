@@ -31,7 +31,6 @@ jobs:
           fetch-depth: 0
 
       - name: Resolve and check out release tag
-        id: release
         # Pass trigger context via env, never interpolate ${{ }} into the
         # shell — a crafted tag name would otherwise be executed.
         env:
@@ -51,7 +50,6 @@ jobs:
           fi
           git checkout --quiet "refs/tags/$TAG"
           echo "Deploying release tag: $TAG ($(git rev-parse --short HEAD))"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
