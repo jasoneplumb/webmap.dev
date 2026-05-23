@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.32.2-beta (2026-05-23)
+
+### Fixed
+
+- **Browser tab title hijacked by search and pin-drop** — `document.title` was overwritten on every search-result selection, marker click, and reverse-geocode lookup, leaving the tab labeled with stale addresses or coordinates long after the user moved on. The title now stays as `webmap.dev` until turn-by-turn navigation actually starts, switches to the destination label while guiding, and reverts to `webmap.dev` when navigation stops
+
 ## v0.32.1-beta (2026-05-20)
 
 ### Fixed
