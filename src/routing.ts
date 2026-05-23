@@ -1,18 +1,31 @@
-// Privacy: each request sends start + destination to the public FOSSGIS Valhalla
-// instance. ADR-006 + the consent flow document the tradeoff before any nav action.
+// Public routing API + provider dispatch.
+//
+// Two backends sit behind the same `fetchRoute()` signature:
+//   - Valhalla (FOSSGIS) — POST /route, full prose instructions
+//   - OSRM (OSM-DE)      — GET /route/v1, instructions synthesized client-side
+//
+// Provider is selected by ROUTING_PROVIDER. Runtime fallback is a separate
+// issue (#TBD); today this is a const so a swap is one line + rebuild.
+//
+// Privacy: each request sends start + destination to a public routing service.
+// ADR-006 + the consent flow document the tradeoff before any nav action.
+
 import L from 'leaflet';
-import {
-  type UnitSystem,
-  unitSystem,
-  valhallaUnits,
-  metersPerValhallaUnit,
-} from './units';
+import type { UnitSystem } from './units';
+import { fetchRouteValhalla, VALHALLA_URL } from './routing-valhalla';
+import { fetchRouteOsrm, OSRM_BASE_URL } from './routing-osrm';
 
 export type Costing = 'auto' | 'pedestrian' | 'bicycle';
 
 export interface RouteStep {
   instruction: string;
-  /** Valhalla maneuver type number — see https://valhalla.github.io/valhalla/api/turn-by-turn/api-reference/#maneuver-types */
+  /**
+   * Valhalla maneuver type number — see
+   * https://valhalla.github.io/valhalla/api/turn-by-turn/api-reference/#maneuver-types
+   *
+   * OSRM responses are mapped onto this same numeric space so guidance.ts's
+   * icon picker keeps working regardless of provider.
+   */
   type: number;
   lengthM: number;
   durationS: number;
@@ -33,14 +46,20 @@ export interface RouteRequest {
   dest: L.LatLng;
   costing: Costing;
   signal?: AbortSignal;
-  /** Unit system for Valhalla's instruction text. Defaults to the session locale. */
+  /** Unit system for instruction text. Only consulted by Valhalla. */
   units?: UnitSystem;
 }
 
-export const VALHALLA_URL = 'https://valhalla1.openstreetmap.de/route' as const;
+export type RoutingProvider = 'valhalla' | 'osrm';
+
+/** Active routing backend. Change here + rebuild to swap providers. */
+export const ROUTING_PROVIDER: RoutingProvider = 'valhalla';
+
+export { VALHALLA_URL, OSRM_BASE_URL };
 
 /**
- * Decode Valhalla's polyline6 (precision 6 — twice the resolution of standard Google polyline5).
+ * Decode polyline6 (precision-6 polyline — same format Valhalla returns and
+ * what OSRM returns when `geometries=polyline6` is requested).
  * Reference: https://valhalla.github.io/valhalla/decoding/
  */
 export function decodePolyline6(s: string): L.LatLng[] {
@@ -71,29 +90,7 @@ export function decodePolyline6(s: string): L.LatLng[] {
   return out;
 }
 
-interface ValhallaManeuver {
-  type: number;
-  instruction: string;
-  length: number; // in the units requested via directions_options
-  time: number; // seconds
-  street_names?: string[];
-  begin_shape_index: number;
-}
-
-interface ValhallaResponse {
-  trip: {
-    legs: Array<{
-      shape: string;
-      maneuvers: ValhallaManeuver[];
-    }>;
-    summary: {
-      length: number; // in the units requested via directions_options
-      time: number; // seconds
-    };
-  };
-}
-
-/** Fetch a route from Valhalla. AbortController-friendly. */
+/** Fetch a route from the active provider. AbortController-friendly. */
 export async function fetchRoute(req: RouteRequest): Promise<Route> {
   if (
     !isFinite(req.start.lat) || !isFinite(req.start.lng) ||
@@ -101,59 +98,7 @@ export async function fetchRoute(req: RouteRequest): Promise<Route> {
   ) {
     throw new Error('Routing failed: invalid coordinates');
   }
-  const system = req.units ?? unitSystem();
-  const body = {
-    locations: [
-      { lat: req.start.lat, lon: req.start.lng },
-      { lat: req.dest.lat, lon: req.dest.lng },
-    ],
-    costing: req.costing,
-    directions_options: { units: valhallaUnits(system) },
-  };
-  let res: Response;
-  try {
-    res = await fetch(VALHALLA_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: req.signal,
-    });
-  } catch (err) {
-    // An aborted request must propagate unchanged so callers can detect it.
-    if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    // fetch() rejects with a TypeError for any network-level failure (DNS,
-    // connection refused, TLS, blocked CORS preflight). The browser surfaces
-    // these in the console as an opaque "CORS request did not succeed" with a
-    // null status — there is no HTTP response to inspect. Convert it into a
-    // message a user can act on instead of leaking the raw TypeError.
-    throw new Error('routing service unavailable — check your connection or try again later');
-  }
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  const json = (await res.json()) as ValhallaResponse;
-  if (json.trip.legs.length > 1) {
-    // Two-point requests should always return exactly one leg. Guard against
-    // a future change that introduces multi-waypoint without updating
-    // distance/duration aggregation.
-    throw new Error('Routing returned multi-leg trip — only single leg supported');
-  }
-  const leg = json.trip.legs[0];
-  if (!leg) throw new Error('Routing returned no legs');
-  const mPerUnit = metersPerValhallaUnit(system);
-  const coords = decodePolyline6(leg.shape);
-  const steps: RouteStep[] = leg.maneuvers.map((m) => ({
-    instruction: m.instruction,
-    type: m.type,
-    lengthM: m.length * mPerUnit,
-    durationS: m.time,
-    streetNames: m.street_names ?? [],
-    beginShapeIndex: m.begin_shape_index,
-  }));
-  return {
-    coords,
-    steps,
-    distanceM: json.trip.summary.length * mPerUnit,
-    durationS: json.trip.summary.time,
-  };
+  return ROUTING_PROVIDER === 'osrm'
+    ? fetchRouteOsrm(req)
+    : fetchRouteValhalla(req);
 }
