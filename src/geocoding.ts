@@ -329,8 +329,6 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     results.clearLayers();
     markerRefs.length = 0;
     if (data.results.length) {
-      document.title = data.text;
-
       // Add numbered markers in reverse order so marker #1 renders on top.
       for (let i = data.results.length - 1; i >= 0; i--) {
         const result = data.results[i];
@@ -347,8 +345,6 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
             if (dropdownEl.innerHTML !== '') showDropdown();
             // Clear any dropped pin.
             _pinLayer?.clearLayers();
-            // Update page title.
-            document.title = result.text;
             const li = dropdownEl.querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
             if (li) {
               li.classList.add('sheet-result--active');
@@ -833,12 +829,10 @@ export function addReverseGeocoding(
       .run((error, result) => {
         if (error || !result) {
           // Geocoding failed — fall back to coordinates.
-          document.title = coordLabel;
           showGeocodeBar(coordLabel, coordLabel, latlng);
           return;
         }
         const addr = result.address.Match_addr;
-        document.title = addr;
         showGeocodeBar(addr, addr, latlng);
       });
   }

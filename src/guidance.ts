@@ -10,6 +10,8 @@ import { haversineDistance, pointToSegmentMeters } from './geo';
 import { formatDistance } from './units';
 import { showAlertDialog } from './dialog';
 
+const DEFAULT_DOC_TITLE = 'webmap.dev';
+
 // Surface a routing failure in a dialog — a toast is hidden behind the tray.
 function showRoutingError(err: unknown, title = 'Routing unavailable'): void {
   const detail = err instanceof Error ? err.message : String(err);
@@ -275,6 +277,8 @@ export function stopGuidance(state: AppState, map: L.Map): void {
 
   if (wasActive) storedDeactivatePolling?.();
 
+  document.title = DEFAULT_DOC_TITLE;
+
   state.guidance.status = 'idle';
   state.guidance.destination = null;
   state.guidance.route = null;
@@ -361,6 +365,10 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
   const wasInactive =
     state.guidance.status !== 'guiding' && state.guidance.status !== 'off-route';
   if (wasInactive) storedActivatePolling?.();
+
+  if (state.guidance.destination) {
+    document.title = state.guidance.destination.label;
+  }
 
   state.guidance.status = 'guiding';
   state.guidance.route = route;
