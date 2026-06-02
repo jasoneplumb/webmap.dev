@@ -31,6 +31,7 @@ import { addGuidanceControl } from './guidance';
 import { addCompassControl } from './compass';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
+import { scheduleSwUpdate } from './sw-update';
 
 // ── Consent gate — block all interaction until terms are accepted ─────────────
 if (!hasConsent()) {
@@ -416,21 +417,26 @@ document.addEventListener('visibilitychange', () => {
 // ── Battery monitoring ────────────────────────────────────────────────────────
 initBattery(state);
 
-function applyUpdateWhenSafe(update: () => void): void {
-  update();
-}
-
 // Note: vite-plugin-pwa also exposes onOfflineReady for first-install caching.
 // Not wired here — silent first-install caching is acceptable.
 const updateSW = registerSW({
   onNeedRefresh() {
-    // Defer SW update until after first paint — immediate reload during init
-    // causes a blank page on iOS Safari (new SW activates + clientsClaim
-    // triggers location.reload() before Leaflet has rendered anything).
-    // rAF is also suspended in background tabs, which further protects active
-    // recordings from an unintended mid-session reload (intentional benefit).
-    requestAnimationFrame(() => {
-      applyUpdateWhenSafe(() => updateSW(true));
+    // Apply the update only after the page is visible AND a real paint has
+    // happened — otherwise workbox-window's reload races first paint and leaves
+    // a blank page (the user then has to reload manually). scheduleSwUpdate owns
+    // the visibility + post-paint gating so the logic stays unit-testable.
+    scheduleSwUpdate({
+      isHidden: () => document.hidden,
+      onVisible: (cb) => {
+        const onChange = (): void => {
+          if (document.hidden) return;
+          document.removeEventListener('visibilitychange', onChange);
+          cb();
+        };
+        document.addEventListener('visibilitychange', onChange);
+      },
+      raf: (cb) => requestAnimationFrame(cb),
+      apply: () => { updateSW(true); },
     });
   },
 });
