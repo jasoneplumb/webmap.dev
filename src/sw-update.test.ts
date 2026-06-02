@@ -62,6 +62,8 @@ describe('scheduleSwUpdate', () => {
   });
 
   it('applies at most once even if frame callbacks fire repeatedly', () => {
+    // Inline deps (not harness()) because this test needs a pathological rAF
+    // that re-invokes each callback, which the shared harness doesn't model.
     const state = { hidden: false };
     const rafQueue: Array<() => void> = [];
     const apply = vi.fn();
