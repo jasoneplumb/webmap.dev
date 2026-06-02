@@ -19,22 +19,9 @@ export interface SwUpdateScheduler {
   apply: () => void;
 }
 
-/**
- * Schedule a service-worker update so the ensuing reload never races first paint.
- *
- * Two failure modes this guards against — both surface as "the page doesn't load
- * until the user manually reloads":
- *
- *  1. A single requestAnimationFrame fires *before* the frame's paint, so applying
- *     the update there lets workbox-window reload the page before Leaflet has
- *     painted → a blank page on iOS Safari. We wait for two frames so a real paint
- *     has completed before the reload is triggered.
- *  2. requestAnimationFrame is paused while the document is hidden, so an update
- *     that lands in a backgrounded tab/PWA would never apply. We defer to the next
- *     visibility change before scheduling the frames.
- *
- * apply() is invoked at most once.
- */
+// Apply a waiting SW update only once the page is visible and a real paint has
+// completed — otherwise workbox-window's reload races first paint (blank page on
+// iOS Safari) or never fires at all in a hidden tab (rAF is paused while hidden).
 export function scheduleSwUpdate(deps: SwUpdateScheduler): void {
   let applied = false;
   const applyOnce = (): void => {

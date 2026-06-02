@@ -435,7 +435,7 @@ const updateSW = registerSW({
         };
         document.addEventListener('visibilitychange', onChange);
       },
-      raf: (cb) => { requestAnimationFrame(cb); },
+      raf: (cb) => requestAnimationFrame(cb),
       apply: () => { updateSW(true); },
     });
   },

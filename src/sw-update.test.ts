@@ -56,6 +56,7 @@ describe('scheduleSwUpdate', () => {
     h.becomeVisible();
     expect(h.pendingFrames()).toBe(1);
     h.flushFrame();
+    expect(h.apply).not.toHaveBeenCalled(); // still pre-paint after one frame
     h.flushFrame();
     expect(h.apply).toHaveBeenCalledTimes(1);
   });
