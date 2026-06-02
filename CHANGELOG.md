@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.32.3-beta (2026-06-02)
+
+### Fixed
+
+- **Page didn't load until the user manually reloaded** — the service-worker update reload gated `updateSW(true)` behind a single `requestAnimationFrame`, which fires *before* that frame's paint, so the page reloaded before Leaflet had painted (a blank page on iOS Safari that only a manual reload recovered). `requestAnimationFrame` is also paused while the document is hidden, so an update that landed while the tab/PWA was backgrounded never applied and the page stayed on the stale worker. The update reload is now visibility-aware (defers until the document is visible) and genuinely post-paint (waits two animation frames), applied at most once (#192)
+
 ## v0.32.2-beta (2026-05-23)
 
 ### Fixed
