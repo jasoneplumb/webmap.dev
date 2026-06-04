@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.33.0-beta (2026-06-04)
+
+### Added
+
+- **Dedicated hiking & cycling trail base maps** — new **Cycle** (OpenCycleMap, now the default base) and **Outdoors** maps from Thunderforest, replacing the unreliable CyclOSM source that frequently left the trail map blank at city zoom levels. A new toggleable **Routes** overlay (Waymarked hiking + cycling routes) highlights marked routes over any base map, alongside the existing Hillshade overlay (#195)
+
+### Changed
+
+- **Unified search-to-navigation flow** — tapping a search result (or its numbered map marker) now flies to it and opens the same bottom sheet used for dropped pins, with Drive/Bike/Walk options and a prominent Start button, instead of a cramped accordion with four buried buttons (#195)
+- **Map recenters at neighborhood zoom on locate** — the first GPS fix and every locate activation now frame your position at a readable neighborhood zoom rather than leaving the map zoomed out (#195)
+- **Quieter, clearer GPS status messages** — the location-status toast now shows at most once per loss/acquisition episode (auto-clearing when a fix returns), with platform-specific guidance and a grace period for transient macOS location errors (#195)
+
+### Fixed
+
+- **Search result text no longer clips** — long place names and the "POI" badge were cut off (e.g. showing "PO"); results now truncate cleanly and the dropdown stays within the screen on narrow phones (#195)
+- **Trail base map renders reliably** — the previous CyclOSM tile server timed out at city zoom levels, leaving only the hillshade visible; the new Thunderforest bases render at every zoom (#195)
+- **PWA manifest syntax error** — a duplicate manifest link caused a "Manifest: Line 1, column 1, Syntax error"; the link is now injected once by the build (#195)
+
+### Removed
+
+- **Accordion search-result detail UI** — replaced by the unified bottom sheet (~150 lines removed); also removed the redundant standalone Topographic base map (its terrain view is covered by Outdoors) and the unused Mapbox token wiring (#195)
+
 ## v0.32.3-beta (2026-06-02)
 
 ### Fixed
