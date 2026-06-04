@@ -28,6 +28,31 @@
        a second link duplicates it in the build, and in dev (SW disabled) it
        404s to the HTML fallback, which the browser reports as a manifest
        "Line 1, column 1, Syntax error". -->
+
+  <!-- Boot watchdog: runs independently of the JS bundle. If the bundle never
+       executes (e.g. a stale service worker serves an index whose hashed JS
+       404s → blank page), main.ts can't call __webmapBootOk(), so this reloads
+       the page once to fetch a consistent asset set — automating the manual
+       reload that would otherwise be required. One-shot, sessionStorage-guarded
+       against reload loops on a persistent failure. -->
+  <script>
+    (function () {
+      var KEY = 'webmap-boot-watchdog';
+      var timer;
+      // main.ts calls this as its first statement (the bundle is executing).
+      window.__webmapBootOk = function () {
+        if (timer) { clearTimeout(timer); }
+        try { sessionStorage.removeItem(KEY); } catch (e) { /* unavailable */ }
+      };
+      var reloadedOnce;
+      try { reloadedOnce = sessionStorage.getItem(KEY) === '1'; } catch (e) { reloadedOnce = false; }
+      if (reloadedOnce) { return; } // already reloaded once this session — don't loop
+      timer = setTimeout(function () {
+        try { sessionStorage.setItem(KEY, '1'); } catch (e) { /* unavailable */ }
+        location.reload();
+      }, 10000);
+    })();
+  </script>
 </head>
 <body>
   <div id="map"></div>

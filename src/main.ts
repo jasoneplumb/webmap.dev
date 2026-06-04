@@ -32,6 +32,12 @@ import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 import { scheduleSwUpdate } from './sw-update';
 
+// Tell the index.html boot-watchdog the bundle loaded and is executing, so it
+// cancels its reload timer. If the bundle ever fails to load (a stale service
+// worker serving a 404'd chunk → blank page), this line never runs and the
+// watchdog reloads once to recover.
+(window as unknown as { __webmapBootOk?: () => void }).__webmapBootOk?.();
+
 // ── Consent gate — block all interaction until terms are accepted ─────────────
 if (!hasConsent()) {
   // Show modal immediately; re-show on decline (user cannot bypass)
