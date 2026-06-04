@@ -79,18 +79,24 @@
       // Blank-state probe: if the map still hasn't rendered after 5s and no error
       // was captured, dump enough state to see WHY it's blank.
       setTimeout(function () {
-        if (document.getElementById('webmap-diag')) { return; } // already showing something
+        // Append state when the page is plausibly broken: either an error was
+        // already shown, OR no base-map tiles rendered. (Leaflet adds panes and
+        // controls to #map immediately, so childElementCount > 0 even on a blank
+        // white map — count actually-loaded tiles instead.) Stay quiet only on a
+        // healthy load (tiles present AND no error) so working maps aren't covered.
+        var hadError = !!document.getElementById('webmap-diag');
         var m = document.getElementById('map');
-        var kids = m ? m.childElementCount : -1;
-        if (kids > 0) { return; } // map rendered — not blank
+        var tiles = m ? m.querySelectorAll('.leaflet-tile-loaded').length : 0;
+        if (!hadError && tiles > 0) { return; }
         var sw = navigator.serviceWorker;
         function ls(k) { try { return !!localStorage.getItem(k); } catch (e) { return 'n/a'; } }
         var script = document.querySelector('script[type=module]');
-        diag('[blank-probe] #map never rendered', [
+        diag('[blank-probe] state', [
           'bundleRan=' + !!window.__WEBMAP_RAN__,
           'onLine=' + navigator.onLine,
           'readyState=' + document.readyState,
-          'mapKids=' + kids,
+          'mapChildren=' + (m ? m.childElementCount : -1),
+          'loadedTiles=' + tiles,
           'hasConsent=' + ls('webmap-consent-version'),
           'swController=' + (sw && sw.controller ? 'yes' : 'no'),
           'asset=' + (script ? script.src : '?'),
