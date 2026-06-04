@@ -336,7 +336,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   animation: locate-pulse 0.6s ease-out 2;
 }
 
-/* ===== Info Panel ===== */
 /* ── Search results list ── */
 .sheet-results {
   list-style: none;
