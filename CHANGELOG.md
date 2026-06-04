@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.34.0-beta (2026-06-04)
+
+### Added
+
+- **Separate Hiking and Cycling route overlays** — the combined "Routes" overlay is now two independent toggles, **Hiking routes** and **Cycling routes** (both on by default). Because Waymarked colors routes by network hierarchy rather than by activity, turning Cycling off is the way to reveal hiking-only segments (#202)
+
+### Fixed
+
+- **Blank page on first load could require a manual reload** — added an inline boot-watchdog that reloads the page once (within ~3s) if the JS bundle never executes (e.g. a stale service worker serving a 404'd chunk), so the app recovers automatically instead of waiting for a manual refresh. Complements the `navigateFallback` app-shell fix in v0.33.2-beta (#206)
+
 ## v0.33.2-beta (2026-06-04)
 
 ### Fixed
