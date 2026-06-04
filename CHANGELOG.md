@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.33.2-beta (2026-06-04)
+
+### Fixed
+
+- **Blank page on first load after an update** — a returning user (with the previous service worker cached) could get a blank white page until a manual reload, because the service worker had no navigation fallback and a navigation could be answered with a stale app-shell/chunk-hash mismatch. The SW now serves the app shell via `navigateFallback` and cleans up outdated precaches on activation, and the app self-heals with a one-shot reload if initialization fails — so it no longer requires a manual refresh (#204)
+
 ## v0.33.1-beta (2026-06-04)
 
 ### Fixed
