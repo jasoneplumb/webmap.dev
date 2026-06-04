@@ -9,8 +9,8 @@ declare module '*.md?raw' {
 declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
-  readonly VITE_MAPBOX_TOKEN: string;
   readonly VITE_ESRI_API_KEY: string;
+  readonly VITE_THUNDERFOREST_TOKEN: string;
 }
 
 interface ImportMeta {

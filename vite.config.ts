@@ -74,7 +74,11 @@ export default defineConfig({
         navigateFallback: null,
       },
       devOptions: {
-        enabled: true,
+        // Disabled in dev: the precaching service worker served stale bundles
+        // during development, masking source changes (e.g. base-map and search
+        // edits appeared to "not take effect"). Production SW is unaffected.
+        // Re-enable temporarily only when specifically testing PWA/offline.
+        enabled: false,
       },
     }),
   ],

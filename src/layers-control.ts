@@ -16,13 +16,17 @@ export interface LayerDef {
   id: string;
   name: string;
   description: string;
-  tileLayer: L.TileLayer;
+  // L.Layer (not L.TileLayer) so a base map can be a composite L.LayerGroup
+  // — e.g. the 'Trails' layer (OSM base + Waymarked route overlays).
+  tileLayer: L.Layer;
 }
 
 export interface OverlayDef {
   id: string;
   name: string;
-  tileLayer: L.TileLayer;
+  // L.Layer (not L.TileLayer) so an overlay can be a composite L.LayerGroup —
+  // e.g. the 'Routes' overlay (Waymarked hiking + cycling route tiles).
+  tileLayer: L.Layer;
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';

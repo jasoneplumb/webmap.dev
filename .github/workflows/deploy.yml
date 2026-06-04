@@ -81,8 +81,8 @@ jobs:
 
       - name: Build
         env:
-          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
           VITE_ESRI_API_KEY: ${{ secrets.VITE_ESRI_API_KEY }}
+          VITE_THUNDERFOREST_TOKEN: ${{ secrets.VITE_THUNDERFOREST_TOKEN }}
         run: npm run build
 
       - name: Verify build output

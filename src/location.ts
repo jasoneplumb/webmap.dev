@@ -78,9 +78,12 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     e.latlng.lat, e.latlng.lng,
   );
 
-  // On first GPS fix, zoom to street level (defer if screen is off)
+  // On first GPS fix, recenter at neighborhood zoom (defer if screen is off).
+  // setView (not setZoom) guarantees the map jumps from the world-view
+  // placeholder straight to the user's location even when not actively
+  // following, so "geolocate on load" lands at ~zoom 14 rather than world view.
   if (state.initialZoom && !state.screenOff) {
-    map.setZoom(16);
+    map.setView(e.latlng, 14);
     state.initialZoom = false;
   }
 
