@@ -13,7 +13,8 @@ let cycleLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
 let hillshadeLayer: L.TileLayer | null = null;
-let routesLayer: L.LayerGroup | null = null;
+let hikingLayer: L.TileLayer | null = null;
+let cyclingLayer: L.TileLayer | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
 interface TileErrorEvent extends L.LeafletEvent {
   tile: HTMLImageElement;
@@ -236,19 +237,20 @@ export function createMap(): L.Map {
     },
   );
 
-  // Waymarked hiking + cycling route highlights — transparent overlays exposed
-  // as ONE toggleable "Routes" overlay (like Hillshade) that composes over any
-  // base. Kept out of the base layer so a route-tile failure can never blank the
-  // map. Share stdConfig geometry so routes scale 1:1 with the base.
-  const hikingRoutes = L.tileLayer(
+  // Waymarked route highlights — transparent overlays that compose over any base.
+  // Exposed as TWO independent toggles (Hiking routes / Cycling routes) rather
+  // than one combined layer: Waymarked colors routes by network hierarchy, not by
+  // activity, so the only way to see hiking-only segments is to switch cycling off.
+  // Kept out of the base layer so a route-tile failure can never blank the map;
+  // share stdConfig geometry so routes scale 1:1 with the base.
+  hikingLayer = L.tileLayer(
     'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
     { attribution: '© waymarkedtrails.org', ...stdConfig },
   );
-  const cyclingRoutes = L.tileLayer(
+  cyclingLayer = L.tileLayer(
     'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png',
     { attribution: '© waymarkedtrails.org', ...stdConfig },
   );
-  routesLayer = L.layerGroup([hikingRoutes, cyclingRoutes]);
 
   humanitarianLayer = L.tileLayer(
     'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
@@ -284,9 +286,10 @@ export function getTileLayers(): {
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
   hillshadeLayer: L.TileLayer;
-  routesLayer: L.LayerGroup;
+  hikingLayer: L.TileLayer;
+  cyclingLayer: L.TileLayer;
 } {
-  if (!osmStreetsLayer || !cycleLayer || !outdoorsLayer || !humanitarianLayer || !hillshadeLayer || !routesLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !outdoorsLayer || !humanitarianLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
@@ -295,6 +298,7 @@ export function getTileLayers(): {
     outdoorsLayer,
     humanitarianLayer,
     hillshadeLayer,
-    routesLayer,
+    hikingLayer,
+    cyclingLayer,
   };
 }

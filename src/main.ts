@@ -353,13 +353,18 @@ const overlayDefs: OverlayDef[] = [
     tileLayer: tileLayers.hillshadeLayer,
   },
   {
-    id: 'routes',
-    name: 'Routes (hiking & cycling)',
-    tileLayer: tileLayers.routesLayer,
+    id: 'hiking-routes',
+    name: 'Hiking routes',
+    tileLayer: tileLayers.hikingLayer,
+  },
+  {
+    id: 'cycling-routes',
+    name: 'Cycling routes',
+    tileLayer: tileLayers.cyclingLayer,
   },
 ];
 
-addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'routes']);
+addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'hiking-routes', 'cycling-routes']);
 
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
