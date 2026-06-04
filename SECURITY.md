@@ -65,7 +65,7 @@ webmap.dev stores sensitive location and navigation data entirely on the client.
 - ESRI geocoding API calls require an explicit `VITE_ESRI_API_KEY` (from arcgis.com)
 - API key source (`.env`) is not committed to git
 - **Note**: Vite embeds all `VITE_*` variables in the client bundle at build time — the API key is visible in compiled JS output and browser DevTools. Restrict key usage via ESRI's API key scope and domain allowlist settings.
-- Map tiles from free/public sources (OpenStreetMap, Mapbox via optional key)
+- Map tiles from OpenStreetMap (no key) and Thunderforest (Cycle/Outdoors bases, optional `VITE_THUNDERFOREST_TOKEN`)
 - No analytics, telemetry, or tracking enabled by default
 - Reverse geocoding and search are opt-in user actions (not automatic)
 
@@ -89,7 +89,7 @@ webmap.dev stores sensitive location and navigation data entirely on the client.
 
 **Mitigations**:
 - Cache entries are versioned (workbox cache name includes version)
-- Tile URLs are from trusted sources (OSM, Google, Mapbox)
+- Tile URLs are from trusted sources (OpenStreetMap, Thunderforest, Esri)
 - Cache URLs use HTTPS
 - User must explicitly trigger offline pre-download
 
@@ -127,7 +127,7 @@ Out of scope:
 ### Securing Your Installation
 
 1. **Keep Node.js updated**: Run `node --version` regularly and upgrade
-2. **Use `.env.local` for secrets**: Never commit `VITE_ESRI_API_KEY` or `VITE_MAPBOX_TOKEN`
+2. **Use `.env.local` for secrets**: Never commit `VITE_ESRI_API_KEY` or `VITE_THUNDERFOREST_TOKEN`
 3. **Enable HTTPS**: Deploy webmap.dev behind TLS; do not serve over HTTP
 4. **Clear browser data**: Periodically clear localStorage and service worker cache
 5. **Review GPS permissions**: On mobile, review app location permissions in OS settings

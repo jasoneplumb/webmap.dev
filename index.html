@@ -23,7 +23,11 @@
   <meta name="twitter:image:alt" content="webmap.dev — record GPS trails, offline maps, no account">
 
   <link rel="icon" type="image/svg+xml" href="/logo-color-v1.1.svg">
-  <link rel="manifest" href="/manifest.webmanifest">
+  <!-- The web app manifest link is injected automatically by vite-plugin-pwa
+       at build time (it owns manifest.webmanifest). Do not hardcode it here —
+       a second link duplicates it in the build, and in dev (SW disabled) it
+       404s to the HTML fallback, which the browser reports as a manifest
+       "Line 1, column 1, Syntax error". -->
 </head>
 <body>
   <div id="map"></div>

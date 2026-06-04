@@ -44,7 +44,7 @@ export interface AppState {
 
   // Watch/polling state
   updateCallback: number; // refcount: 0=stopped; each consumer (locate, future guidance) adds 1
-  initialZoom: boolean; // true until first GPS fix; zooms to level 16 on first fix
+  initialZoom: boolean; // when true, the next GPS fix recenters at zoom 14; set on load and on each locate activation
 
   // Persistent location marker refs (updated in place instead of adding new layers)
   locationMarker: L.Marker | null;

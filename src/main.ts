@@ -79,6 +79,20 @@ const map = createMap();
 // within 3s of the error, the error was spurious and we discard it.
 let permissionDeniedTimer: ReturnType<typeof setTimeout> | undefined;
 
+// Gates the GPS-status toast so it shows at most once per loss/acquisition
+// episode rather than on every error tick. Reset to false on the next fix.
+let gpsToastShown = false;
+
+// Desktop acquisition guidance is deferred behind this timer: kCLErrorLocationUnknown
+// (POSITION_UNAVAILABLE) is frequently transient, so wait for a grace period of
+// continued failure before showing the (sticky) "enable Location Services" help.
+let gpsHelpTimer: ReturnType<typeof setTimeout> | undefined;
+
+// Hide the shared locate toast (clears a stale GPS message once a fix arrives).
+function hideToast(): void {
+  document.getElementById('locate-toast')?.classList.remove('visible');
+}
+
 function cancelPermissionDeniedTimer(): void {
   if (permissionDeniedTimer !== undefined) {
     clearTimeout(permissionDeniedTimer);
@@ -88,6 +102,9 @@ function cancelPermissionDeniedTimer(): void {
 
 map.on('locationfound', (e: L.LocationEvent) => {
   cancelPermissionDeniedTimer();
+  if (gpsHelpTimer !== undefined) { clearTimeout(gpsHelpTimer); gpsHelpTimer = undefined; }
+  gpsToastShown = false; // signal recovered — allow a future loss to toast again
+  hideToast();           // clear any "looking for GPS" / "signal lost" message
   onLocationFound(e, state, map);
 });
 map.on('locationerror', (e: L.ErrorEvent) => {
@@ -100,7 +117,12 @@ map.on('locationerror', (e: L.ErrorEvent) => {
     permissionDeniedTimer = setTimeout(() => {
       permissionDeniedTimer = undefined;
       if (state.locateState === 'off') return; // already handled
-      showToast('Location access is denied. On iPhone: Settings > Privacy & Security > Location Services > Safari Websites > Allow', 0);
+      showToast(
+        /iPhone|iPad|iPod/.test(navigator.userAgent)
+          ? 'Location access is denied. On iPhone: Settings > Privacy & Security > Location Services > Safari Websites > Allow'
+          : 'Location access is blocked. Click the location (or site-info) icon in your browser’s address bar and set Location to Allow, then reload.',
+        0,
+      );
       state.locateState = 'off';
       // Force-stop ALL watching regardless of refcount.
       state.updateCallback = 0;
@@ -111,7 +133,34 @@ map.on('locationerror', (e: L.ErrorEvent) => {
     return;
   }
   onLocationError(state);
-  showToast('GPS signal lost');
+  if (state.locateState === 'off') return;
+
+  if (state.locationMarker !== null) {
+    // Already had a fix — a transient drop. One gentle toast per episode.
+    if (!gpsToastShown) { gpsToastShown = true; showToast('GPS signal lost'); }
+    return;
+  }
+
+  // Still acquiring (no fix yet).
+  if (/iPhone|iPad|iPod|Android/.test(navigator.userAgent)) {
+    if (!gpsToastShown) { gpsToastShown = true; showToast('Looking for GPS signal…'); }
+    return;
+  }
+
+  // Desktop: POSITION_UNAVAILABLE (e.g. macOS kCLErrorLocationUnknown) is often
+  // transient, so defer the sticky help until it persists. locationfound clears
+  // this timer, so a quick recovery never nags.
+  if (gpsHelpTimer === undefined) {
+    gpsHelpTimer = setTimeout(() => {
+      gpsHelpTimer = undefined;
+      if (state.locationMarker !== null || state.locateState === 'off') return;
+      showToast(
+        'Can’t determine your location. Enable Location Services for your browser ' +
+        '(Mac: System Settings → Privacy & Security → Location Services), then fully quit and reopen it.',
+        0,
+      );
+    }, 12000);
+  }
 });
 
 // Polling refcount helpers — shared by locate and recording
@@ -181,6 +230,11 @@ function showToast(message: string, durationMs = 3000): void {
 
 function startLocating(): void {
   state.locateState = 'active';
+  // Zoom to the user on the next fix. Set on every off → active activation
+  // (not just the session's first fix) so tapping locate always frames the
+  // user at neighborhood zoom. passive → active uses reactivateLocate(), which
+  // intentionally preserves the current zoom instead.
+  state.initialZoom = true;
   activatePolling();
   updateLocateIcon('active');
 }
@@ -268,22 +322,22 @@ const tileLayers = getTileLayers();
 
 const layerDefs: LayerDef[] = [
   {
-    id: 'cyclosm',
-    name: 'Trails',
-    description: 'Emphasizes hiking and cycling routes',
-    tileLayer: tileLayers.cyclosmLayer,
+    id: 'cycle',
+    name: 'Cycle',
+    description: 'Bike routes & cycling map (OpenCycleMap)',
+    tileLayer: tileLayers.cycleLayer,
+  },
+  {
+    id: 'outdoors',
+    name: 'Outdoors',
+    description: 'Hiking trails & terrain',
+    tileLayer: tileLayers.outdoorsLayer,
   },
   {
     id: 'osm-streets',
     name: 'Streets',
     description: 'Street map with roads and labels',
     tileLayer: tileLayers.osmStreetsLayer,
-  },
-  {
-    id: 'topo',
-    name: 'Topographic',
-    description: 'Contour lines and hillshade',
-    tileLayer: tileLayers.opentopoLayer,
   },
   {
     id: 'parks',
@@ -299,9 +353,14 @@ const overlayDefs: OverlayDef[] = [
     name: 'Hillshade',
     tileLayer: tileLayers.hillshadeLayer,
   },
+  {
+    id: 'routes',
+    name: 'Routes (hiking & cycling)',
+    tileLayer: tileLayers.routesLayer,
+  },
 ];
 
-addLayersControl(map, layerDefs, overlayDefs, ['hillshade']);
+addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'routes']);
 
 initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);

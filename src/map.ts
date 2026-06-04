@@ -9,10 +9,11 @@ import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmStreetsLayer: L.TileLayer | null = null;
-let cyclosmLayer: L.TileLayer | null = null;
-let opentopoLayer: L.TileLayer | null = null;
+let cycleLayer: L.TileLayer | null = null;
+let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
 let hillshadeLayer: L.TileLayer | null = null;
+let routesLayer: L.LayerGroup | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
 interface TileErrorEvent extends L.LeafletEvent {
   tile: HTMLImageElement;
@@ -21,7 +22,7 @@ interface TileErrorEvent extends L.LeafletEvent {
 }
 
 // Single cooldown shared across all layers — intentional: one toast per 10 s regardless
-// of which layer fired, so a Mapbox error followed immediately by an OSM error doesn't
+// of which layer fired, so a Thunderforest error followed immediately by an OSM error doesn't
 // show two toasts. The per-layer message is set when the cooldown first trips.
 let tileWarnCooldown = false;
 
@@ -31,12 +32,12 @@ let osmCachePromise: Promise<Cache> | null = null;
 /** Wire up offline tile warnings and canvas-based lower-zoom fallback.
  *  Must be called after createMap(). Attaches tileerror handlers to all tile layers.
  *  Only the OSM layer (cached by the service worker) attempts canvas fallback;
- *  Mapbox/Google layers show the warning but serve no fallback (not SW-cached).
+ *  Non-OSM layers (Thunderforest, Esri) show the warning but serve no fallback (not SW-cached).
  */
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmStreetsLayer, cyclosmLayer, opentopoLayer, humanitarianLayer, hillshadeLayer].filter(
+  const layers = [osmStreetsLayer, cycleLayer, outdoorsLayer, humanitarianLayer, hillshadeLayer].filter(
     (l): l is L.TileLayer => l !== null,
   );
   if (layers.length === 0) {
@@ -204,22 +205,41 @@ export function createMap(): L.Map {
     },
   );
 
-  cyclosmLayer = L.tileLayer(
-    'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+  // Thunderforest trail bases (free API key in VITE_THUNDERFOREST_TOKEN). Two
+  // dedicated, reliable trail-styled bases: Cycle (OpenCycleMap — bike routes &
+  // infrastructure) and Outdoors (hiking trails + terrain). The key is a public
+  // client-side token; referrer-restrict it to the deploy origin in the
+  // Thunderforest dashboard. Without a key these layers return error tiles.
+  const tfKey = import.meta.env.VITE_THUNDERFOREST_TOKEN ?? '';
+  const tfAttribution = '© Thunderforest, © OpenStreetMap contributors';
+  cycleLayer = L.tileLayer(
+    'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=' + tfKey,
     {
-      attribution: '© OpenStreetMap contributors, Carto',
+      attribution: tfAttribution,
+      ...stdConfig,
+    },
+  );
+  outdoorsLayer = L.tileLayer(
+    'https://{s}.tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=' + tfKey,
+    {
+      attribution: tfAttribution,
       ...stdConfig,
     },
   );
 
-  opentopoLayer = L.tileLayer(
-    'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    {
-      attribution: '© OpenStreetMap contributors, Carto',
-      ...stdConfig,
-      maxNativeZoom: 17,
-    },
+  // Waymarked hiking + cycling route highlights — transparent overlays exposed
+  // as ONE toggleable "Routes" overlay (like Hillshade) that composes over any
+  // base. Kept out of the base layer so a route-tile failure can never blank the
+  // map. Share stdConfig geometry so routes scale 1:1 with the base.
+  const hikingRoutes = L.tileLayer(
+    'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
+    { attribution: '© waymarkedtrails.org', ...stdConfig },
   );
+  const cyclingRoutes = L.tileLayer(
+    'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png',
+    { attribution: '© waymarkedtrails.org', ...stdConfig },
+  );
+  routesLayer = L.layerGroup([hikingRoutes, cyclingRoutes]);
 
   humanitarianLayer = L.tileLayer(
     'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
@@ -251,19 +271,21 @@ export function createMap(): L.Map {
 
 export function getTileLayers(): {
   osmStreetsLayer: L.TileLayer;
-  cyclosmLayer: L.TileLayer;
-  opentopoLayer: L.TileLayer;
+  cycleLayer: L.TileLayer;
+  outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
   hillshadeLayer: L.TileLayer;
+  routesLayer: L.LayerGroup;
 } {
-  if (!osmStreetsLayer || !cyclosmLayer || !opentopoLayer || !humanitarianLayer || !hillshadeLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !outdoorsLayer || !humanitarianLayer || !hillshadeLayer || !routesLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
     osmStreetsLayer,
-    cyclosmLayer,
-    opentopoLayer,
+    cycleLayer,
+    outdoorsLayer,
     humanitarianLayer,
     hillshadeLayer,
+    routesLayer,
   };
 }

@@ -2,7 +2,7 @@
  * Intent: Region pre-download for offline tile coverage — lets users select a bounding box and zoom range to pre-cache tiles
  * Context: Existing offline strategy caches only previously-viewed tiles; this adds proactive bulk caching via the Cache API
  * Pattern: User selects region via draggable rectangle + zoom slider, estimates tile count, then fetches/caches tiles in background chunks
- * Future: Only caches OSM tiles (the SW-cached layer); Mapbox/Google layers are not cached and won't benefit from pre-download
+ * Future: Only caches OSM tiles (the SW-cached layer); non-OSM layers (Thunderforest, Esri) are not cached and won't benefit from pre-download
  */
 import L from 'leaflet';
 import { setupCollapsibleLabel } from './controls';

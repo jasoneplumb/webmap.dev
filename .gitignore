@@ -1,6 +1,12 @@
 node_modules/
 dist/
+dev-dist/
 .env
+
+# Local worktree clones and session/log artifacts (never commit)
+clones/
+logs/
+*.log
 
 # Legacy files with embedded secrets (kept locally but not committed)
 index.html-backup

@@ -160,8 +160,12 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   function showDropdown(): void {
     const rect = wrapper.getBoundingClientRect();
     dropdownEl.style.top = `${rect.bottom + 2}px`;
-    dropdownEl.style.left = `${Math.max(4, rect.left)}px`;
     dropdownEl.style.display = 'block';
+    // Clamp left so the dropdown never overflows the right viewport edge on
+    // narrow phones — otherwise its content (e.g. the "POI" badge) gets clipped.
+    // Width is read after display so the measured value reflects the CSS bounds.
+    const maxLeft = window.innerWidth - dropdownEl.offsetWidth - 4;
+    dropdownEl.style.left = `${Math.max(4, Math.min(rect.left, maxLeft))}px`;
   }
 
   // Dropdown is dismissed only via the close button inside it.
@@ -236,86 +240,58 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     if (marker) marker.setIcon(createActiveNumberedIcon(index + 1));
   }
 
-  // Event delegation on dropdown — expand/collapse on item click; navigate on "Go" button.
-  dropdownEl.addEventListener('click', (e: MouseEvent) => {
-    const clicked = e.target as HTMLElement;
+  // Selecting a result — via a list-row tap or a numbered-marker tap — flies the
+  // map to it and opens the shared geocode-bar bottom sheet (Drive/Bike/Walk +
+  // Start): the SAME sheet a dropped pin uses, so search and pin-drop share one
+  // obvious "Navigate" flow. Guidance starts from the sheet's Start button, not
+  // on selection, mirroring the pin-drop interaction.
+  function selectResultLi(li: HTMLElement): void {
+    const lat = parseFloat(li.dataset['lat'] ?? '');
+    const lng = parseFloat(li.dataset['lng'] ?? '');
+    if (isNaN(lat) || isNaN(lng)) return;
 
-    // "Navigate here" button — start routed guidance to the selected result
-    const navBtn = clicked.closest<HTMLElement>('.sheet-result__nav-btn');
-    if (navBtn) {
-      const li = navBtn.closest<HTMLElement>('.sheet-result[data-lat]');
-      if (li === null) return;
-      const lat = parseFloat(li.dataset['lat'] ?? '');
-      const lng = parseFloat(li.dataset['lng'] ?? '');
-      if (isNaN(lat) || isNaN(lng)) return;
-      const label = li.dataset['name'] ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      // Dropdown is z-index 2000; close it before the guidance pill appears.
-      hideDropdown();
-      _showGeocodeBar?.(label, label, L.latLng(lat, lng));
-      void startGuidance(state, map, { lat, lng, label }, onNoResults);
-      return;
-    }
+    const resultName = li.dataset['name'] ?? '';
+    const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const label = resultName !== '' ? resultName : coordText;
+    const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
 
-    // "Go to location" button — fly to the result and show geocode bar
-    const goBtn = clicked.closest<HTMLElement>('.sheet-result__go-btn');
-    if (goBtn) {
-      const li = goBtn.closest<HTMLElement>('.sheet-result[data-lat]');
-      if (li === null) return;
-      const lat = parseFloat(li.dataset['lat'] ?? '');
-      const lng = parseFloat(li.dataset['lng'] ?? '');
-      if (isNaN(lat) || isNaN(lng)) return;
-      _pinLayer?.clearLayers();
-      const resultName = li.dataset['name'] ?? '';
-      const coordText = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      const label = resultName !== '' ? resultName : coordText;
-      const copyText = resultName !== '' ? `${resultName}\n${coordText}` : coordText;
-      _showGeocodeBar?.(label, copyText, L.latLng(lat, lng));
-      clearSelection();
-      li.classList.add('sheet-result--active');
-      li.classList.remove('sheet-result--expanded');
-      const idx = parseInt(li.dataset['index'] ?? '', 10);
-      if (!isNaN(idx)) activateSelection(idx);
-      const boundsRaw = li.dataset['bounds'] ?? '';
-      if (boundsRaw !== '') {
-        try {
-          const parsed = JSON.parse(boundsRaw) as unknown;
-          if (Array.isArray(parsed) && parsed.length === 2 &&
-              Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
-            map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
-              paddingTopLeft:     [50, 50],
-              paddingBottomRight: [50, 50],
-              maxZoom: 17,
-            });
-          } else {
-            map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
-          }
-        } catch {
-          map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
+    // A dropped pin and a selected search result are mutually exclusive.
+    _pinLayer?.clearLayers();
+    clearSelection();
+    li.classList.add('sheet-result--active');
+    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const idx = parseInt(li.dataset['index'] ?? '', 10);
+    if (!isNaN(idx)) activateSelection(idx);
+
+    // Fly to the result: prefer its ESRI extent, else a type-appropriate zoom.
+    const boundsRaw = li.dataset['bounds'] ?? '';
+    let flown = false;
+    if (boundsRaw !== '') {
+      try {
+        const parsed = JSON.parse(boundsRaw) as unknown;
+        if (Array.isArray(parsed) && parsed.length === 2 &&
+            Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+          map.flyToBounds(L.latLngBounds(parsed as [[number, number], [number, number]]), {
+            paddingTopLeft:     [50, 50],
+            paddingBottomRight: [50, 50],
+            maxZoom: 17,
+          });
+          flown = true;
         }
-      } else {
-        map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
-      }
-      return;
+      } catch { /* fall through to point zoom */ }
+    }
+    if (!flown) {
+      map.flyTo(L.latLng(lat, lng), zoomForAddrType(li.dataset['addrType'] ?? ''));
     }
 
-    // Copy button inside expanded detail
-    const copyBtn = clicked.closest<HTMLElement>('.sheet-result__copy-btn');
-    if (copyBtn) {
-      const text = copyBtn.dataset['copy'] ?? '';
-      const origText = copyBtn.textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        copyBtn.textContent = '\u2713 Copied';
-        setTimeout(() => { copyBtn.textContent = origText; }, 1500);
-      }).catch(() => { /* silent */ });
-      return;
-    }
+    _showGeocodeBar?.(label, copyText, L.latLng(lat, lng));
+  }
 
-    // Result item click — toggle expand/collapse
-    const li = clicked.closest<HTMLElement>('.sheet-result');
-    if (li === null) return;
-    const prev = dropdownEl.querySelector('.sheet-result--expanded');
-    if (prev && prev !== li) prev.classList.remove('sheet-result--expanded');
-    li.classList.toggle('sheet-result--expanded');
+  // Event delegation on dropdown — a tap anywhere on a result row selects it.
+  // The close button is handled by the dedicated listener registered earlier.
+  dropdownEl.addEventListener('click', (e: MouseEvent) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('.sheet-result');
+    if (li) selectResultLi(li);
   });
 
   // Keep marker size in sync with map zoom level via CSS classes.
@@ -339,17 +315,11 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
           marker.on('click', (e: L.LeafletMouseEvent) => {
             // Stop propagation so the map click handler doesn't immediately re-hide the dropdown.
             L.DomEvent.stopPropagation(e);
-            clearSelection();
-            marker.setIcon(createActiveNumberedIcon(i + 1));
-            // Restore dropdown if the user had dismissed it.
+            // Restore the results list if it had been dismissed, then select.
+            // Tapping a marker behaves identically to tapping its list row.
             if (dropdownEl.innerHTML !== '') showDropdown();
-            // Clear any dropped pin.
-            _pinLayer?.clearLayers();
             const li = dropdownEl.querySelector<HTMLElement>(`.sheet-result[data-index="${i}"]`);
-            if (li) {
-              li.classList.add('sheet-result--active');
-              li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
+            if (li) selectResultLi(li);
           });
         }
       }
@@ -375,8 +345,6 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
             .join(', ');
           const tooltipParts = [name, subtitle, addrType, `${lat}, ${lng}`].filter(Boolean);
           const tooltip = escapeHtml(tooltipParts.join(' · '));
-          const longLabel = escapeHtml(strProp(r.properties?.LongLabel) || strProp(r.properties?.Match_addr) || r.text || '');
-          const coordStr = `${lat}, ${lng}`;
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-name="${escapeHtml(name)}" data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}" title="${tooltip}">` +
@@ -387,19 +355,6 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
             `    </div>` +
             (addrType ? `    <span class="sheet-result__badge">${addrType}</span>` : '') +
             `    <span class="sheet-result__arrow">&#x203A;</span>` +
-            `  </div>` +
-            `  <div class="sheet-result__detail">` +
-            `    <div class="sheet-result__full-addr">${longLabel}</div>` +
-            `    <div class="sheet-result__detail-meta">` +
-            (addrType ? `      <span class="sheet-result__detail-badge">${addrType}</span>` : '') +
-            `      <span class="sheet-result__detail-coords">${coordStr}</span>` +
-            `    </div>` +
-            `    <div class="sheet-result__detail-actions">` +
-            `      <button class="sheet-result__nav-btn">Navigate here</button>` +
-            `      <button class="sheet-result__go-btn">Go to location</button>` +
-            `      <button class="sheet-result__copy-btn" data-copy="${longLabel}">Copy address</button>` +
-            `      <button class="sheet-result__copy-btn" data-copy="${escapeHtml(coordStr)}">Copy coords</button>` +
-            `    </div>` +
             `  </div>` +
             `</li>`
           );

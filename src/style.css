@@ -300,14 +300,14 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* Geocode-bar Navigate button (sits next to Copy in the bottom sheet) */
 .geocode-bar__nav {
-  flex: none;
+  flex: 1 1 120px;
   background: #22c55e;
   color: #fff;
   border: none;
-  border-radius: 4px;
-  padding: 3px 9px;
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -322,23 +322,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .geocode-bar__nav--stop:hover {
   background: #dc2626;
-}
-
-/* Search-result Navigate button — green primary, sits before the Go button */
-.sheet-result__nav-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  background: #22c55e;
-  color: #fff;
-}
-
-.sheet-result__nav-btn:hover {
-  background: #16a34a;
 }
 
 /* ── Locate-button passive-state pulse animation ────────────────────────────
@@ -502,6 +485,9 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .sheet-result__name {
   font-size: 14px;
   color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sheet-result__subtitle {
@@ -541,101 +527,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding-left: calc(12px - 3px); /* compensate for border */
 }
 
-/* ── Expandable result detail (tap-to-preview on mobile) ── */
 .sheet-result__summary {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.sheet-result__detail {
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-height 0.3s ease, opacity 0.2s ease;
-  width: 100%;
-}
-
-.sheet-result--expanded .sheet-result__detail {
-  max-height: 300px;
-  opacity: 1;
-}
-
-.sheet-result--expanded .sheet-result__arrow {
-  transform: rotate(90deg);
-}
-
-.sheet-result__full-addr {
-  font-size: 13px;
-  color: #444;
-  margin-top: 8px;
-  line-height: 1.4;
-}
-
-.sheet-result__detail-meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
-}
-
-.sheet-result__detail-badge {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: #e8f0fe;
-  color: #4a90d9;
-  white-space: nowrap;
-}
-
-.sheet-result__detail-coords {
-  font-size: 11px;
-  color: #888;
-  font-family: monospace;
-}
-
-.sheet-result__detail-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.sheet-result__go-btn,
-.sheet-result__copy-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.sheet-result__go-btn {
-  background: #4a90d9;
-  color: #fff;
-}
-
-.sheet-result__go-btn:hover {
-  background: #3d82c4;
-}
-
-.sheet-result__go-btn:active {
-  background: #3a7bc8;
-}
-
-.sheet-result__copy-btn {
-  background: #f0f0f0;
-  color: #444;
-}
-
-.sheet-result__copy-btn:hover {
-  background: #e8e8e8;
-}
-
-.sheet-result__copy-btn:active {
-  background: #e0e0e0;
+  width: 100%;
 }
 
 /* ── Reverse geocode bottom sheet ── */
