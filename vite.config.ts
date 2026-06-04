@@ -54,6 +54,9 @@ export default defineConfig({
         // Without this, onNeedRefresh sends SKIP_WAITING but the page never reloads
         // automatically — users see a blank/stale page until they manually refresh.
         clientsClaim: true,
+        // Drop precache entries from older SW generations on activate, so a stale
+        // index referencing chunks that no longer exist can't be served.
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
@@ -71,7 +74,12 @@ export default defineConfig({
             handler: 'NetworkOnly',
           },
         ],
-        navigateFallback: null,
+        // Serve the precached app shell for navigation requests. With null, a
+        // returning user after a deploy could get a shell/chunk hash mismatch
+        // (old SW serving an index whose hashed JS is no longer in its precache),
+        // blanking the page until a manual reload. 'index.html' guarantees the
+        // navigation is answered from one consistent precache generation.
+        navigateFallback: 'index.html',
       },
       devOptions: {
         // Disabled in dev: the precaching service worker served stale bundles

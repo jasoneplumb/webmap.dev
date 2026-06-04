@@ -45,7 +45,7 @@ if (!hasConsent()) {
   // IIFE that delays the rest of init until consent is granted.  The import
   // side-effects above (CSS, Leaflet icon config) are harmless before consent.
   void waitForConsent()
-    .then(() => initApp())
+    .then(() => bootApp())
     .catch((err: unknown) => {
       console.error('[webmap] consent flow failed', err);
       // Only reload if consent wasn't recorded yet — avoids a reload loop if
@@ -56,7 +56,27 @@ if (!hasConsent()) {
       }
     });
 } else {
-  initApp();
+  bootApp();
+}
+
+// Run initApp with a one-shot self-heal: if initialization throws (e.g. a stale
+// service worker serving a shell/chunk hash mismatch right after a deploy),
+// reload once to pick up a consistent asset set rather than leaving a blank
+// page that the user has to reload manually. The sessionStorage guard prevents
+// a reload loop if the failure is persistent (then the error surfaces instead).
+function bootApp(): void {
+  try {
+    initApp();
+    try { sessionStorage.removeItem('webmap-boot-retry'); } catch { /* sessionStorage unavailable */ }
+  } catch (err: unknown) {
+    console.error('[webmap] app initialization failed', err);
+    let retried = false;
+    try { retried = sessionStorage.getItem('webmap-boot-retry') === '1'; } catch { /* ignore */ }
+    if (!retried) {
+      try { sessionStorage.setItem('webmap-boot-retry', '1'); } catch { /* ignore */ }
+      location.reload();
+    }
+  }
 }
 
 function initApp(): void {
