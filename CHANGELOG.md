@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.33.1-beta (2026-06-04)
+
+### Fixed
+
+- **Blank tray flashed over the map on the first load after an update** — an orphaned bottom-sheet ("info panel"), unused since search moved to the floating dropdown, computed its off-screen position from `offsetHeight` before layout was ready on the service-worker update's cold first paint, leaving an empty tray covering the map until a manual refresh. Removed the dead module, its call, test, and styles entirely (#200)
+
 ## v0.33.0-beta (2026-06-04)
 
 ### Added
