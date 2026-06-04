@@ -30,7 +30,9 @@ let tileWarnCooldown = false;
 let osmCachePromise: Promise<Cache> | null = null;
 
 /** Wire up offline tile warnings and canvas-based lower-zoom fallback.
- *  Must be called after createMap(). Attaches tileerror handlers to all tile layers.
+ *  Must be called after createMap(). Attaches tileerror handlers to the base/overlay
+ *  tile layers; the Routes overlay (a LayerGroup) is intentionally excluded — its
+ *  Waymarked tiles aren't SW-cached, so a fallback/warning would be moot.
  *  Only the OSM layer (cached by the service worker) attempts canvas fallback;
  *  Non-OSM layers (Thunderforest, Esri) show the warning but serve no fallback (not SW-cached).
  */
@@ -211,7 +213,14 @@ export function createMap(): L.Map {
   // client-side token; referrer-restrict it to the deploy origin in the
   // Thunderforest dashboard. Without a key these layers return error tiles.
   const tfKey = import.meta.env.VITE_THUNDERFOREST_TOKEN ?? '';
-  const tfAttribution = '© Thunderforest, © OpenStreetMap contributors';
+  if (!tfKey) {
+    console.warn(
+      'VITE_THUNDERFOREST_TOKEN is not set — the Cycle/Outdoors trail bases will ' +
+      'return error tiles. Set it in your .env file.',
+    );
+  }
+  // Thunderforest terms require crediting both the map style and the OSM data (ODbL).
+  const tfAttribution = 'Maps © Thunderforest, Data © OpenStreetMap contributors';
   cycleLayer = L.tileLayer(
     'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=' + tfKey,
     {
