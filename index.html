@@ -29,30 +29,74 @@
        404s to the HTML fallback, which the browser reports as a manifest
        "Line 1, column 1, Syntax error". -->
 
-  <!-- Boot watchdog: if the JS bundle never executes (stale SW serving an index
-       whose hashed JS 404s → blank page), main.ts can't call __webmapBootOk(),
-       so this reloads once. One-shot, sessionStorage-guarded against loops. -->
+  <!-- Boot watchdog + on-screen diagnostic. The watchdog reloads once if the JS
+       bundle never executes (stale SW serving a 404'd chunk → blank). The diag
+       overlay surfaces uncaught errors and a blank-state dump on devices we can't
+       remote-inspect (mobile Chromium). TEMPORARY instrumentation — remove once
+       the blank-on-load root cause is identified. var is intentional (broadest
+       engine support so recovery never breaks). -->
   <script>
-    /* var (not let/const) is intentional — broadest browser support so recovery
-       never breaks on an old engine. */
     (function () {
       var KEY = 'webmap-boot-watchdog';
       var timer;
-      // main.ts calls this as its first statement (the bundle is executing).
       window.__webmapBootOk = function () {
+        window.__WEBMAP_RAN__ = true; // the bundle executed
         if (timer) { clearTimeout(timer); }
         try { sessionStorage.removeItem(KEY); } catch (e) { /* unavailable */ }
       };
+
+      function diag(title, body) {
+        try {
+          var el = document.getElementById('webmap-diag');
+          if (!el) {
+            el = document.createElement('div');
+            el.id = 'webmap-diag';
+            el.setAttribute('style', 'position:fixed;inset:0;z-index:2147483647;background:#101418;color:#7CFC00;font:11px/1.45 ui-monospace,Menlo,monospace;padding:14px;overflow:auto;white-space:pre-wrap;word-break:break-word;');
+            (document.body || document.documentElement).appendChild(el);
+            el.textContent = 'webmap.dev diagnostic — please screenshot\n';
+          }
+          el.textContent += '\n' + title + '\n' + (body || '') + '\n';
+        } catch (e) { /* ignore */ }
+      }
+      window.addEventListener('error', function (e) {
+        diag('[error] ' + (e.message || ''), (e.error && e.error.stack) ? e.error.stack : ((e.filename || '') + ':' + e.lineno + ':' + e.colno));
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e.reason;
+        diag('[promise] ' + ((r && r.message) || ''), (r && r.stack) ? r.stack : String(r));
+      });
+
       var reloadedOnce;
       try { reloadedOnce = sessionStorage.getItem(KEY) === '1'; } catch (e) { reloadedOnce = false; }
-      if (reloadedOnce) { return; } // already reloaded once this session — don't loop
-      timer = setTimeout(function () {
-        // Only reload if we can persist the one-shot guard; otherwise (e.g. Safari
-        // private mode with storage full) skip it so we can't loop unbounded.
-        var persisted = false;
-        try { sessionStorage.setItem(KEY, '1'); persisted = true; } catch (e) { persisted = false; }
-        if (persisted) { location.reload(); }
-      }, 3000);
+      if (!reloadedOnce) {
+        timer = setTimeout(function () {
+          var persisted = false;
+          try { sessionStorage.setItem(KEY, '1'); persisted = true; } catch (e) { persisted = false; }
+          if (persisted) { location.reload(); }
+        }, 3000);
+      }
+
+      // Blank-state probe: if the map still hasn't rendered after 5s and no error
+      // was captured, dump enough state to see WHY it's blank.
+      setTimeout(function () {
+        if (document.getElementById('webmap-diag')) { return; } // already showing something
+        var m = document.getElementById('map');
+        var kids = m ? m.childElementCount : -1;
+        if (kids > 0) { return; } // map rendered — not blank
+        var sw = navigator.serviceWorker;
+        function ls(k) { try { return !!localStorage.getItem(k); } catch (e) { return 'n/a'; } }
+        var script = document.querySelector('script[type=module]');
+        diag('[blank-probe] #map never rendered', [
+          'bundleRan=' + !!window.__WEBMAP_RAN__,
+          'onLine=' + navigator.onLine,
+          'readyState=' + document.readyState,
+          'mapKids=' + kids,
+          'hasConsent=' + ls('webmap-consent-version'),
+          'swController=' + (sw && sw.controller ? 'yes' : 'no'),
+          'asset=' + (script ? script.src : '?'),
+          'ua=' + navigator.userAgent
+        ].join('\n'));
+      }, 5000);
     })();
   </script>
 </head>
