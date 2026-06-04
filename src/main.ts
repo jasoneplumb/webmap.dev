@@ -36,7 +36,7 @@ import { scheduleSwUpdate } from './sw-update';
 // cancels its reload timer. If the bundle ever fails to load (a stale service
 // worker serving a 404'd chunk → blank page), this line never runs and the
 // watchdog reloads once to recover.
-(window as unknown as { __webmapBootOk?: () => void }).__webmapBootOk?.();
+window.__webmapBootOk?.();
 
 // ── Consent gate — block all interaction until terms are accepted ─────────────
 if (!hasConsent()) {
