@@ -23,7 +23,6 @@ import { createMap, initOfflineTileFallback, getTileLayers } from './map';
 import { addLayersControl, type LayerDef, type OverlayDef } from './layers-control';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
-import { initInfoPanel } from './bottom-sheet';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
@@ -362,7 +361,6 @@ const overlayDefs: OverlayDef[] = [
 
 addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'routes']);
 
-initInfoPanel(map);
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state, showToast);
