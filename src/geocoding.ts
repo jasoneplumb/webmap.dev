@@ -75,8 +75,8 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
 
   if (!apikey) {
     console.warn(
-      'VITE_ESRI_API_KEY is not configured. ' +
-      'Search requests may fail if ArcGIS requires authentication. ' +
+      'VITE_ESRI_API_KEY is not configured — address search and reverse geocoding ' +
+      '(pin drop) will fail, since ArcGIS requires authentication. ' +
       'Set VITE_ESRI_API_KEY in your .env file.'
     );
   }
