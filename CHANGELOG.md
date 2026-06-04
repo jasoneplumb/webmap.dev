@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.1-beta (2026-06-04)
+
+### Changed
+
+- **Temporary on-screen diagnostic** for a blank-on-load that only reproduces on mobile Chromium (Edge/Chrome) on the returning-user path. On an uncaught error or a map that never renders, it now shows an error/state readout instead of a blank page; invisible on normal loads. Instrumentation to be removed once the root cause is fixed (#207)
+
 ## v0.34.0-beta (2026-06-04)
 
 ### Added
