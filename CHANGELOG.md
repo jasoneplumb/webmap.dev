@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.2-beta (2026-06-04)
+
+### Changed
+
+- **Diagnostic refinement** — the temporary blank-page probe now detects "blank" by counting actually-rendered map tiles (Leaflet adds panes/controls to `#map` immediately, so the previous child-count check missed a blank-but-initialized map) and always appends its state dump alongside any captured error (#208)
+
 ## v0.34.1-beta (2026-06-04)
 
 ### Changed
