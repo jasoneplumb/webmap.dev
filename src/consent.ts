@@ -65,7 +65,6 @@ export function showConsentModal(): Promise<boolean> {
     `;
 
     overlay.appendChild(panel);
-    document.body.appendChild(overlay);
 
     function cleanup(accepted: boolean): void {
       overlay.remove();
@@ -73,8 +72,10 @@ export function showConsentModal(): Promise<boolean> {
       resolve(accepted);
     }
 
-    document.getElementById('consent-accept')!.addEventListener('click', () => cleanup(true));
-    document.getElementById('consent-decline')!.addEventListener('click', () => cleanup(false));
+    // Wire listeners on the still-detached panel so they're ready before mount
+    // (querySelector works on a detached element; getElementById would not).
+    panel.querySelector('#consent-accept')!.addEventListener('click', () => cleanup(true));
+    panel.querySelector('#consent-decline')!.addEventListener('click', () => cleanup(false));
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) cleanup(false);
     });
@@ -87,7 +88,18 @@ export function showConsentModal(): Promise<boolean> {
     };
     document.addEventListener('keydown', onKey);
 
-    // Focus the accept button for keyboard accessibility
-    document.getElementById('consent-accept')!.focus();
+    // Mount on the next frame, NOT synchronously during the page's first paint.
+    // iOS WebKit (including Edge/Chrome on iOS, which run on WKWebView) intermittently
+    // fails to composite a fixed-position layer injected during that first paint,
+    // leaving a white screen with the modal present in the DOM but unpainted — the
+    // blank-on-cold-start that "prevents usage" until a manual refresh (confirmed via
+    // on-screen diagnostic: bundleRan=true, hasConsent=false, nothing visible).
+    // Mounting after first paint and flushing layout makes the overlay paint reliably.
+    requestAnimationFrame(() => {
+      document.body.appendChild(overlay);
+      void overlay.getBoundingClientRect(); // flush layout → ensure a paint
+      // Focus the accept button for keyboard accessibility (post-mount).
+      (panel.querySelector('#consent-accept') as HTMLElement | null)?.focus();
+    });
   });
 }
