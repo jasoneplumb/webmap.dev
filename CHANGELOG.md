@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.6-beta (2026-06-05)
+
+### Fixed
+
+- **Blank white screen on cold start in Edge/Chrome on iPhone — root cause** — the first-run consent dialog was injected into the page synchronously during the browser's first paint, and iOS WebKit (which all third-party iOS browsers run on) intermittently failed to composite that fixed-position layer, leaving a white screen with the dialog present in the DOM but unpainted. With the dialog invisible the user couldn't accept it, so the app appeared blank until a manual refresh. The consent overlay now mounts one animation frame later (after first paint) with a forced layout flush, so it renders reliably. On-device diagnostics (`bundleRan=true`, `swController=no`) confirmed the app and service worker were healthy all along — earlier service-worker changes targeted the wrong layer (#219)
+
 ## v0.34.5-beta (2026-06-04)
 
 ### Fixed
