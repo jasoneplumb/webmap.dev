@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.9-beta (2026-06-05)
+
+### Changed
+
+- **Removed the temporary on-screen blank-page diagnostics** and simplified the service worker. The investigation into the Edge/Chrome-on-iPhone blank screen concluded it's an iOS-26 WKWebView (third-party-browser) whole-page render freeze — not reachable, detectable, or preventable from web code — and is paused pending a future iOS update (Safari is unaffected; tracked for follow-up). The diagnostic overlays and service-worker-side error capture added during the investigation are now removed; the automatic recovery for a service worker serving a stale chunk is kept (#224)
+
 ## v0.34.8-beta (2026-06-05)
 
 ### Fixed
