@@ -83,6 +83,9 @@ export function showConsentModal(): Promise<boolean> {
       hint.style.display = 'none';
       body.removeEventListener('scroll', onScrollOrResize);
       window.removeEventListener('resize', onScrollOrResize);
+      // Move focus to the now-interactive button so a keyboard user who just scrolled
+      // to the bottom doesn't have to Tab forward to reach it.
+      acceptBtn.focus();
     };
     const onScrollOrResize = (): void => {
       if (atBottom()) unlock();
@@ -97,6 +100,9 @@ export function showConsentModal(): Promise<boolean> {
     }
 
     function cleanup(accepted: boolean): void {
+      // Symmetric teardown — tear down both listeners regardless of which path closes
+      // the modal (e.g. decline-before-scroll leaves the scroll listener attached).
+      body.removeEventListener('scroll', onScrollOrResize);
       window.removeEventListener('resize', onScrollOrResize);
       overlay.remove();
       if (accepted) recordConsent();
