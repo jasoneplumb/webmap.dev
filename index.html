@@ -91,6 +91,12 @@
         var sw = navigator.serviceWorker;
         function ls(k) { try { return !!localStorage.getItem(k); } catch (e) { return 'n/a'; } }
         var script = document.querySelector('script[type=module]');
+        var co = document.getElementById('consent-overlay');
+        var coState = 'absent';
+        if (co) { var cr = co.getBoundingClientRect(); coState = Math.round(cr.width) + 'x' + Math.round(cr.height); }
+        var kids = [];
+        var bk = document.body ? document.body.children : [];
+        for (var i = 0; i < bk.length; i++) { kids.push(bk[i].id || bk[i].tagName); }
         diag('[blank-probe] state', [
           'bundleRan=' + !!window.__WEBMAP_RAN__,
           'onLine=' + navigator.onLine,
@@ -98,6 +104,8 @@
           'mapChildren=' + (m ? m.childElementCount : -1),
           'loadedTiles=' + tiles,
           'hasConsent=' + ls('webmap-consent-version'),
+          'consentOverlay=' + coState,
+          'bodyKids=' + kids.join(','),
           'swController=' + (sw && sw.controller ? 'yes' : 'no'),
           'asset=' + (script ? script.src : '?'),
           'ua=' + navigator.userAgent
