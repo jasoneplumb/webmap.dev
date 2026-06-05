@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.7-beta (2026-06-05)
+
+### Fixed
+
+- **Blank white screen on cold start in Edge/Chrome on iPhone now auto-recovers** — the real cause is a whole-page render freeze in iOS WebKit (iOS 26 / WKWebView): the page loads and runs but the browser intermittently never paints the content, and only a full reload clears it (scrolling/tapping/rotating doesn't). Since it can't be prevented from the page, the app now detects it via the Paint Timing API — if no content paint is recorded ~3 seconds after load, it reloads once automatically (guarded against loops) — so a freeze becomes a brief white flash that self-heals instead of a stuck dead page. On-device diagnostics (`bundleRan=true`, `swController=no`, even injected overlays not painting) confirmed the app, service worker, and consent dialog were all healthy; the earlier consent-overlay timing change (v0.34.6) is reverted (#221)
+
 ## v0.34.6-beta (2026-06-05)
 
 ### Fixed
