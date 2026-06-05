@@ -145,9 +145,10 @@
 </head>
 <body>
   <div id="map"></div>
-  <div id="offline-banner" class="offline-banner">
-    <span>You are offline — cached tiles and GPS recording still work</span>
-  </div>
+  <!-- #offline-banner is created lazily by main.ts only when the app goes offline.
+       Keeping it out of the static HTML avoids a position:fixed+transform compositing
+       layer at first paint, which (with #map) contributed to the iOS-26 WKWebView
+       whole-page render freeze. -->
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
