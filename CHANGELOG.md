@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.8-beta (2026-06-05)
+
+### Fixed
+
+- **Further attempt at the Edge/Chrome-on-iPhone blank white screen** — reduced the work the browser's compositor does at first paint, since the freeze only affects iOS third-party browsers (WKWebView) and not Safari, which suggests WKWebView is more sensitive to compositing pressure during the initial render. Removed an always-on full-screen compositing layer on the map container (`isolation: isolate`, which was only needed to contain the hillshade blend and is visually a no-op to drop) and stopped rendering the offline banner into the page until it's actually needed. The page can't detect the freeze itself to auto-recover (the browser reports the paint as done even when nothing reaches the screen), so this targets preventing it (#223)
+
 ## v0.34.7-beta (2026-06-05)
 
 ### Fixed
