@@ -1,20 +1,10 @@
 /**
- * Intent: Custom service worker (injectManifest) — a navigation handler that can
- *   never blank the page, plus SW-side error capture for on-device observability.
- * Context: Replaces vite-plugin-pwa's generateSW. The Edge-on-iPhone (WKWebView)
- *   blank-on-cold-start survived the navigation-strategy fixes (NetworkFirst in
- *   v0.34.3, timeout removal in v0.34.4). It only appears after several loads from a
- *   clean state — pointing at accumulated storage/SW-runtime pressure tipping the
- *   worker over and returning an empty navigation. A blank navigation is invisible to
- *   page-side diagnostics, so both the recovery and the diagnostics have to live here.
- * Pattern: Navigations go network-first but any failure OR an empty body falls back to
- *   the install-verified precache copy of index.html — never the flaky runtime cache,
- *   so the page can never go blank (worst case: a slightly-stale shell). Failures are
- *   stashed in a cache that the next good load reads (see surfaceSwDiagnostics in
- *   main.ts). The registerType:'prompt' update flow is wired manually here
- *   (SKIP_WAITING message + clientsClaim), since generateSW no longer does it.
- * Future: The diagnostics (DIAG_*) are temporary — remove with the #207/#208 overlay
- *   once the WKWebView blank is confirmed fixed in the field.
+ * Intent: Custom service worker (vite-plugin-pwa injectManifest).
+ * Pattern: Precache the build assets; serve navigations network-first with an offline
+ *   fallback to the install-verified precache copy of index.html; cache map tiles
+ *   (StaleWhileRevalidate, purgeOnQuotaError on iOS storage-quota hits); never cache
+ *   geocoding. The registerType:'prompt' update flow is wired manually here
+ *   (SKIP_WAITING message + clientsClaim), since injectManifest doesn't generate it.
  */
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-precaching';
@@ -22,7 +12,7 @@ import { registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim } from 'workbox-core';
-import { OSM_TILE_CACHE_NAME, SW_DIAG_CACHE, SW_DIAG_URL } from './sw-constants';
+import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -32,66 +22,28 @@ declare const self: ServiceWorkerGlobalScope & {
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-// ── SW-side diagnostics ───────────────────────────────────────────────────────
-// A blank navigation can't report anything itself, but the worker survives it — so
-// it records failures in SW_DIAG_CACHE and the page reads them on its next good load
-// (surfaceSwDiagnostics in main.ts). The cache name/URL live in sw-constants.ts so
-// the two sides can't drift.
-async function recordSwError(context: string, err: unknown): Promise<void> {
-  try {
-    const cache = await caches.open(SW_DIAG_CACHE);
-    const prev = await cache.match(SW_DIAG_URL);
-    const list: unknown[] = prev ? await prev.json() : [];
-    list.push({
-      t: new Date().toISOString(),
-      context,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    // Keep only the most recent few so the entry can't grow unbounded.
-    while (list.length > 20) list.shift();
-    await cache.put(
-      SW_DIAG_URL,
-      new Response(JSON.stringify(list), { headers: { 'Content-Type': 'application/json' } }),
-    );
-  } catch {
-    // Diagnostics are best-effort; never let them throw back into a handler.
-  }
-}
-
-// ── Bulletproof navigation ─────────────────────────────────────────────────────
-// Network-first, but the ONLY fallback is the install-verified precache copy of
-// index.html — never a runtime cache (whose flaky reads in WKWebView were returning
-// empty navigations). So the page always renders a real document.
+// ── Navigation: network-first, with the install-verified precache copy of index.html
+// as the offline fallback. Network-first keeps the served shell paired with the
+// current chunk hashes (no stale-shell mismatch), and the precache fallback keeps the
+// app available offline.
 registerRoute(
   ({ request }) => request.mode === 'navigate',
   async ({ request }) => {
     try {
       const res = await fetch(request);
       if (!res.ok) throw new Error(`navigation HTTP ${res.status}`);
-      // Guard against an empty/blank 200 (the WKWebView failure mode): validate the
-      // body before trusting it. index.html is tiny, so reading a clone is cheap.
-      // A valid HTML document is always well over 50 chars; under that is an
-      // empty/stub response we must not serve.
-      const body = await res.clone().text();
-      if (body.trim().length < 50) throw new Error('navigation body empty');
       return res;
-    } catch (err) {
-      await recordSwError('navigate', err);
+    } catch {
       const fallback = await matchPrecache('index.html');
       if (fallback) return fallback;
-      // index.html is always precached, so this is unreachable — but never blank:
-      // a zero-delay refresh document beats a white screen.
-      return new Response('<!doctype html><meta http-equiv="refresh" content="0">', {
-        headers: { 'Content-Type': 'text/html' },
-      });
+      throw new Error('navigation failed and no precached index.html');
     }
   },
 );
 
 // ── Map tiles ──────────────────────────────────────────────────────────────────
 // Cache-while-revalidate. purgeOnQuotaError purges the cache on a storage-quota hit
-// instead of throwing (the documented iOS/WKWebView mitigation for "fails after N
-// loads"); the lower maxEntries trims the footprint that accumulates across a soak.
+// instead of throwing (the documented iOS/WKWebView mitigation).
 registerRoute(
   /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
   new StaleWhileRevalidate({
@@ -106,7 +58,7 @@ registerRoute(
   }),
 );
 
-// ── Geocoding: never cache (parity with the previous generateSW config) ─────────
+// ── Geocoding: never cache ───────────────────────────────────────────────────────
 registerRoute(/^https:\/\/geocode\.arcgis\.com\/.*/, new NetworkOnly());
 
 // ── Update flow (registerType: 'prompt') ────────────────────────────────────────
