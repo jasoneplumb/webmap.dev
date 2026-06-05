@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.34.3-beta (2026-06-04)
+
+### Fixed
+
+- **Blank page on cold start in Edge on iPhone** — navigation requests are now served NetworkFirst instead of cache-first from the service-worker precache. Third-party iOS browsers (WKWebView) have flakier Cache Storage than Safari, so the cache-first navigation route intermittently returned a blank document; an online cold start now always fetches a fresh `index.html` from the network, with the last cached navigation as the offline fallback (#213)
+- **Stale service worker pinned for a year** — nginx now serves `/sw.js` with `no-cache` instead of the generic 1-year `immutable` rule that applied to every `.js` file. Because the service-worker filename is stable (unhashed), that rule kept browsers on a stale SW that never discovered new deploys; it is now re-fetched and revalidated on every load (#210)
+
 ## v0.34.2-beta (2026-06-04)
 
 ### Changed
