@@ -61,16 +61,22 @@ export default defineConfig({
           {
             // Cold-start navigations: fetch a fresh index.html from the network when
             // online so the served shell always pairs with current chunk hashes; fall
-            // back to the last cached navigation only when the network is slow/offline.
-            // Replaces the cache-first `navigateFallback` precache route, which
-            // intermittently returned a blank document in third-party iOS browsers
+            // back to the last cached navigation only on a genuine network failure
+            // (offline). Replaces the cache-first `navigateFallback` precache route,
+            // which intermittently returned a blank document in third-party iOS browsers
             // (WKWebView), whose Cache Storage / service-worker support is flakier than
             // Safari's. Safari rendered fine; only Edge-on-iPhone blanked on cold start.
+            //
+            // No networkTimeoutSeconds: a timeout makes NetworkFirst fall back to the
+            // (WKWebView-flaky) runtime cache while the network is merely slow — which
+            // intermittently served an empty navigation → blank document with no
+            // index.html rendered (so even the in-page watchdog couldn't recover). Wait
+            // for the network instead; a slow shell beats a blank one. Only a real fetch
+            // rejection (offline) falls back to cache.
             urlPattern: ({ request }) => request.mode === 'navigate',
             handler: 'NetworkFirst',
             options: {
               cacheName: 'html-navigations',
-              networkTimeoutSeconds: 3,
               expiration: { maxEntries: 1 },
             },
           },
