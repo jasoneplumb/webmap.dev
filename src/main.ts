@@ -38,6 +38,50 @@ import { scheduleSwUpdate } from './sw-update';
 // watchdog reloads once to recover.
 window.__webmapBootOk?.();
 
+// ── Temporary: surface service-worker-captured diagnostics ─────────────────────
+// src/sw.ts stashes navigation failures in the 'webmap-sw-diag' cache because a
+// blank navigation can't report anything itself — the page never renders. On a good
+// load we read, show (screenshot-friendly), and clear them, so the failure mode is
+// finally visible on devices we can't remote-inspect (Edge on iOS = WKWebView). These
+// constants MUST match src/sw.ts. Defined here (before bootApp() runs below) so the
+// const isn't in its temporal dead zone when initApp calls surfaceSwDiagnostics().
+// Remove with the #207/#208 diagnostics once the WKWebView blank is confirmed fixed.
+const SW_DIAG_CACHE = 'webmap-sw-diag';
+const SW_DIAG_URL = '/__webmap_sw_diag__';
+
+interface SwDiagRecord { t?: string; context?: string; message?: string; }
+
+async function surfaceSwDiagnostics(): Promise<void> {
+  if (!('caches' in window)) return;
+  try {
+    const cache = await caches.open(SW_DIAG_CACHE);
+    const res = await cache.match(SW_DIAG_URL);
+    if (!res) return;
+    const records = (await res.json()) as SwDiagRecord[];
+    await cache.delete(SW_DIAG_URL);
+    if (!Array.isArray(records) || records.length === 0) return;
+
+    console.warn('[webmap] service worker recovered blank navigation(s):', records);
+
+    const el = document.createElement('div');
+    el.setAttribute(
+      'style',
+      'position:fixed;left:0;right:0;bottom:0;z-index:2147483646;max-height:45%;overflow:auto;' +
+        'background:#101418;color:#7CFC00;font:11px/1.45 ui-monospace,Menlo,monospace;' +
+        'padding:12px;white-space:pre-wrap;word-break:break-word;',
+    );
+    const lines = records
+      .map((r) => `${r.t ?? '?'}  [${r.context ?? '?'}]  ${r.message ?? ''}`)
+      .join('\n');
+    el.textContent =
+      `webmap.dev — service worker recovered ${records.length} blank navigation(s); please screenshot\n\n${lines}\n\n(tap to dismiss)`;
+    el.addEventListener('click', () => el.remove());
+    document.body.appendChild(el);
+  } catch {
+    // Best-effort: diagnostics must never break the app.
+  }
+}
+
 // ── Consent gate — block all interaction until terms are accepted ─────────────
 if (!hasConsent()) {
   // Show modal immediately; re-show on decline (user cannot bypass)
@@ -528,5 +572,9 @@ const updateSW = registerSW({
     });
   },
 });
+
+// Surface any blank navigations the service worker recovered from this/last load
+// (see surfaceSwDiagnostics + src/sw.ts). Temporary on-device observability.
+void surfaceSwDiagnostics();
 
 } // end initApp

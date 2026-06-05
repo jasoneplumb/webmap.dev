@@ -13,5 +13,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "comment-exclude": "src/sw.ts runs in a ServiceWorkerGlobalScope and is type-checked separately via tsconfig.worker.json (WebWorker lib, which conflicts with DOM here).",
+  "exclude": ["src/sw.ts"]
 }
