@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.4-beta (2026-06-04)
+
+### Fixed
+
+- **Residual blank page on cold start in Edge on iPhone** — removed the NetworkFirst navigation timeout (`networkTimeoutSeconds: 3`). On a slow cold start (cold-radio wake) the timeout made the service worker fall back to the WKWebView-flaky runtime cache, which intermittently returned an empty navigation → blank document. Navigation now waits for the network when online; only a genuine offline failure falls back to cache. Follows the NetworkFirst navigation change in v0.34.3-beta (#215)
+
 ## v0.34.3-beta (2026-06-04)
 
 ### Fixed
