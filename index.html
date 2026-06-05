@@ -96,8 +96,12 @@
         var rAlready;
         try { rAlready = sessionStorage.getItem(RKEY) === '1'; } catch (e) { rAlready = false; }
         if (!rAlready) {
-          try { sessionStorage.setItem(RKEY, '1'); } catch (e) {}
-          location.reload();
+          // Only reload if the guard actually persisted — if sessionStorage is
+          // unavailable (private mode, storage disabled), reloading would loop
+          // forever. Mirrors the boot-watchdog above. (Key: 'webmap-render-reload'.)
+          var rPersisted = false;
+          try { sessionStorage.setItem(RKEY, '1'); rPersisted = true; } catch (e) { rPersisted = false; }
+          if (rPersisted) { location.reload(); }
         }
       }, 3000);
 
