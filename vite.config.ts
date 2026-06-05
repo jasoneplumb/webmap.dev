@@ -59,6 +59,22 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
+            // Cold-start navigations: fetch a fresh index.html from the network when
+            // online so the served shell always pairs with current chunk hashes; fall
+            // back to the last cached navigation only when the network is slow/offline.
+            // Replaces the cache-first `navigateFallback` precache route, which
+            // intermittently returned a blank document in third-party iOS browsers
+            // (WKWebView), whose Cache Storage / service-worker support is flakier than
+            // Safari's. Safari rendered fine; only Edge-on-iPhone blanked on cold start.
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-navigations',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 1 },
+            },
+          },
+          {
             urlPattern: /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
             handler: 'StaleWhileRevalidate',
             options: {
@@ -74,12 +90,15 @@ export default defineConfig({
             handler: 'NetworkOnly',
           },
         ],
-        // Serve the precached app shell for navigation requests. With null, a
-        // returning user after a deploy could get a shell/chunk hash mismatch
-        // (old SW serving an index whose hashed JS is no longer in its precache),
-        // blanking the page until a manual reload. 'index.html' guarantees the
-        // navigation is answered from one consistent precache generation.
-        navigateFallback: 'index.html',
+        // Disable vite-plugin-pwa's default `navigateFallback: 'index.html'`. That
+        // default registers a cache-first NavigationRoute *before* our runtimeCaching
+        // rules, so without this `null` it would win for every navigation and the
+        // NetworkFirst rule above would never fire. Navigation is handled NetworkFirst
+        // instead: an online cold start always fetches a fresh index.html that pairs
+        // with current chunk hashes (also retiring the shell/chunk hash-mismatch that
+        // navigateFallback was patching), while fixing the WKWebView blank-page bug the
+        // cache-first precache route caused.
+        navigateFallback: null,
       },
       devOptions: {
         // Disabled in dev: the precaching service worker served stale bundles
