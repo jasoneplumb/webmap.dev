@@ -1538,6 +1538,21 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   cursor: pointer;
 }
 
+#consent-accept:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Shown (display:block via JS) only while the accept button is locked, i.e. when the
+   terms actually overflow and haven't been scrolled to the bottom yet. */
+#consent-scroll-hint {
+  display: none;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+}
+
 #consent-decline {
   padding: 8px 16px;
   font-size: 13px;

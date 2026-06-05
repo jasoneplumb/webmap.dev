@@ -37,7 +37,7 @@ export function showConsentModal(): Promise<boolean> {
     panel.innerHTML = `
       <h2>webmap.dev — privacy-first GPS mapping, no account required</h2>
 
-      <div id="consent-body">
+      <div id="consent-body" tabindex="0" aria-label="Terms — scroll to read">
         <h3>Privacy Policy</h3>
         <ul class="consent-legal">
           <li><strong>Local only.</strong> All GPS data and app settings stay in your browser. Nothing is sent to our servers.</li>
@@ -59,7 +59,8 @@ export function showConsentModal(): Promise<boolean> {
       </div>
 
       <div id="consent-actions">
-        <button id="consent-accept" class="rec-btn rec-btn-start">I agree — continue</button>
+        <p id="consent-scroll-hint">Please scroll to the bottom to continue.</p>
+        <button id="consent-accept" class="rec-btn rec-btn-start" disabled>I agree — continue</button>
         <button id="consent-decline">Decline</button>
       </div>
     `;
@@ -67,14 +68,43 @@ export function showConsentModal(): Promise<boolean> {
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
+    const acceptBtn = panel.querySelector<HTMLButtonElement>('#consent-accept')!;
+    const body = panel.querySelector<HTMLElement>('#consent-body')!;
+    const hint = panel.querySelector<HTMLElement>('#consent-scroll-hint')!;
+
+    // Gate the accept button on the user having scrolled to the bottom of the terms.
+    // Enable as soon as the bottom is reached (4px tolerance for sub-pixel rounding),
+    // or immediately if the terms are short enough not to scroll. Re-checked on resize
+    // so a rotate that makes the content fit also unlocks it.
+    const atBottom = (): boolean =>
+      body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+    const unlock = (): void => {
+      acceptBtn.disabled = false;
+      hint.style.display = 'none';
+      body.removeEventListener('scroll', onScrollOrResize);
+      window.removeEventListener('resize', onScrollOrResize);
+    };
+    const onScrollOrResize = (): void => {
+      if (atBottom()) unlock();
+    };
+
+    if (atBottom()) {
+      unlock();
+    } else {
+      hint.style.display = 'block';
+      body.addEventListener('scroll', onScrollOrResize, { passive: true });
+      window.addEventListener('resize', onScrollOrResize);
+    }
+
     function cleanup(accepted: boolean): void {
+      window.removeEventListener('resize', onScrollOrResize);
       overlay.remove();
       if (accepted) recordConsent();
       resolve(accepted);
     }
 
-    document.getElementById('consent-accept')!.addEventListener('click', () => cleanup(true));
-    document.getElementById('consent-decline')!.addEventListener('click', () => cleanup(false));
+    acceptBtn.addEventListener('click', () => cleanup(true));
+    panel.querySelector('#consent-decline')!.addEventListener('click', () => cleanup(false));
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) cleanup(false);
     });
@@ -87,7 +117,8 @@ export function showConsentModal(): Promise<boolean> {
     };
     document.addEventListener('keydown', onKey);
 
-    // Focus the accept button for keyboard accessibility
-    document.getElementById('consent-accept')!.focus();
+    // Focus the scrollable terms so keyboard users can scroll to read (and thereby
+    // unlock the accept button, which starts disabled and can't take focus yet).
+    body.focus();
   });
 }
