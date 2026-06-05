@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.35.0-beta (2026-06-05)
+
+### Changed
+
+- **The first-run consent dialog now requires reading the terms before accepting** — the "I agree — continue" button stays disabled (with a "Please scroll to the bottom to continue." hint) until you scroll to the end of the Privacy Policy and Terms of Use. It enables immediately when the terms already fit on screen without scrolling, re-checks on rotate, and moves keyboard focus to the button once unlocked; Decline is always available. Verified in-browser across short/tall viewports and an orientation change (#226)
+
 ## v0.34.9-beta (2026-06-05)
 
 ### Changed
