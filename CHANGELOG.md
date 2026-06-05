@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.34.5-beta (2026-06-04)
+
+### Fixed
+
+- **Blank page on cold start in Edge on iPhone can no longer happen** — the service worker was rewritten (`generateSW` → `injectManifest`, `src/sw.ts`) so navigation is network-first but *any* failure or empty response falls back to the install-verified precached `index.html`. Third-party iOS browsers (WKWebView) intermittently returned an empty navigation under accumulated storage/runtime pressure, leaving a white screen that needed a manual refresh; the worker now always serves a real document (worst case a slightly-stale shell). Adds `purgeOnQuotaError` on the tile cache (the documented iOS mitigation for failures that build up over several loads) and temporary service-worker-side diagnostics that surface any recovered blank navigation on the next load (#217)
+
 ## v0.34.4-beta (2026-06-04)
 
 ### Fixed
