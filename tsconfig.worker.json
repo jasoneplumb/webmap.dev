@@ -1,0 +1,9 @@
+{
+  "//": "Type-checks the service worker (src/sw.ts) in isolation. It runs in a ServiceWorkerGlobalScope, so it needs the WebWorker lib instead of DOM — which is why it can't share the main tsconfig (the two libs declare `self` incompatibly). Run via `npm run type-check`.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "WebWorker"]
+  },
+  "include": ["src/sw.ts"],
+  "exclude": []
+}
