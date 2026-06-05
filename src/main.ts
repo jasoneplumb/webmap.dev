@@ -31,6 +31,7 @@ import { addCompassControl } from './compass';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 import { scheduleSwUpdate } from './sw-update';
+import { SW_DIAG_CACHE, SW_DIAG_URL } from './sw-constants';
 
 // Tell the index.html boot-watchdog the bundle loaded and is executing, so it
 // cancels its reload timer. If the bundle ever fails to load (a stale service
@@ -43,12 +44,10 @@ window.__webmapBootOk?.();
 // blank navigation can't report anything itself — the page never renders. On a good
 // load we read, show (screenshot-friendly), and clear them, so the failure mode is
 // finally visible on devices we can't remote-inspect (Edge on iOS = WKWebView). These
-// constants MUST match src/sw.ts. Defined here (before bootApp() runs below) so the
-// const isn't in its temporal dead zone when initApp calls surfaceSwDiagnostics().
-// Remove with the #207/#208 diagnostics once the WKWebView blank is confirmed fixed.
-const SW_DIAG_CACHE = 'webmap-sw-diag';
-const SW_DIAG_URL = '/__webmap_sw_diag__';
-
+// cache name/URL are shared via sw-constants.ts so the two sides can't drift. This
+// lives above bootApp() (which runs during module eval) so surfaceSwDiagnostics and
+// its imports are ready when initApp calls it. Remove with the #207/#208 diagnostics
+// once the WKWebView blank is confirmed fixed.
 interface SwDiagRecord { t?: string; context?: string; message?: string; }
 
 async function surfaceSwDiagnostics(): Promise<void> {

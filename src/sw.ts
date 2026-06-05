@@ -22,7 +22,7 @@ import { registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim } from 'workbox-core';
-import { OSM_TILE_CACHE_NAME } from './sw-constants';
+import { OSM_TILE_CACHE_NAME, SW_DIAG_CACHE, SW_DIAG_URL } from './sw-constants';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -34,15 +34,13 @@ cleanupOutdatedCaches();
 
 // ── SW-side diagnostics ───────────────────────────────────────────────────────
 // A blank navigation can't report anything itself, but the worker survives it — so
-// it records failures here and the page reads them on its next good load. These
-// constants are duplicated in main.ts (surfaceSwDiagnostics); keep them in sync.
-const DIAG_CACHE = 'webmap-sw-diag';
-const DIAG_URL = '/__webmap_sw_diag__';
-
+// it records failures in SW_DIAG_CACHE and the page reads them on its next good load
+// (surfaceSwDiagnostics in main.ts). The cache name/URL live in sw-constants.ts so
+// the two sides can't drift.
 async function recordSwError(context: string, err: unknown): Promise<void> {
   try {
-    const cache = await caches.open(DIAG_CACHE);
-    const prev = await cache.match(DIAG_URL);
+    const cache = await caches.open(SW_DIAG_CACHE);
+    const prev = await cache.match(SW_DIAG_URL);
     const list: unknown[] = prev ? await prev.json() : [];
     list.push({
       t: new Date().toISOString(),
@@ -52,7 +50,7 @@ async function recordSwError(context: string, err: unknown): Promise<void> {
     // Keep only the most recent few so the entry can't grow unbounded.
     while (list.length > 20) list.shift();
     await cache.put(
-      DIAG_URL,
+      SW_DIAG_URL,
       new Response(JSON.stringify(list), { headers: { 'Content-Type': 'application/json' } }),
     );
   } catch {
@@ -72,6 +70,8 @@ registerRoute(
       if (!res.ok) throw new Error(`navigation HTTP ${res.status}`);
       // Guard against an empty/blank 200 (the WKWebView failure mode): validate the
       // body before trusting it. index.html is tiny, so reading a clone is cheap.
+      // A valid HTML document is always well over 50 chars; under that is an
+      // empty/stub response we must not serve.
       const body = await res.clone().text();
       if (body.trim().length < 50) throw new Error('navigation body empty');
       return res;

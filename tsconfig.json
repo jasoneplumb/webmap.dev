@@ -14,6 +14,6 @@
     "noUncheckedIndexedAccess": true
   },
   "include": ["src"],
-  "comment-exclude": "src/sw.ts runs in a ServiceWorkerGlobalScope and is type-checked separately via tsconfig.worker.json (WebWorker lib, which conflicts with DOM here).",
+  "//": "src/sw.ts runs in a ServiceWorkerGlobalScope and is type-checked separately via tsconfig.worker.json (WebWorker lib, which conflicts with DOM here).",
   "exclude": ["src/sw.ts"]
 }
