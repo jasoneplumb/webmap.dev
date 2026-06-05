@@ -76,6 +76,31 @@
         }, 3000);
       }
 
+      // Render-freeze self-heal. iOS WebKit (iOS 26 / WKWebView — e.g. Edge & Chrome
+      // on iOS) intermittently loads the page into a frozen render process: the DOM is
+      // complete and the bundle runs, but the whole content area stays white and ONLY
+      // a reload (not scroll/touch/rotate) clears it. The Paint Timing API records a
+      // 'first-contentful-paint' entry only when WebKit actually paints content; if
+      // it's still absent ~3s in, the page froze — reload once (guarded) to recover.
+      // This complements the boot-watchdog above (which covers a bundle that never
+      // runs); here the bundle runs fine but the render is dead until a fresh load.
+      var RKEY = 'webmap-render-reload';
+      setTimeout(function () {
+        var painted;
+        try {
+          painted = performance.getEntriesByType('paint').some(function (p) {
+            return p.name === 'first-contentful-paint';
+          });
+        } catch (e) { painted = true; } // no Paint Timing API → never risk a reload loop
+        if (painted) { try { sessionStorage.removeItem(RKEY); } catch (e) {} return; }
+        var rAlready;
+        try { rAlready = sessionStorage.getItem(RKEY) === '1'; } catch (e) { rAlready = false; }
+        if (!rAlready) {
+          try { sessionStorage.setItem(RKEY, '1'); } catch (e) {}
+          location.reload();
+        }
+      }, 3000);
+
       // Blank-state probe: if the map still hasn't rendered after 5s and no error
       // was captured, dump enough state to see WHY it's blank.
       setTimeout(function () {
