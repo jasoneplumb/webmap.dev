@@ -511,11 +511,24 @@ document.getElementById('map')?.focus();
 document.body.style.zoom = '100%';
 
 // ── Offline detection ─────────────────────────────────────────────────────────
+// The banner is created lazily (not in static HTML) so it isn't a position:fixed +
+// transform compositing layer at first paint — that, with #map, contributed to the
+// iOS-26 WKWebView whole-page render freeze. It only ever exists once the app has
+// been offline.
 function updateOfflineBanner(): void {
-  const banner = document.getElementById('offline-banner');
-  if (!banner) return;
+  let banner = document.getElementById('offline-banner');
   if (navigator.onLine) {
-    banner.classList.remove('visible');
+    banner?.classList.remove('visible');
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'offline-banner';
+    banner.className = 'offline-banner';
+    banner.innerHTML = '<span>You are offline — cached tiles and GPS recording still work</span>';
+    document.body.appendChild(banner);
+    // Mount hidden, then reveal next frame so the slide-in transition plays.
+    requestAnimationFrame(() => banner!.classList.add('visible'));
   } else {
     banner.classList.add('visible');
   }

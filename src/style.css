@@ -6,8 +6,13 @@
 
 html { height: 100%; width: 100%; padding: 0; margin: 0; }
 body { height: 100%; width: 100%; padding: 0; margin: 0; }
-/* isolation: isolate keeps mix-blend-mode contained to the map's own stacking context. */
-#map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; isolation: isolate; }
+/* No `isolation: isolate` here on purpose: an empty, full-screen *composited* #map
+   layer at first paint was a prime trigger for the iOS-26 WKWebView render freeze
+   (whole page never composites to screen until a reload). Containment isn't needed —
+   the hillshade overlay's mix-blend-mode:multiply blends against the opaque base
+   tiles directly beneath it regardless, and multiply against the white body behind a
+   full-screen map is a no-op. */
+#map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
 
 /* Blend at the layer container so multiply composites against the base-layer sibling below. */
 .hillshade-blend { mix-blend-mode: multiply; }
