@@ -24,6 +24,7 @@ export interface LayerDef {
 export interface OverlayDef {
   id: string;
   name: string;
+  description?: string;
   // L.Layer (not L.TileLayer) so an overlay can be a composite L.LayerGroup —
   // e.g. the 'Routes' overlay (Waymarked hiking + cycling route tiles).
   tileLayer: L.Layer;
@@ -305,6 +306,13 @@ export class LayersControl extends L.Control {
         overlayName.textContent = overlay.name;
         label.appendChild(overlayName);
 
+        if (overlay.description) {
+          const overlayDesc = document.createElement('span');
+          overlayDesc.className = 'layers-option__desc';
+          overlayDesc.textContent = overlay.description;
+          label.appendChild(overlayDesc);
+        }
+
         overlaysFieldset.appendChild(label);
       }
 
@@ -344,6 +352,19 @@ export class LayersControl extends L.Control {
     radios.forEach((r) => {
       (r as HTMLInputElement).checked = (r as HTMLInputElement).value === layer.id;
     });
+  }
+
+  /**
+   * Programmatically toggle an overlay and keep the popover checkbox in sync —
+   * used by overlays that must switch themselves off (e.g. squeeze zones when
+   * the user cancels the file picker or the file is malformed).
+   */
+  setOverlayEnabled(id: string, enabled: boolean): void {
+    const overlay = this.overlays.find((o) => o.id === id);
+    if (!overlay) return;
+    this.toggleOverlay(overlay, enabled);
+    const checkbox = this.popoverEl?.querySelector<HTMLInputElement>(`input[name="overlay-${id}"]`);
+    if (checkbox) checkbox.checked = enabled;
   }
 
   private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {
