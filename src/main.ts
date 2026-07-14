@@ -20,7 +20,8 @@ import changelogRaw from '../CHANGELOG.md?raw';
 import { hasConsent, showConsentModal } from './consent';
 import { createInitialState } from './types';
 import { createMap, initOfflineTileFallback, getTileLayers } from './map';
-import { addLayersControl, type LayerDef, type OverlayDef } from './layers-control';
+import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
+import { createSqueezeZonesOverlay } from './squeeze-zones';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
@@ -372,6 +373,15 @@ const layerDefs: LayerDef[] = [
   },
 ];
 
+// Squeeze zones must be able to switch themselves off (file picker cancelled,
+// malformed file), but the control doesn't exist until addLayersControl below —
+// late-bind through this variable and defer to the next tick so a disable during
+// the control's own toggle handling never re-enters it.
+let layersControl: LayersControl | null = null;
+const squeezeZonesLayer = createSqueezeZonesOverlay(showToast, () => {
+  setTimeout(() => layersControl?.setOverlayEnabled('squeeze-zones', false), 0);
+});
+
 const overlayDefs: OverlayDef[] = [
   {
     id: 'hillshade',
@@ -388,9 +398,15 @@ const overlayDefs: OverlayDef[] = [
     name: 'Cycling routes',
     tileLayer: tileLayers.cyclingLayer,
   },
+  {
+    id: 'squeeze-zones',
+    name: 'Squeeze zones',
+    description: 'Cycling squeeze zones from a GeoJSON file on your device — works offline once loaded',
+    tileLayer: squeezeZonesLayer,
+  },
 ];
 
-addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'hiking-routes', 'cycling-routes']);
+layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'hiking-routes', 'cycling-routes']);
 
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
