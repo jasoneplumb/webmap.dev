@@ -13,6 +13,7 @@
  */
 import L from 'leaflet';
 import { createFileBackedOverlay } from './file-overlay';
+import { escapeHtml } from './html';
 import { decodeReasons } from './squeeze-zones';
 
 // FR-008 review grades from the cue ride trace; a cue without a grade renders as "ungraded" gray.
@@ -67,6 +68,8 @@ export function formatCueLabel(props: CueProps): string {
   if (props.delivered === false) {
     parts.push('not delivered');
   } else if (props.latency_ms !== undefined) {
+    // delivered absent + latency present still reads "delivered" — a latency
+    // sidecar entry implies the cue reached the wrist unless flagged otherwise.
     parts.push(`delivered ${props.latency_ms} ms`);
   }
   if (props.outcome !== undefined) parts.push(OUTCOME_LABELS[props.outcome]);
@@ -194,7 +197,7 @@ const UNDELIVERED_DASH = '3 3';
 function renderCueEvents(group: L.LayerGroup, features: CueEventFeature[]): void {
   for (const f of features) {
     const latlng = L.latLng(f.coordinate[1], f.coordinate[0]);
-    let layer: L.Layer;
+    let layer: L.CircleMarker | L.Marker;
     let label: string;
     if (f.properties.kind === 'cue') {
       label = formatCueLabel(f.properties);
@@ -220,8 +223,11 @@ function renderCueEvents(group: L.LayerGroup, features: CueEventFeature[]): void
         }),
       });
     }
-    (layer as L.Marker | L.CircleMarker).bindTooltip(label, { sticky: true });
-    (layer as L.Marker | L.CircleMarker).bindPopup(label); // tap on touch devices, where hover tooltips don't fire
+    // Leaflet sets popup/tooltip string content via innerHTML, and ride_clock is a
+    // free-form string from a shareable file — escape the assembled label at the sink.
+    const safeLabel = escapeHtml(label);
+    layer.bindTooltip(safeLabel, { sticky: true });
+    layer.bindPopup(safeLabel); // tap on touch devices, where hover tooltips don't fire
     group.addLayer(layer);
   }
 }

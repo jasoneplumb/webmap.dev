@@ -9,6 +9,7 @@ import { fetchRoute } from './routing';
 import { haversineDistance, pointToSegmentMeters } from './geo';
 import { formatDistance } from './units';
 import { showAlertDialog } from './dialog';
+import { escapeHtml } from './html';
 
 const DEFAULT_DOC_TITLE = 'webmap.dev';
 
@@ -477,10 +478,3 @@ function maneuverIcon(type: number): string {
   }
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}

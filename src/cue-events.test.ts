@@ -82,6 +82,10 @@ describe('formatCueLabel', () => {
     ).toBe('cue 7 · not delivered · too late');
   });
 
+  it('renders latency as delivered when the delivered flag is absent', () => {
+    expect(formatCueLabel({ kind: 'cue', event_id: 8, latency_ms: 640 })).toBe('cue 8 · delivered 640 ms');
+  });
+
   it('renders outcomes with spaces, not underscores', () => {
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'false_alarm' })).toBe('cue 1 · false alarm');
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'missed_risk' })).toBe('cue 1 · missed risk');
