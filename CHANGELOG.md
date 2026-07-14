@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.36.0-beta (2026-07-13)
+
+### Added
+
+- **New "Squeeze zones" overlay** — renders cycling squeeze zones produced by the [cue](https://github.com/jasoneplumb/cue) pipeline as severity-colored polylines (red / orange / yellow) over any base map, with hover tooltips and tap popups showing the zone ID, decoded reasons (narrow lane, no shoulder / bike lane, high-speed traffic; unknown bits render as `reserved(bit N)`), and severity/confidence. Zone data is loaded from a GeoJSON file on your device — deliberately no bundled or remote data, since zone geometry reveals the producer's ride region — and persists in localStorage so re-enabling doesn't require re-picking. Hovering one segment highlights every segment of the same zone; malformed files show a toast and never partially render. No new dependencies; bundle stays under the 100 kB cap (#228)
+
+### Removed
+
+- **Repo hygiene**: removed a stale committed clone-dispatch prompt artifact (`.droid-prompt`) and extended `.gitignore` to cover all clone prompt files (#230)
+
 ## v0.35.0-beta (2026-06-05)
 
 ### Changed
