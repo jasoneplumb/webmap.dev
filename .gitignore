@@ -13,4 +13,6 @@ index.html-backup
 index.html.backup
 dropbox_uploader.sh
 .droid-prompt
+.ghost-prompt
+.clone-prompt
 .tux/
