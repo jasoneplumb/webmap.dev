@@ -40,7 +40,7 @@
   "size-limit": [
     {
       "path": "dist/assets/index-*.js",
-      "limit": "110 kB",
+      "limit": "112 kB",
       "gzip": true
     }
   ]

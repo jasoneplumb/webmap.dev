@@ -1664,3 +1664,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 .compass-rose--active { opacity: 1; cursor: default; }
 .compass-rose--unavailable { display: none; }
+
+/* Rider-placed "unsafe here" marker in the cue-events overlay — a neutral triangle
+   glyph, deliberately distinct from the outcome-colored circular cue points.
+   Overrides leaflet-div-icon's default white box via a custom divIcon className. */
+.cue-rider-marker {
+  color: #455a64;
+  font-size: 15px;
+  line-height: 16px;
+  text-align: center;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff;
+  cursor: pointer;
+}

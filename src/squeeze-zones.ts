@@ -3,11 +3,12 @@
  * Context: Data is user-supplied GeoJSON chosen via a file input (deliberately no bundled data or remote fetch —
  *          zone geometry reveals the producer's ride region and webmap.dev is public); persisted to localStorage
  *          so re-enabling the overlay doesn't require re-picking
- * Pattern: Pure parse/decode/format functions (unit-tested) + a Leaflet LayerGroup factory that lazy-loads data
- *          on the overlay's first 'add'; validation is all-or-nothing so a malformed file never partially renders
- * Future: Large files that exceed the localStorage quota only persist for the session; move to IndexedDB if needed
+ * Pattern: Pure parse/decode/format functions (unit-tested) + createFileBackedOverlay for the shared
+ *          file-picker/persistence mechanics; validation is all-or-nothing so a malformed file never partially renders
+ * Future: Reason-bitmask decode table is shared with the cue-events overlay — keep REASON_LABELS the single source
  */
 import L from 'leaflet';
+import { createFileBackedOverlay } from './file-overlay';
 
 export interface SqueezeZoneProps {
   event_id: number;
@@ -129,137 +130,55 @@ const BASE_WEIGHT = 5;
 const BASE_OPACITY = 0.8;
 const HOVER_WEIGHT = 8;
 
+function renderZones(group: L.LayerGroup, features: SqueezeZoneFeature[]): void {
+  // Segments sharing an event_id form one logical zone — highlight all members on hover.
+  const zoneMembers = new Map<number, { line: L.Polyline; color: string }[]>();
+
+  for (const f of features) {
+    const latlngs = f.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+    const color = severityColor(f.properties.severity);
+    const line = L.polyline(latlngs, {
+      color,
+      weight: BASE_WEIGHT,
+      opacity: BASE_OPACITY,
+      interactive: true,
+    });
+    const label = formatZoneLabel(f.properties);
+    line.bindTooltip(label, { sticky: true });
+    line.bindPopup(label); // tap on touch devices, where hover tooltips don't fire
+
+    let members = zoneMembers.get(f.properties.event_id);
+    if (!members) {
+      members = [];
+      zoneMembers.set(f.properties.event_id, members);
+    }
+    members.push({ line, color });
+    const zone = members; // shared array — sees members added after this one
+    line.on('mouseover', () => {
+      for (const m of zone) m.line.setStyle({ weight: HOVER_WEIGHT, opacity: 1 });
+    });
+    line.on('mouseout', () => {
+      for (const m of zone) m.line.setStyle({ color: m.color, weight: BASE_WEIGHT, opacity: BASE_OPACITY });
+    });
+    group.addLayer(line);
+  }
+}
+
 /**
- * Build the layers-control overlay. The returned LayerGroup starts empty; on its
- * first 'add' it restores persisted data, or opens a file picker so the user can
- * choose a GeoJSON file. On cancel or a malformed file the overlay is switched
- * back off via `disableOverlay` (and a toast explains why).
+ * Build the layers-control overlay — see createFileBackedOverlay for the
+ * file-picker / persistence / self-disable contract.
  */
 export function createSqueezeZonesOverlay(
   showToast: (msg: string, durationMs?: number) => void,
   disableOverlay: () => void,
 ): L.LayerGroup {
-  const group = L.layerGroup();
-  let loaded = false;
-  let fileInput: HTMLInputElement | null = null;
-
-  function render(features: SqueezeZoneFeature[]): void {
-    group.clearLayers();
-    // Segments sharing an event_id form one logical zone — highlight all members on hover.
-    const zoneMembers = new Map<number, { line: L.Polyline; color: string }[]>();
-
-    for (const f of features) {
-      const latlngs = f.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
-      const color = severityColor(f.properties.severity);
-      const line = L.polyline(latlngs, {
-        color,
-        weight: BASE_WEIGHT,
-        opacity: BASE_OPACITY,
-        interactive: true,
-      });
-      const label = formatZoneLabel(f.properties);
-      line.bindTooltip(label, { sticky: true });
-      line.bindPopup(label); // tap on touch devices, where hover tooltips don't fire
-
-      let members = zoneMembers.get(f.properties.event_id);
-      if (!members) {
-        members = [];
-        zoneMembers.set(f.properties.event_id, members);
-      }
-      members.push({ line, color });
-      const zone = members; // shared array — sees members added after this one
-      line.on('mouseover', () => {
-        for (const m of zone) m.line.setStyle({ weight: HOVER_WEIGHT, opacity: 1 });
-      });
-      line.on('mouseout', () => {
-        for (const m of zone) m.line.setStyle({ color: m.color, weight: BASE_WEIGHT, opacity: BASE_OPACITY });
-      });
-      group.addLayer(line);
-    }
-  }
-
-  // Returns the segment count on success, or null if the text is malformed
-  // (after showing a toast). Never partially renders.
-  function loadFromText(text: string, persist: boolean): number | null {
-    let features: SqueezeZoneFeature[];
-    try {
-      features = parseSqueezeZones(text);
-    } catch (err: unknown) {
-      const detail = err instanceof Error ? err.message : 'invalid file';
-      showToast(`Squeeze zones: ${detail}`);
-      return null;
-    }
-    render(features);
-    loaded = true;
-    if (persist) {
-      try {
-        localStorage.setItem(STORAGE_KEY, text);
-      } catch {
-        showToast('Squeeze zones loaded — too large to save; re-pick the file after a reload');
-      }
-    }
-    return features.length;
-  }
-
-  function getFileInput(): HTMLInputElement {
-    if (fileInput) return fileInput;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.geojson,.json,application/geo+json,application/json';
-    input.style.display = 'none';
-    input.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(input);
-
-    input.addEventListener('change', () => {
-      const file = input.files?.[0];
-      input.value = ''; // allow re-picking the same file later
-      if (!file) {
-        disableOverlay();
-        return;
-      }
-      // FileReader over File.text() for older-Safari compatibility.
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = typeof reader.result === 'string' ? reader.result : '';
-        const count = loadFromText(text, true);
-        if (count === null) {
-          disableOverlay();
-        } else {
-          showToast(`Loaded ${count} squeeze zone segment${count === 1 ? '' : 's'}`);
-        }
-      };
-      reader.onerror = () => {
-        showToast('Squeeze zones: could not read file');
-        disableOverlay();
-      };
-      reader.readAsText(file);
-    });
-    // Fired by modern browsers when the picker is dismissed without a file.
-    input.addEventListener('cancel', () => disableOverlay());
-
-    fileInput = input;
-    return input;
-  }
-
-  group.on('add', () => {
-    if (loaded) return;
-
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem(STORAGE_KEY);
-    } catch { /* localStorage unavailable */ }
-    if (saved !== null && loadFromText(saved, false) !== null) return;
-
-    // Opening a file picker needs user activation. The checkbox toggle has it;
-    // a persisted-on overlay restored at boot does not — ask for a re-toggle.
-    const activation = (navigator as { userActivation?: { isActive?: boolean } }).userActivation;
-    if (activation !== undefined && activation.isActive !== true) {
-      showToast('Squeeze zones: toggle the overlay again to choose a GeoJSON file');
-      disableOverlay();
-      return;
-    }
-    getFileInput().click();
+  return createFileBackedOverlay<SqueezeZoneFeature>({
+    storageKey: STORAGE_KEY,
+    toastPrefix: 'Squeeze zones',
+    parse: parseSqueezeZones,
+    render: renderZones,
+    describeLoad: (count) => `Loaded ${count} squeeze zone segment${count === 1 ? '' : 's'}`,
+    showToast,
+    disableOverlay,
   });
-
-  return group;
 }

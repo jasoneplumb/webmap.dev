@@ -9,15 +9,7 @@ import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-ge
 import type { AppState } from './types';
 import { onGuidanceRender, renderGuidanceDashboard, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
 import type { Costing } from './routing';
-
-// Escape text for safe insertion into innerHTML
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+import { escapeHtml } from './html';
 
 function createNumberedIcon(n: number): L.DivIcon {
   return L.divIcon({

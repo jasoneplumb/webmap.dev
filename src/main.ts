@@ -22,6 +22,7 @@ import { createInitialState } from './types';
 import { createMap, initOfflineTileFallback, getTileLayers } from './map';
 import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
 import { createSqueezeZonesOverlay } from './squeeze-zones';
+import { createCueEventsOverlay } from './cue-events';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
@@ -373,13 +374,17 @@ const layerDefs: LayerDef[] = [
   },
 ];
 
-// Squeeze zones must be able to switch themselves off (file picker cancelled,
-// malformed file), but the control doesn't exist until addLayersControl below —
-// late-bind through this variable and defer to the next tick so a disable during
-// the control's own toggle handling never re-enters it.
+// File-backed overlays must be able to switch themselves off (file picker
+// cancelled, malformed file), but the control doesn't exist until
+// addLayersControl below — late-bind through this variable and defer to the
+// next tick so a disable during the control's own toggle handling never
+// re-enters it.
 let layersControl: LayersControl | null = null;
 const squeezeZonesLayer = createSqueezeZonesOverlay(showToast, () => {
   setTimeout(() => layersControl?.setOverlayEnabled('squeeze-zones', false), 0);
+});
+const cueEventsLayer = createCueEventsOverlay(showToast, () => {
+  setTimeout(() => layersControl?.setOverlayEnabled('cue-events', false), 0);
 });
 
 const overlayDefs: OverlayDef[] = [
@@ -403,6 +408,12 @@ const overlayDefs: OverlayDef[] = [
     name: 'Squeeze zones',
     description: 'Cycling squeeze zones from a GeoJSON file on your device — works offline once loaded',
     tileLayer: squeezeZonesLayer,
+  },
+  {
+    id: 'cue-events',
+    name: 'Cue events',
+    description: 'Where cues fired on a ride, from a GeoJSON file on your device — colored by review outcome',
+    tileLayer: cueEventsLayer,
   },
 ];
 
