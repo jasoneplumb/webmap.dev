@@ -1439,6 +1439,29 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin-top: 2px;
 }
 
+.layers-option__change-file {
+  align-self: center;
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #4287f5;
+  background: none;
+  border: 1px solid rgba(66, 135, 245, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.layers-option__change-file:hover:not(:disabled) {
+  background-color: rgba(66, 135, 245, 0.12);
+}
+
+.layers-option__change-file:disabled {
+  color: #bbb;
+  border-color: #ddd;
+  cursor: default;
+}
+
 
 
 /* Mobile layers popover ──────────────────────────────────────────── */

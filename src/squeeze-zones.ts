@@ -8,7 +8,7 @@
  * Future: Reason-bitmask decode table is shared with the cue-events overlay — keep REASON_LABELS the single source
  */
 import L from 'leaflet';
-import { createFileBackedOverlay } from './file-overlay';
+import { createFileBackedOverlay, type FileBackedOverlay } from './file-overlay';
 
 export interface SqueezeZoneProps {
   event_id: number;
@@ -171,7 +171,7 @@ function renderZones(group: L.LayerGroup, features: SqueezeZoneFeature[]): void 
 export function createSqueezeZonesOverlay(
   showToast: (msg: string, durationMs?: number) => void,
   disableOverlay: () => void,
-): L.LayerGroup {
+): FileBackedOverlay {
   return createFileBackedOverlay<SqueezeZoneFeature>({
     storageKey: STORAGE_KEY,
     toastPrefix: 'Squeeze zones',
