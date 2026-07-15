@@ -416,6 +416,11 @@ const overlayDefs: OverlayDef[] = [
     description: 'Where cues fired on a ride, from a GeoJSON file on your device — colored by review outcome',
     tileLayer: cueEventsOverlay.group,
     requestFilePick: cueEventsOverlay.requestFilePick,
+    rowAction: {
+      label: 'Export reviews',
+      title: 'Download graded cues as a reviews sidecar (JSON)',
+      onClick: cueEventsOverlay.requestReviewExport,
+    },
   },
 ];
 

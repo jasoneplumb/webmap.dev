@@ -11,9 +11,22 @@
  *          file-picker/persistence mechanics; validation is all-or-nothing so a malformed file never
  *          partially renders; reason bitmask decodes via the squeeze-zones table (same producer contract)
  * Future: Cross-highlighting a cue with the squeeze zone sharing its event_id is deferred — the shared
- *         id shown in both popups is the v1 link
+ *         id shown in both popups is the v1 link. Grading v2 (map-authored missed-risk markers via
+ *         tap/long-press, and removing markers judged unnecessary later) needs the export shape to
+ *         carry marker additions/removals with coordinates — follow-up issues, deliberately not here
  */
 import L from 'leaflet';
+import {
+  GRADABLE_OUTCOMES,
+  buildReviews,
+  countGraded,
+  effectiveOutcome,
+  hashText,
+  parseGradeStore,
+  serializeGradeStore,
+  type GradableOutcome,
+  type GradeMap,
+} from './cue-grades';
 import { createFileBackedOverlay, type FileBackedOverlay } from './file-overlay';
 import { escapeHtml } from './html';
 import { decodeReasons } from './squeeze-zones';
@@ -230,6 +243,15 @@ export function parseCueEvents(text: string): CueFileFeature[] {
 }
 
 const STORAGE_KEY = 'webmap-cue-events-geojson';
+// Pending grades layered over the loaded file, keyed by event_id inside a
+// { fileHash, grades } envelope — see cue-grades.ts for the leak-across-files contract.
+const GRADES_STORAGE_KEY = 'webmap-cue-event-grades';
+
+const GRADE_BUTTON_LABELS: Record<GradableOutcome, string> = {
+  useful: 'Useful',
+  false_alarm: 'False alarm',
+  too_late: 'Too late',
+};
 
 const CUE_RADIUS = 7;
 const CUE_FILL_OPACITY = 0.85;
@@ -245,76 +267,235 @@ function isTrack(f: CueFileFeature): f is TrackFeature {
   return f.properties.kind === 'track';
 }
 
-function renderCueEvents(group: L.LayerGroup, features: CueFileFeature[]): void {
-  // Track first — vector layers share the overlay pane, so earlier layers draw beneath.
-  for (const f of features) {
-    if (!isTrack(f)) continue;
-    group.addLayer(
-      L.polyline(f.coordinates.map((c) => L.latLng(c[1], c[0])), {
-        color: TRACK_COLOR,
-        weight: TRACK_WEIGHT,
-        opacity: TRACK_OPACITY,
-        interactive: false,
-      }),
-    );
-  }
-  for (const f of features) {
-    if (isTrack(f)) continue;
-    const latlng = L.latLng(f.coordinate[1], f.coordinate[0]);
-    let layer: L.CircleMarker | L.Marker;
-    let label: string;
-    if (f.properties.kind === 'cue') {
-      label = formatCueLabel(f.properties);
-      layer = L.circleMarker(latlng, {
-        radius: CUE_RADIUS,
-        fillColor: outcomeColor(f.properties.outcome),
-        fillOpacity: CUE_FILL_OPACITY,
-        color: '#ffffff',
-        weight: RING_WEIGHT,
-        opacity: 1,
-        dashArray: f.properties.delivered === false ? UNDELIVERED_DASH : undefined,
-        interactive: true,
-      });
-    } else {
-      // Distinct glyph from the circular cue points — a rider-placed "unsafe here" triangle.
-      label = formatMarkerLabel(f.properties);
-      layer = L.marker(latlng, {
-        icon: L.divIcon({
-          className: 'cue-rider-marker',
-          html: '▲',
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
-        }),
-      });
-    }
-    // Leaflet sets popup/tooltip string content via innerHTML, and ride_clock is a
-    // free-form string from a shareable file — escape the assembled label at the sink.
-    const safeLabel = escapeHtml(label);
-    layer.bindTooltip(safeLabel, { sticky: true });
-    layer.bindPopup(safeLabel); // tap on touch devices, where hover tooltips don't fire
-    group.addLayer(layer);
-  }
+function downloadJson(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Deferred revoke — Safari can drop the download if the URL dies before the click lands.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export interface CueEventsOverlay extends FileBackedOverlay {
+  /**
+   * Download pending grades as a reviews[] sidecar (cue trace schema shape),
+   * to be merged into the ride trace by the producer's cue-review-merge tool.
+   * Toasts instead of downloading when nothing is graded. Only pending grades
+   * leave the browser — never the ride geometry (privacy stance unchanged).
+   */
+  requestReviewExport: () => void;
 }
 
 /**
  * Build the layers-control overlay — see createFileBackedOverlay for the
- * file-picker / persistence / self-disable contract.
+ * file-picker / persistence / self-disable contract. Cue popups carry a grade
+ * row (Useful / False alarm / Too late / Clear); a grade recolors the point
+ * immediately and overwrites any prior grade, file-baked or session (latest
+ * wins). Grades persist per file in localStorage and export as a reviews[]
+ * sidecar via requestReviewExport.
  */
 export function createCueEventsOverlay(
   showToast: (msg: string, durationMs?: number) => void,
   disableOverlay: () => void,
-): FileBackedOverlay {
-  return createFileBackedOverlay<CueFileFeature>({
+): CueEventsOverlay {
+  interface CueEntry {
+    props: CueProps;
+    layer: L.CircleMarker;
+    labelEl: HTMLElement;
+    buttons: Map<GradableOutcome, HTMLButtonElement>;
+  }
+
+  let fileHash = '';
+  let grades: GradeMap = {};
+  let features: CueFileFeature[] = [];
+  let cueEntries: CueEntry[] = [];
+  let overlayOn = false;
+  let progressEl: HTMLElement | null = null;
+
+  function persistGrades(): void {
+    try {
+      localStorage.setItem(GRADES_STORAGE_KEY, serializeGradeStore(fileHash, grades));
+    } catch { /* quota/unavailable — grades survive the session only */ }
+  }
+
+  function cueLabel(props: CueProps): string {
+    return formatCueLabel({ ...props, outcome: effectiveOutcome(props, grades) });
+  }
+
+  // Graded/total pill — visible while the overlay is on and the file has cue points.
+  function updateProgress(): void {
+    const { graded, total } = countGraded(features, grades);
+    const show = overlayOn && total > 0;
+    if (progressEl === null) {
+      if (!show) return;
+      progressEl = document.createElement('div');
+      progressEl.className = 'cue-grade-progress';
+      document.body.appendChild(progressEl);
+    }
+    progressEl.textContent = `${graded}/${total} graded`;
+    progressEl.classList.toggle('visible', show);
+  }
+
+  function setGrade(eventId: number, outcome: GradableOutcome | null): void {
+    grades[String(eventId)] = { outcome, reviewed_at: new Date().toISOString() };
+    persistGrades();
+    for (const entry of cueEntries) {
+      if (entry.props.event_id !== eventId) continue;
+      const eff = effectiveOutcome(entry.props, grades);
+      entry.layer.setStyle({ fillColor: outcomeColor(eff) });
+      const label = cueLabel(entry.props);
+      entry.layer.setTooltipContent(escapeHtml(label));
+      entry.labelEl.textContent = label;
+      for (const [o, btn] of entry.buttons) btn.classList.toggle('is-active', o === eff);
+    }
+    updateProgress();
+  }
+
+  // Popup content is DOM built with textContent (no innerHTML), so the free-form
+  // ride_clock string needs no escaping here; the tooltip string sink still does.
+  function buildCuePopup(props: CueProps): {
+    root: HTMLElement;
+    labelEl: HTMLElement;
+    buttons: Map<GradableOutcome, HTMLButtonElement>;
+  } {
+    const root = document.createElement('div');
+    root.className = 'cue-popup';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'cue-popup__label';
+    labelEl.textContent = cueLabel(props);
+    root.appendChild(labelEl);
+
+    const row = document.createElement('div');
+    row.className = 'cue-grade-row';
+    const buttons = new Map<GradableOutcome, HTMLButtonElement>();
+    const eff = effectiveOutcome(props, grades);
+    for (const outcome of GRADABLE_OUTCOMES) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cue-grade-row__btn';
+      btn.dataset['outcome'] = outcome;
+      btn.textContent = GRADE_BUTTON_LABELS[outcome];
+      btn.classList.toggle('is-active', eff === outcome);
+      btn.addEventListener('click', () => setGrade(props.event_id, outcome));
+      buttons.set(outcome, btn);
+      row.appendChild(btn);
+    }
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'cue-grade-row__btn cue-grade-row__btn--clear';
+    clearBtn.textContent = 'Clear';
+    clearBtn.addEventListener('click', () => setGrade(props.event_id, null));
+    row.appendChild(clearBtn);
+    root.appendChild(row);
+    return { root, labelEl, buttons };
+  }
+
+  function render(group: L.LayerGroup, parsed: CueFileFeature[]): void {
+    features = parsed;
+    cueEntries = [];
+    // fileHash was set by parse just before render — pick up this file's grades
+    // (a different file hashes differently, so its grade layer starts empty).
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(GRADES_STORAGE_KEY);
+    } catch { /* localStorage unavailable */ }
+    grades = parseGradeStore(saved, fileHash);
+
+    // Track first — vector layers share the overlay pane, so earlier layers draw beneath.
+    for (const f of parsed) {
+      if (!isTrack(f)) continue;
+      group.addLayer(
+        L.polyline(f.coordinates.map((c) => L.latLng(c[1], c[0])), {
+          color: TRACK_COLOR,
+          weight: TRACK_WEIGHT,
+          opacity: TRACK_OPACITY,
+          interactive: false,
+        }),
+      );
+    }
+    for (const f of parsed) {
+      if (isTrack(f)) continue;
+      const latlng = L.latLng(f.coordinate[1], f.coordinate[0]);
+      if (f.properties.kind === 'cue') {
+        const props = f.properties;
+        const layer = L.circleMarker(latlng, {
+          radius: CUE_RADIUS,
+          fillColor: outcomeColor(effectiveOutcome(props, grades)),
+          fillOpacity: CUE_FILL_OPACITY,
+          color: '#ffffff',
+          weight: RING_WEIGHT,
+          opacity: 1,
+          dashArray: props.delivered === false ? UNDELIVERED_DASH : undefined,
+          interactive: true,
+        });
+        // Leaflet sets tooltip string content via innerHTML, and ride_clock is a
+        // free-form string from a shareable file — escape the label at the sink.
+        layer.bindTooltip(escapeHtml(cueLabel(props)), { sticky: true });
+        const popup = buildCuePopup(props);
+        layer.bindPopup(popup.root); // tap opens it on touch devices; hosts the grade row
+        cueEntries.push({ props, layer, labelEl: popup.labelEl, buttons: popup.buttons });
+        group.addLayer(layer);
+      } else {
+        // Distinct glyph from the circular cue points — a rider-placed "unsafe here" triangle.
+        const label = escapeHtml(formatMarkerLabel(f.properties));
+        const layer = L.marker(latlng, {
+          icon: L.divIcon({
+            className: 'cue-rider-marker',
+            html: '▲',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+          }),
+        });
+        layer.bindTooltip(label, { sticky: true });
+        layer.bindPopup(label); // tap on touch devices, where hover tooltips don't fire
+        group.addLayer(layer);
+      }
+    }
+    updateProgress();
+  }
+
+  const overlay = createFileBackedOverlay<CueFileFeature>({
     storageKey: STORAGE_KEY,
     toastPrefix: 'Cue events',
-    parse: parseCueEvents,
-    render: renderCueEvents,
+    parse: (text) => {
+      const parsed = parseCueEvents(text);
+      // Identity for the grade layer — render (always called next) keys grades on it.
+      fileHash = hashText(text);
+      return parsed;
+    },
+    render,
     // The track is context, not an event — exclude it from the load toast count.
-    describeLoad: (features) => {
-      const count = features.filter((f) => f.properties.kind !== 'track').length;
+    describeLoad: (loaded) => {
+      const count = loaded.filter((f) => f.properties.kind !== 'track').length;
       return `Loaded ${count} cue event${count === 1 ? '' : 's'}`;
     },
     showToast,
     disableOverlay,
   });
+
+  overlay.group.on('add', () => {
+    overlayOn = true;
+    updateProgress();
+  });
+  overlay.group.on('remove', () => {
+    overlayOn = false;
+    updateProgress();
+  });
+
+  return {
+    ...overlay,
+    requestReviewExport: () => {
+      const reviews = buildReviews(grades);
+      if (reviews.length === 0) {
+        showToast('Cue events: no graded events to export');
+        return;
+      }
+      downloadJson('cue-reviews.json', JSON.stringify(reviews, null, 2));
+      showToast(`Exported ${reviews.length} review${reviews.length === 1 ? '' : 's'}`);
+    },
+  };
 }
