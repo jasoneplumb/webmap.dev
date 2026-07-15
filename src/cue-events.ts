@@ -1,7 +1,9 @@
 /**
  * Intent: "Cue events" overlay — points where HEAD_UP cues fired during a cue ride, plus rider-placed
  *         "unsafe here" markers; complementary to squeeze zones (zones show where the map says risk is,
- *         cue points show where the policy actually cued and where the rider disagreed)
+ *         cue points show where the policy actually cued and where the rider disagreed). Traces exported
+ *         with the debug-GPS toggle on also carry a per-sample GPS track (drawn beneath the points as
+ *         context) and exact event positions (approx omitted) instead of segment midpoints (approx: true)
  * Context: Data is user-supplied GeoJSON chosen via a file input (deliberately no bundled data or remote
  *          fetch — cue points reveal the producer's actual rides and webmap.dev is public); persisted to
  *          localStorage so re-enabling the overlay doesn't require re-picking
@@ -30,17 +32,29 @@ export interface CueProps {
   delivered?: boolean;
   latency_ms?: number;
   outcome?: CueOutcome;
+  /** true → point is a segment midpoint, not a GPS fix; absent/false → exact position */
+  approx?: boolean;
 }
 
 export interface RiderMarkerProps {
   kind: 'marker';
   ride_clock?: string;
+  /** true → point is a segment midpoint, not a GPS fix; absent/false → exact position */
+  approx?: boolean;
 }
 
 export interface CueEventFeature {
   coordinate: [number, number]; // GeoJSON order: [lng, lat]
   properties: CueProps | RiderMarkerProps;
 }
+
+/** Per-sample GPS track (zero or one per file) drawn beneath the event points as context. */
+export interface TrackFeature {
+  coordinates: [number, number][]; // GeoJSON order: [lng, lat]
+  properties: { kind: 'track' };
+}
+
+export type CueFileFeature = CueEventFeature | TrackFeature;
 
 export function outcomeColor(outcome: CueOutcome | undefined): string {
   switch (outcome) {
@@ -77,12 +91,14 @@ export function formatCueLabel(props: CueProps): string {
     const reasons = decodeReasons(props.reasons_bitmask).join(', ');
     if (reasons !== '') parts.push(reasons);
   }
+  if (props.approx === true) parts.push('approximate position');
   return parts.join(' · ');
 }
 
 export function formatMarkerLabel(props: RiderMarkerProps): string {
   const parts = ['marked unsafe'];
   if (props.ride_clock !== undefined) parts.push(props.ride_clock);
+  if (props.approx === true) parts.push('approximate position');
   return parts.join(' · ');
 }
 
@@ -114,7 +130,7 @@ function optionalBoolean(p: Record<string, unknown>, key: string, i: number): bo
 // Parse + validate the cue ride-trace FeatureCollection contract. Throws on any
 // malformed feature (all-or-nothing — the caller never partially renders).
 // Returns normalized features so downstream code needs no further guards.
-export function parseCueEvents(text: string): CueEventFeature[] {
+export function parseCueEvents(text: string): CueFileFeature[] {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -127,7 +143,8 @@ export function parseCueEvents(text: string): CueEventFeature[] {
     throw new Error('not a GeoJSON FeatureCollection');
   }
 
-  const features: CueEventFeature[] = [];
+  const features: CueFileFeature[] = [];
+  let hasTrack = false;
   for (let i = 0; i < fc.features.length; i++) {
     const f = fc.features[i] as {
       type?: unknown;
@@ -137,6 +154,34 @@ export function parseCueEvents(text: string): CueEventFeature[] {
     if (typeof f !== 'object' || f === null || f.type !== 'Feature') {
       throw new Error(`feature ${i}: not a Feature`);
     }
+    const p = f.properties;
+    if (typeof p !== 'object' || p === null) {
+      throw new Error(`feature ${i}: missing properties`);
+    }
+
+    if (p['kind'] === 'track') {
+      if (hasTrack) {
+        throw new Error(`feature ${i}: more than one track feature`);
+      }
+      if (f.geometry?.type !== 'LineString' || !Array.isArray(f.geometry.coordinates)) {
+        throw new Error(`feature ${i}: track geometry must be a LineString`);
+      }
+      const positions = f.geometry.coordinates as unknown[];
+      if (positions.length < 2) {
+        throw new Error(`feature ${i}: track must have at least 2 positions`);
+      }
+      const coordinates: [number, number][] = [];
+      for (const pos of positions) {
+        if (!Array.isArray(pos) || !isFiniteNumber(pos[0]) || !isFiniteNumber(pos[1])) {
+          throw new Error(`feature ${i}: track positions must be [lng, lat] number pairs`);
+        }
+        coordinates.push([pos[0], pos[1]]);
+      }
+      hasTrack = true;
+      features.push({ coordinates, properties: { kind: 'track' } });
+      continue;
+    }
+
     if (f.geometry?.type !== 'Point' || !Array.isArray(f.geometry.coordinates)) {
       throw new Error(`feature ${i}: geometry must be a Point`);
     }
@@ -145,10 +190,6 @@ export function parseCueEvents(text: string): CueEventFeature[] {
       throw new Error(`feature ${i}: position must be a [lng, lat] number pair`);
     }
     const coordinate: [number, number] = [pos[0], pos[1]];
-    const p = f.properties;
-    if (typeof p !== 'object' || p === null) {
-      throw new Error(`feature ${i}: missing properties`);
-    }
 
     if (p['kind'] === 'cue') {
       if (!isFiniteNumber(p['event_id'])) {
@@ -169,6 +210,7 @@ export function parseCueEvents(text: string): CueEventFeature[] {
           delivered: optionalBoolean(p, 'delivered', i),
           latency_ms: optionalNumber(p, 'latency_ms', i),
           outcome: outcome as CueOutcome | undefined,
+          approx: optionalBoolean(p, 'approx', i),
         },
       });
     } else if (p['kind'] === 'marker') {
@@ -177,10 +219,11 @@ export function parseCueEvents(text: string): CueEventFeature[] {
         properties: {
           kind: 'marker',
           ride_clock: optionalString(p, 'ride_clock', i),
+          approx: optionalBoolean(p, 'approx', i),
         },
       });
     } else {
-      throw new Error(`feature ${i}: kind must be "cue" or "marker"`);
+      throw new Error(`feature ${i}: kind must be "cue", "marker", or "track"`);
     }
   }
   return features;
@@ -193,9 +236,30 @@ const CUE_FILL_OPACITY = 0.85;
 const RING_WEIGHT = 2;
 // Dashed ring signals `delivered: false` — the cue was decided but never reached the wrist.
 const UNDELIVERED_DASH = '3 3';
+// Subtle, muted styling so the GPS track reads as context beneath the event points, not data.
+const TRACK_COLOR = '#78909c';
+const TRACK_WEIGHT = 2;
+const TRACK_OPACITY = 0.6;
 
-function renderCueEvents(group: L.LayerGroup, features: CueEventFeature[]): void {
+function isTrack(f: CueFileFeature): f is TrackFeature {
+  return f.properties.kind === 'track';
+}
+
+function renderCueEvents(group: L.LayerGroup, features: CueFileFeature[]): void {
+  // Track first — vector layers share the overlay pane, so earlier layers draw beneath.
   for (const f of features) {
+    if (!isTrack(f)) continue;
+    group.addLayer(
+      L.polyline(f.coordinates.map((c) => L.latLng(c[1], c[0])), {
+        color: TRACK_COLOR,
+        weight: TRACK_WEIGHT,
+        opacity: TRACK_OPACITY,
+        interactive: false,
+      }),
+    );
+  }
+  for (const f of features) {
+    if (isTrack(f)) continue;
     const latlng = L.latLng(f.coordinate[1], f.coordinate[0]);
     let layer: L.CircleMarker | L.Marker;
     let label: string;
@@ -240,12 +304,16 @@ export function createCueEventsOverlay(
   showToast: (msg: string, durationMs?: number) => void,
   disableOverlay: () => void,
 ): FileBackedOverlay {
-  return createFileBackedOverlay<CueEventFeature>({
+  return createFileBackedOverlay<CueFileFeature>({
     storageKey: STORAGE_KEY,
     toastPrefix: 'Cue events',
     parse: parseCueEvents,
     render: renderCueEvents,
-    describeLoad: (count) => `Loaded ${count} cue event${count === 1 ? '' : 's'}`,
+    // The track is context, not an event — exclude it from the load toast count.
+    describeLoad: (features) => {
+      const count = features.filter((f) => f.properties.kind !== 'track').length;
+      return `Loaded ${count} cue event${count === 1 ? '' : 's'}`;
+    },
     showToast,
     disableOverlay,
   });

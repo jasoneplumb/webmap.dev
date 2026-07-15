@@ -30,7 +30,7 @@ function makeOverlay() {
     toastPrefix: 'Test overlay',
     parse: parseItems,
     render,
-    describeLoad: (count) => `Loaded ${count}`,
+    describeLoad: (features) => `Loaded ${features.length}`,
     showToast,
     disableOverlay,
   });

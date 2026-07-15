@@ -20,8 +20,8 @@ export interface FileOverlayConfig<T> {
   parse: (text: string) => T[];
   /** Render parsed features into the (already cleared) group */
   render: (group: L.LayerGroup, features: T[]) => void;
-  /** Success-toast text for a freshly picked file, e.g. count => `Loaded ${count} …` */
-  describeLoad: (count: number) => string;
+  /** Success-toast text for a freshly picked file, e.g. features => `Loaded ${features.length} …` */
+  describeLoad: (features: T[]) => string;
   showToast: (msg: string, durationMs?: number) => void;
   /**
    * Switch the overlay's layers-control checkbox back off (picker cancelled, malformed
@@ -55,9 +55,9 @@ export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): FileBacke
   let loaded = false;
   let fileInput: HTMLInputElement | null = null;
 
-  // Returns the feature count on success, or null if the text is malformed
+  // Returns the parsed features on success, or null if the text is malformed
   // (after showing a toast). Never partially renders.
-  function loadFromText(text: string, persist: boolean): number | null {
+  function loadFromText(text: string, persist: boolean): T[] | null {
     let features: T[];
     try {
       features = cfg.parse(text);
@@ -76,7 +76,7 @@ export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): FileBacke
         cfg.showToast(`${cfg.toastPrefix} loaded — too large to save; re-pick the file after a reload`);
       }
     }
-    return features.length;
+    return features;
   }
 
   function getFileInput(): HTMLInputElement {
@@ -105,11 +105,11 @@ export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): FileBacke
       const reader = new FileReader();
       reader.onload = () => {
         const text = typeof reader.result === 'string' ? reader.result : '';
-        const count = loadFromText(text, true);
-        if (count === null) {
+        const features = loadFromText(text, true);
+        if (features === null) {
           disableIfNothingLoaded();
         } else {
-          cfg.showToast(cfg.describeLoad(count));
+          cfg.showToast(cfg.describeLoad(features));
         }
       };
       reader.onerror = () => {

@@ -38,6 +38,14 @@ function syntheticMarker(overrides: Record<string, unknown> = {}): unknown {
   };
 }
 
+function syntheticTrack(coordinates: unknown = [[0.001, 0.0005], [0.0011, 0.00055], [0.0012, 0.0006]]): unknown {
+  return {
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates },
+    properties: { kind: 'track' },
+  };
+}
+
 function collection(...features: unknown[]): string {
   return JSON.stringify({ type: 'FeatureCollection', features });
 }
@@ -96,6 +104,12 @@ describe('formatCueLabel', () => {
       .toBe('cue 3 · narrow lane, reserved(bit 3)');
     expect(formatCueLabel({ kind: 'cue', event_id: 3, reasons_bitmask: 0 })).toBe('cue 3');
   });
+
+  it('indicates approximate placement only when approx is true', () => {
+    expect(formatCueLabel({ kind: 'cue', event_id: 9, approx: true })).toBe('cue 9 · approximate position');
+    expect(formatCueLabel({ kind: 'cue', event_id: 9, approx: false })).toBe('cue 9');
+    expect(formatCueLabel({ kind: 'cue', event_id: 9 })).toBe('cue 9');
+  });
 });
 
 describe('formatMarkerLabel', () => {
@@ -105,6 +119,11 @@ describe('formatMarkerLabel', () => {
 
   it('omits an absent ride clock', () => {
     expect(formatMarkerLabel({ kind: 'marker' })).toBe('marked unsafe');
+  });
+
+  it('indicates approximate placement only when approx is true', () => {
+    expect(formatMarkerLabel({ kind: 'marker', approx: true })).toBe('marked unsafe · approximate position');
+    expect(formatMarkerLabel({ kind: 'marker', approx: false })).toBe('marked unsafe');
   });
 });
 
@@ -123,11 +142,12 @@ describe('parseCueEvents', () => {
         delivered: true,
         latency_ms: 752,
         outcome: 'useful',
+        approx: true,
       },
     });
     expect(features[1]).toEqual({
       coordinate: [0.002, 0.001],
-      properties: { kind: 'marker', ride_clock: '55:03' },
+      properties: { kind: 'marker', ride_clock: '55:03', approx: true },
     });
   });
 
@@ -139,6 +159,7 @@ describe('parseCueEvents', () => {
       delivered: undefined,
       latency_ms: undefined,
       outcome: undefined,
+      approx: undefined,
     });
     const features = parseCueEvents(collection(bare));
     expect(features[0]!.properties).toEqual({ kind: 'cue', event_id: 1977782249 });
@@ -169,9 +190,9 @@ describe('parseCueEvents', () => {
 
   it('throws on an unknown kind', () => {
     expect(() => parseCueEvents(collection(syntheticCue({ kind: 'zone' }))))
-      .toThrow('kind must be "cue" or "marker"');
+      .toThrow('kind must be "cue", "marker", or "track"');
     expect(() => parseCueEvents(collection(syntheticCue({ kind: undefined }))))
-      .toThrow('kind must be "cue" or "marker"');
+      .toThrow('kind must be "cue", "marker", or "track"');
   });
 
   it('throws when a cue is missing event_id', () => {
@@ -186,6 +207,41 @@ describe('parseCueEvents', () => {
       .toThrow('delivered must be a boolean');
     expect(() => parseCueEvents(collection(syntheticCue({ ride_clock: 627 }))))
       .toThrow('ride_clock must be a string');
+    expect(() => parseCueEvents(collection(syntheticCue({ approx: 'yes' }))))
+      .toThrow('approx must be a boolean');
+  });
+
+  it('parses a track feature into its coordinate list', () => {
+    const features = parseCueEvents(collection(syntheticTrack(), syntheticCue({ approx: undefined })));
+    expect(features).toHaveLength(2);
+    expect(features[0]).toEqual({
+      coordinates: [[0.001, 0.0005], [0.0011, 0.00055], [0.0012, 0.0006]],
+      properties: { kind: 'track' },
+    });
+  });
+
+  it('throws when a track is not a LineString', () => {
+    const bad = { ...(syntheticTrack() as object), geometry: { type: 'Point', coordinates: [0, 0] } };
+    expect(() => parseCueEvents(collection(bad))).toThrow('track geometry must be a LineString');
+  });
+
+  it('throws when a track has fewer than 2 positions', () => {
+    expect(() => parseCueEvents(collection(syntheticTrack([[0.001, 0.0005]]))))
+      .toThrow('track must have at least 2 positions');
+    expect(() => parseCueEvents(collection(syntheticTrack([]))))
+      .toThrow('track must have at least 2 positions');
+  });
+
+  it('throws when a track position is not a [lng, lat] number pair', () => {
+    expect(() => parseCueEvents(collection(syntheticTrack([[0.001, 0.0005], ['a', 1]]))))
+      .toThrow('track positions must be [lng, lat] number pairs');
+    expect(() => parseCueEvents(collection(syntheticTrack([[0.001, 0.0005], 7]))))
+      .toThrow('track positions must be [lng, lat] number pairs');
+  });
+
+  it('throws on more than one track feature', () => {
+    expect(() => parseCueEvents(collection(syntheticTrack(), syntheticTrack())))
+      .toThrow('feature 1: more than one track feature');
   });
 
   it('throws on an unknown outcome grade', () => {
