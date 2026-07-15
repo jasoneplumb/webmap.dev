@@ -177,7 +177,7 @@ export function createSqueezeZonesOverlay(
     toastPrefix: 'Squeeze zones',
     parse: parseSqueezeZones,
     render: renderZones,
-    describeLoad: (count) => `Loaded ${count} squeeze zone segment${count === 1 ? '' : 's'}`,
+    describeLoad: (features) => `Loaded ${features.length} squeeze zone segment${features.length === 1 ? '' : 's'}`,
     showToast,
     disableOverlay,
   });
