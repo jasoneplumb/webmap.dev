@@ -28,6 +28,11 @@ export interface OverlayDef {
   // L.Layer (not L.TileLayer) so an overlay can be a composite L.LayerGroup —
   // e.g. the 'Routes' overlay (Waymarked hiking + cycling route tiles).
   tileLayer: L.Layer;
+  // File-backed overlays supply this to get a "Change…" button on their row —
+  // it reopens the file picker so a different file can replace the loaded one.
+  // Enabled only while the overlay is checked (the picker needs the overlay's
+  // load path active, and a click here carries the required user activation).
+  requestFilePick?: () => void;
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
@@ -297,6 +302,7 @@ export class LayersControl extends L.Control {
 
         L.DomEvent.on(checkbox, 'change', () => {
           this.toggleOverlay(overlay, checkbox.checked);
+          this.syncChangeFileButton(overlay.id, checkbox.checked);
         });
 
         label.appendChild(checkbox);
@@ -311,6 +317,23 @@ export class LayersControl extends L.Control {
           overlayDesc.className = 'layers-option__desc';
           overlayDesc.textContent = overlay.description;
           label.appendChild(overlayDesc);
+        }
+
+        const requestFilePick = overlay.requestFilePick;
+        if (requestFilePick) {
+          const changeBtn = document.createElement('button');
+          changeBtn.type = 'button';
+          changeBtn.className = 'layers-option__change-file';
+          changeBtn.dataset['overlayId'] = overlay.id;
+          changeBtn.textContent = 'Change…';
+          changeBtn.title = 'Load a different GeoJSON file';
+          changeBtn.disabled = !checkbox.checked;
+          L.DomEvent.on(changeBtn, 'click', (e: Event) => {
+            // Keep the click from toggling the wrapping label's checkbox.
+            L.DomEvent.stop(e);
+            requestFilePick();
+          });
+          label.appendChild(changeBtn);
         }
 
         overlaysFieldset.appendChild(label);
@@ -365,6 +388,14 @@ export class LayersControl extends L.Control {
     this.toggleOverlay(overlay, enabled);
     const checkbox = this.popoverEl?.querySelector<HTMLInputElement>(`input[name="overlay-${id}"]`);
     if (checkbox) checkbox.checked = enabled;
+    this.syncChangeFileButton(id, enabled);
+  }
+
+  private syncChangeFileButton(id: string, enabled: boolean): void {
+    const btn = this.popoverEl?.querySelector<HTMLButtonElement>(
+      `button.layers-option__change-file[data-overlay-id="${id}"]`,
+    );
+    if (btn) btn.disabled = !enabled;
   }
 
   private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {

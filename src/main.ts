@@ -380,10 +380,10 @@ const layerDefs: LayerDef[] = [
 // next tick so a disable during the control's own toggle handling never
 // re-enters it.
 let layersControl: LayersControl | null = null;
-const squeezeZonesLayer = createSqueezeZonesOverlay(showToast, () => {
+const squeezeZonesOverlay = createSqueezeZonesOverlay(showToast, () => {
   setTimeout(() => layersControl?.setOverlayEnabled('squeeze-zones', false), 0);
 });
-const cueEventsLayer = createCueEventsOverlay(showToast, () => {
+const cueEventsOverlay = createCueEventsOverlay(showToast, () => {
   setTimeout(() => layersControl?.setOverlayEnabled('cue-events', false), 0);
 });
 
@@ -407,13 +407,15 @@ const overlayDefs: OverlayDef[] = [
     id: 'squeeze-zones',
     name: 'Squeeze zones',
     description: 'Cycling squeeze zones from a GeoJSON file on your device — works offline once loaded',
-    tileLayer: squeezeZonesLayer,
+    tileLayer: squeezeZonesOverlay.group,
+    requestFilePick: squeezeZonesOverlay.requestFilePick,
   },
   {
     id: 'cue-events',
     name: 'Cue events',
     description: 'Where cues fired on a ride, from a GeoJSON file on your device — colored by review outcome',
-    tileLayer: cueEventsLayer,
+    tileLayer: cueEventsOverlay.group,
+    requestFilePick: cueEventsOverlay.requestFilePick,
   },
 ];
 

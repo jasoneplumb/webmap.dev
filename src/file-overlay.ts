@@ -4,7 +4,8 @@
  * Context: Extracted from the squeeze-zones overlay so the cue-events overlay (and future
  *          ride-data overlays) reuse one tested load path instead of duplicating it
  * Pattern: Config object supplies the overlay-specific parts (parse, render, labels); the returned
- *          LayerGroup lazy-loads on its first 'add' — persisted data first, then a file picker
+ *          group lazy-loads on its first 'add' — persisted data first, then a file picker — and
+ *          requestFilePick lets the layers control swap in a different file at any time
  * Future: Large files that exceed the localStorage quota only persist for the session; move to
  *         IndexedDB if needed
  */
@@ -22,17 +23,34 @@ export interface FileOverlayConfig<T> {
   /** Success-toast text for a freshly picked file, e.g. count => `Loaded ${count} …` */
   describeLoad: (count: number) => string;
   showToast: (msg: string, durationMs?: number) => void;
-  /** Switch the overlay's layers-control checkbox back off (picker cancelled, malformed file) */
+  /**
+   * Switch the overlay's layers-control checkbox back off (picker cancelled, malformed
+   * file). Only called while nothing is loaded yet — a failed replacement pick keeps
+   * the current data and leaves the overlay on.
+   */
   disableOverlay: () => void;
+}
+
+export interface FileBackedOverlay {
+  /** The layer group to register with the layers control */
+  group: L.LayerGroup;
+  /**
+   * Open the file picker to load a (different) file. Must be called from a user
+   * gesture — a click carries the user activation the picker needs. On success the
+   * new data replaces both the rendered layers and the persisted copy; on cancel or
+   * a malformed file the current data stays fully intact.
+   */
+  requestFilePick: () => void;
 }
 
 /**
  * Build a layers-control overlay backed by a user-chosen GeoJSON file. The returned
- * LayerGroup starts empty; on its first 'add' it restores persisted data, or opens a
- * file picker. On cancel or a malformed file the overlay is switched back off via
- * `disableOverlay` (and a toast explains why).
+ * group starts empty; on its first 'add' it restores persisted data, or opens a
+ * file picker. While nothing is loaded, cancel or a malformed file switches the
+ * overlay back off via `disableOverlay` (and a toast explains why); once data is
+ * loaded, a failed pick keeps it untouched.
  */
-export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): L.LayerGroup {
+export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): FileBackedOverlay {
   const group = L.layerGroup();
   let loaded = false;
   let fileInput: HTMLInputElement | null = null;
@@ -70,11 +88,17 @@ export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): L.LayerGr
     input.setAttribute('aria-hidden', 'true');
     document.body.appendChild(input);
 
+    // A pick that fails before anything is loaded switches the overlay off;
+    // a failed replacement pick keeps the current data and leaves it on.
+    const disableIfNothingLoaded = (): void => {
+      if (!loaded) cfg.disableOverlay();
+    };
+
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       input.value = ''; // allow re-picking the same file later
       if (!file) {
-        cfg.disableOverlay();
+        disableIfNothingLoaded();
         return;
       }
       // FileReader over File.text() for older-Safari compatibility.
@@ -83,19 +107,19 @@ export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): L.LayerGr
         const text = typeof reader.result === 'string' ? reader.result : '';
         const count = loadFromText(text, true);
         if (count === null) {
-          cfg.disableOverlay();
+          disableIfNothingLoaded();
         } else {
           cfg.showToast(cfg.describeLoad(count));
         }
       };
       reader.onerror = () => {
         cfg.showToast(`${cfg.toastPrefix}: could not read file`);
-        cfg.disableOverlay();
+        disableIfNothingLoaded();
       };
       reader.readAsText(file);
     });
     // Fired by modern browsers when the picker is dismissed without a file.
-    input.addEventListener('cancel', () => cfg.disableOverlay());
+    input.addEventListener('cancel', disableIfNothingLoaded);
 
     fileInput = input;
     return input;
@@ -121,5 +145,8 @@ export function createFileBackedOverlay<T>(cfg: FileOverlayConfig<T>): L.LayerGr
     getFileInput().click();
   });
 
-  return group;
+  return {
+    group,
+    requestFilePick: () => getFileInput().click(),
+  };
 }

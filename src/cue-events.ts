@@ -12,7 +12,7 @@
  *         id shown in both popups is the v1 link
  */
 import L from 'leaflet';
-import { createFileBackedOverlay } from './file-overlay';
+import { createFileBackedOverlay, type FileBackedOverlay } from './file-overlay';
 import { escapeHtml } from './html';
 import { decodeReasons } from './squeeze-zones';
 
@@ -239,7 +239,7 @@ function renderCueEvents(group: L.LayerGroup, features: CueEventFeature[]): void
 export function createCueEventsOverlay(
   showToast: (msg: string, durationMs?: number) => void,
   disableOverlay: () => void,
-): L.LayerGroup {
+): FileBackedOverlay {
   return createFileBackedOverlay<CueEventFeature>({
     storageKey: STORAGE_KEY,
     toastPrefix: 'Cue events',
