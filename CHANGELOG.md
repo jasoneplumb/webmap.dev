@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.37.0-beta (2026-07-14)
+
+### Added
+
+- **New "Cue events" overlay** — complements Squeeze zones by showing *where the cue policy actually fired* during a ride: `HEAD_UP` cue points render as circle markers colored by review outcome (useful green, false alarm red, too late orange, missed risk purple, ungraded gray), with a dashed ring when the cue never reached the wrist, and rider-placed "unsafe here" markers as a distinct neutral triangle. Tooltips/popups show ride clock, lead time, delivery latency, outcome, and decoded reasons (absent fields omitted; unknown bits render as `reserved(bit N)`). Like Squeeze zones, data loads from a GeoJSON file on your device only — no bundled or remote ride data — and persists locally so re-enabling doesn't require re-picking; malformed files show a toast and never partially render. Both overlays toggle independently and share a common file-loading path; HTML escaping is applied to all file-derived text in popups. No new dependencies (#232)
+
 ## v0.36.0-beta (2026-07-13)
 
 ### Added
