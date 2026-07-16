@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.38.0-beta (2026-07-16)
+
+### Added
+
+- **Grade cue events on the map** — cue popups now carry a grade row (**Useful / False alarm / Too late**, plus Clear) so rides can be reviewed where the context lives: tapping a grade recolors the point instantly (overwriting any prior grade — latest wins), a pill shows graded/total progress, and grades persist per file in the browser so grading one ride never clobbers another's unexported work. An **Export reviews** action downloads the grades as a `reviews[]` sidecar for the cue repo's `cue-review-merge` tool — nothing else ever leaves the browser. Missed risk is deliberately not a map grade (a cue that fired wasn't missed); map-authored markers are planned follow-up work (#240)
+- **GPS track and exact event positions in the Cue events overlay** — ride files exported with GPS now draw the ride's path as a muted line beneath the event points, and cue/marker points sit at their actual GPS positions instead of segment midpoints (tooltips no longer say "approximate position" for them). Files without GPS render exactly as before (#238)
+- **Load a different overlay file without touching DevTools** — file-backed overlays (Squeeze zones, Cue events) now have a "change file…" action in the layers control that reopens the picker; the new file replaces the old data everywhere on success, while cancelling or picking a malformed file leaves current data untouched (#237)
+
+### Documentation
+
+- README preview images refreshed — live turn-by-turn navigation on the Streets basemap and hiking trails on the Outdoors basemap with hillshade — and repo sponsorship enabled via `.github/FUNDING.yml` (#242)
+
 ## v0.37.0-beta (2026-07-14)
 
 ### Added
