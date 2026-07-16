@@ -10,8 +10,8 @@
 ## Preview
 
 <p align="center">
-  <img src="docs/images/trail-map-view.png" alt="Trails basemap" width="140" />
-  <img src="docs/images/streets-map-view.png" alt="Streets basemap" width="140" />
+  <img src="docs/images/nav-map-view.png" alt="Turn-by-turn GPS navigation on the Streets basemap" width="140" />
+  <img src="docs/images/trail-map-view.png" alt="Hiking trails on the Outdoors basemap with hillshade" width="140" />
   <img src="docs/images/topo-map-view.png" alt="Topographic basemap" width="140" />
   <img src="docs/images/parks-map-view.png" alt="Parks &amp; POIs basemap" width="140" />
 </p>
