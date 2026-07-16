@@ -23,7 +23,7 @@ import {
   effectiveOutcome,
   hashText,
   parseGradeStore,
-  serializeGradeStore,
+  updateGradeStore,
   type GradableOutcome,
   type GradeMap,
 } from './cue-grades';
@@ -244,7 +244,8 @@ export function parseCueEvents(text: string): CueFileFeature[] {
 
 const STORAGE_KEY = 'webmap-cue-events-geojson';
 // Pending grades layered over the loaded file, keyed by event_id inside a
-// { fileHash, grades } envelope — see cue-grades.ts for the leak-across-files contract.
+// { files: { [fileHash]: grades } } envelope — one slot per file, so grading one
+// ride never clobbers another ride's unexported grades (see cue-grades.ts).
 const GRADES_STORAGE_KEY = 'webmap-cue-event-grades';
 
 const GRADE_BUTTON_LABELS: Record<GradableOutcome, string> = {
@@ -318,7 +319,8 @@ export function createCueEventsOverlay(
 
   function persistGrades(): void {
     try {
-      localStorage.setItem(GRADES_STORAGE_KEY, serializeGradeStore(fileHash, grades));
+      const existing = localStorage.getItem(GRADES_STORAGE_KEY);
+      localStorage.setItem(GRADES_STORAGE_KEY, updateGradeStore(existing, fileHash, grades));
     } catch { /* quota/unavailable — grades survive the session only */ }
   }
 
@@ -327,6 +329,8 @@ export function createCueEventsOverlay(
   }
 
   // Graded/total pill — visible while the overlay is on and the file has cue points.
+  // progressEl is created lazily and lives for the page lifetime; the overlay is
+  // constructed once per app, so no teardown path exists (or is needed) today.
   function updateProgress(): void {
     const { graded, total } = countGraded(features, grades);
     const show = overlayOn && total > 0;
@@ -350,7 +354,10 @@ export function createCueEventsOverlay(
       const label = cueLabel(entry.props);
       entry.layer.setTooltipContent(escapeHtml(label));
       entry.labelEl.textContent = label;
-      for (const [o, btn] of entry.buttons) btn.classList.toggle('is-active', o === eff);
+      for (const [o, btn] of entry.buttons) {
+        btn.classList.toggle('is-active', o === eff);
+        btn.setAttribute('aria-pressed', String(o === eff));
+      }
     }
     updateProgress();
   }
@@ -380,6 +387,7 @@ export function createCueEventsOverlay(
       btn.dataset['outcome'] = outcome;
       btn.textContent = GRADE_BUTTON_LABELS[outcome];
       btn.classList.toggle('is-active', eff === outcome);
+      btn.setAttribute('aria-pressed', String(eff === outcome));
       btn.addEventListener('click', () => setGrade(props.event_id, outcome));
       buttons.set(outcome, btn);
       row.appendChild(btn);

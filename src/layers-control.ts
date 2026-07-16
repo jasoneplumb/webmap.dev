@@ -327,7 +327,7 @@ export class LayersControl extends L.Control {
         if (requestFilePick) {
           const changeBtn = document.createElement('button');
           changeBtn.type = 'button';
-          changeBtn.className = 'layers-option__change-file';
+          changeBtn.className = 'layers-option__action';
           changeBtn.dataset['overlayId'] = overlay.id;
           changeBtn.textContent = 'Change…';
           changeBtn.title = 'Load a different GeoJSON file';
@@ -344,7 +344,7 @@ export class LayersControl extends L.Control {
         if (rowAction) {
           const actionBtn = document.createElement('button');
           actionBtn.type = 'button';
-          actionBtn.className = 'layers-option__change-file';
+          actionBtn.className = 'layers-option__action';
           actionBtn.dataset['overlayId'] = overlay.id;
           actionBtn.textContent = rowAction.label;
           actionBtn.title = rowAction.title;
@@ -415,7 +415,7 @@ export class LayersControl extends L.Control {
   // Change-file and rowAction buttons share the class; both follow the checkbox.
   private syncRowActionButtons(id: string, enabled: boolean): void {
     const buttons = this.popoverEl?.querySelectorAll<HTMLButtonElement>(
-      `button.layers-option__change-file[data-overlay-id="${id}"]`,
+      `button.layers-option__action[data-overlay-id="${id}"]`,
     );
     buttons?.forEach((btn) => { btn.disabled = !enabled; });
   }

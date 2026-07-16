@@ -1439,7 +1439,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin-top: 2px;
 }
 
-.layers-option__change-file {
+.layers-option__action {
   align-self: center;
   margin-left: 4px;
   padding: 2px 8px;
@@ -1452,11 +1452,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   white-space: nowrap;
 }
 
-.layers-option__change-file:hover:not(:disabled) {
+.layers-option__action:hover:not(:disabled) {
   background-color: rgba(66, 135, 245, 0.12);
 }
 
-.layers-option__change-file:disabled {
+.layers-option__action:disabled {
   color: #bbb;
   border-color: #ddd;
   cursor: default;
@@ -1752,7 +1752,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .cue-grade-progress {
   display: none;
   position: fixed;
-  top: 12px;
+  /* Clear the notch/status bar on phones — same convention as .offline-banner */
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(38, 50, 56, 0.85);

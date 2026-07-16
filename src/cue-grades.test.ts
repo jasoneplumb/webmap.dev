@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   hashText,
+  parseAllGrades,
   parseGradeStore,
-  serializeGradeStore,
+  updateGradeStore,
   effectiveOutcome,
   buildReviews,
   countGraded,
@@ -32,40 +33,59 @@ describe('hashText', () => {
   });
 });
 
-describe('parseGradeStore / serializeGradeStore', () => {
+describe('parseGradeStore / updateGradeStore', () => {
   const grades: GradeMap = {
     '57053650': { outcome: 'useful', reviewed_at: T1 },
     '57053651': { outcome: null, reviewed_at: T2 },
   };
 
   it('round-trips grades for a matching file hash', () => {
-    const json = serializeGradeStore('abc123', grades);
+    const json = updateGradeStore(null, 'abc123', grades);
     expect(parseGradeStore(json, 'abc123')).toEqual(grades);
   });
 
   it('returns an empty map when the file hash differs (no cross-file leaks)', () => {
-    const json = serializeGradeStore('abc123', grades);
+    const json = updateGradeStore(null, 'abc123', grades);
     expect(parseGradeStore(json, 'other')).toEqual({});
+  });
+
+  it('preserves other files’ pending grades when writing a new file’s slot', () => {
+    // The exact clobber scenario: grade ride A, load ride B without exporting,
+    // grade B — A's unexported grades must survive.
+    const withA = updateGradeStore(null, 'hashA', grades);
+    const gradesB: GradeMap = { '99': { outcome: 'too_late', reviewed_at: T2 } };
+    const withBoth = updateGradeStore(withA, 'hashB', gradesB);
+    expect(parseGradeStore(withBoth, 'hashA')).toEqual(grades);
+    expect(parseGradeStore(withBoth, 'hashB')).toEqual(gradesB);
+  });
+
+  it('drops a file’s slot when its grade map empties, keeping the rest', () => {
+    const withA = updateGradeStore(null, 'hashA', grades);
+    const withBoth = updateGradeStore(withA, 'hashB', { '99': { outcome: 'too_late', reviewed_at: T2 } });
+    const cleared = updateGradeStore(withBoth, 'hashB', {});
+    expect(parseAllGrades(cleared)).toEqual({ hashA: grades });
   });
 
   it('returns an empty map on missing or malformed JSON', () => {
     expect(parseGradeStore(null, 'abc123')).toEqual({});
     expect(parseGradeStore('{nope', 'abc123')).toEqual({});
     expect(parseGradeStore('42', 'abc123')).toEqual({});
-    expect(parseGradeStore('{"fileHash":"abc123"}', 'abc123')).toEqual({});
-    expect(parseGradeStore('{"fileHash":"abc123","grades":7}', 'abc123')).toEqual({});
+    expect(parseGradeStore('{"files":7}', 'abc123')).toEqual({});
+    // Pre-multi-file envelope shape — treated as an empty store, never a crash
+    expect(parseGradeStore('{"fileHash":"abc123","grades":{}}', 'abc123')).toEqual({});
   });
 
   it('drops individually malformed entries and keeps valid ones', () => {
     const json = JSON.stringify({
-      fileHash: 'abc123',
-      grades: {
-        '1': { outcome: 'useful', reviewed_at: T1 },
-        '2': { outcome: 'great', reviewed_at: T1 }, // unknown outcome
-        '3': { outcome: 'missed_risk', reviewed_at: T1 }, // not gradable from the map
-        '4': { outcome: 'too_late' }, // missing reviewed_at
-        '5': 'useful', // not an object
-        '6': { outcome: null, reviewed_at: T2 }, // Clear tombstone — valid
+      files: {
+        abc123: {
+          '1': { outcome: 'useful', reviewed_at: T1 },
+          '2': { outcome: 'great', reviewed_at: T1 }, // unknown outcome
+          '3': { outcome: 'missed_risk', reviewed_at: T1 }, // not gradable from the map
+          '4': { outcome: 'too_late' }, // missing reviewed_at
+          '5': 'useful', // not an object
+          '6': { outcome: null, reviewed_at: T2 }, // Clear tombstone — valid
+        },
       },
     });
     expect(parseGradeStore(json, 'abc123')).toEqual({

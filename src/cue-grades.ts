@@ -1,9 +1,10 @@
 /**
  * Intent: Pure state logic for grading cue events on the map — pending review grades layered
  *         over a loaded cue trace, persisted to localStorage keyed by event_id
- * Context: Grades must not leak across files, so the store carries a hash of the raw file text;
- *          a different file (including a re-export with grades baked in) gets a fresh, empty
- *          grade layer and stays fully re-gradable
+ * Context: Grades must not leak across files, so the store keys each grade map by a hash of the
+ *          raw file text — one slot per file, so grading one ride never clobbers another ride's
+ *          unexported grades; a different file (including a re-export with grades baked in)
+ *          gets a fresh, empty grade layer and stays fully re-gradable
  * Pattern: Pending grade wins over a file-baked outcome ("latest wins"); Clear stores a null
  *          tombstone so a baked grade reads as ungraded without touching the file; export emits
  *          only non-cleared pending grades in the cue trace schema's reviews[] shape (FR-008)
@@ -44,22 +45,8 @@ export function hashText(text: string): string {
   return (h >>> 0).toString(16);
 }
 
-/**
- * Parse a persisted grade store. Returns an empty map on missing/malformed JSON
- * or when the stored fileHash doesn't match the loaded file (grades never leak
- * across files). Individually malformed entries are dropped, valid ones kept.
- */
-export function parseGradeStore(json: string | null, fileHash: string): GradeMap {
-  if (json === null) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return {};
-  }
-  const store = parsed as { fileHash?: unknown; grades?: unknown };
-  if (typeof store !== 'object' || store === null || store.fileHash !== fileHash) return {};
-  const raw = store.grades;
+// Validate one file's raw grade map: malformed entries are dropped, valid ones kept.
+function sanitizeGradeMap(raw: unknown): GradeMap {
   if (typeof raw !== 'object' || raw === null) return {};
   const grades: GradeMap = {};
   for (const [id, value] of Object.entries(raw)) {
@@ -74,8 +61,50 @@ export function parseGradeStore(json: string | null, fileHash: string): GradeMap
   return grades;
 }
 
-export function serializeGradeStore(fileHash: string, grades: GradeMap): string {
-  return JSON.stringify({ fileHash, grades });
+/**
+ * Parse the full persisted store: a `{ files: { [fileHash]: GradeMap } }` envelope
+ * holding every file's pending grades side by side. Missing/malformed JSON yields
+ * an empty store; each file's entries are individually sanitized.
+ */
+export function parseAllGrades(json: string | null): Record<string, GradeMap> {
+  if (json === null) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return {};
+  }
+  const store = parsed as { files?: unknown };
+  if (typeof store !== 'object' || store === null) return {};
+  if (typeof store.files !== 'object' || store.files === null) return {};
+  const all: Record<string, GradeMap> = {};
+  for (const [hash, raw] of Object.entries(store.files)) {
+    all[hash] = sanitizeGradeMap(raw);
+  }
+  return all;
+}
+
+/**
+ * One file's pending grades from the persisted store. An unknown hash returns an
+ * empty map (grades never leak across files).
+ */
+export function parseGradeStore(json: string | null, fileHash: string): GradeMap {
+  return parseAllGrades(json)[fileHash] ?? {};
+}
+
+/**
+ * Replace one file's slot in the persisted store, preserving every other file's
+ * pending grades — grading ride B must never clobber ride A's unexported work.
+ * An empty grade map drops the slot so the store doesn't accumulate dead files.
+ */
+export function updateGradeStore(json: string | null, fileHash: string, grades: GradeMap): string {
+  const all = parseAllGrades(json);
+  if (Object.keys(grades).length === 0) {
+    delete all[fileHash];
+  } else {
+    all[fileHash] = grades;
+  }
+  return JSON.stringify({ files: all });
 }
 
 /**
