@@ -33,6 +33,10 @@ export interface OverlayDef {
   // Enabled only while the overlay is checked (the picker needs the overlay's
   // load path active, and a click here carries the required user activation).
   requestFilePick?: () => void;
+  // Optional extra action button on the overlay's row, next to "Change…" —
+  // e.g. "Export reviews" on cue events. Enabled only while the overlay is
+  // checked, same as the change-file button.
+  rowAction?: { label: string; title: string; onClick: () => void };
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
@@ -302,7 +306,7 @@ export class LayersControl extends L.Control {
 
         L.DomEvent.on(checkbox, 'change', () => {
           this.toggleOverlay(overlay, checkbox.checked);
-          this.syncChangeFileButton(overlay.id, checkbox.checked);
+          this.syncRowActionButtons(overlay.id, checkbox.checked);
         });
 
         label.appendChild(checkbox);
@@ -323,7 +327,7 @@ export class LayersControl extends L.Control {
         if (requestFilePick) {
           const changeBtn = document.createElement('button');
           changeBtn.type = 'button';
-          changeBtn.className = 'layers-option__change-file';
+          changeBtn.className = 'layers-option__action';
           changeBtn.dataset['overlayId'] = overlay.id;
           changeBtn.textContent = 'Change…';
           changeBtn.title = 'Load a different GeoJSON file';
@@ -334,6 +338,23 @@ export class LayersControl extends L.Control {
             requestFilePick();
           });
           label.appendChild(changeBtn);
+        }
+
+        const rowAction = overlay.rowAction;
+        if (rowAction) {
+          const actionBtn = document.createElement('button');
+          actionBtn.type = 'button';
+          actionBtn.className = 'layers-option__action';
+          actionBtn.dataset['overlayId'] = overlay.id;
+          actionBtn.textContent = rowAction.label;
+          actionBtn.title = rowAction.title;
+          actionBtn.disabled = !checkbox.checked;
+          L.DomEvent.on(actionBtn, 'click', (e: Event) => {
+            // Keep the click from toggling the wrapping label's checkbox.
+            L.DomEvent.stop(e);
+            rowAction.onClick();
+          });
+          label.appendChild(actionBtn);
         }
 
         overlaysFieldset.appendChild(label);
@@ -388,14 +409,15 @@ export class LayersControl extends L.Control {
     this.toggleOverlay(overlay, enabled);
     const checkbox = this.popoverEl?.querySelector<HTMLInputElement>(`input[name="overlay-${id}"]`);
     if (checkbox) checkbox.checked = enabled;
-    this.syncChangeFileButton(id, enabled);
+    this.syncRowActionButtons(id, enabled);
   }
 
-  private syncChangeFileButton(id: string, enabled: boolean): void {
-    const btn = this.popoverEl?.querySelector<HTMLButtonElement>(
-      `button.layers-option__change-file[data-overlay-id="${id}"]`,
+  // Change-file and rowAction buttons share the class; both follow the checkbox.
+  private syncRowActionButtons(id: string, enabled: boolean): void {
+    const buttons = this.popoverEl?.querySelectorAll<HTMLButtonElement>(
+      `button.layers-option__action[data-overlay-id="${id}"]`,
     );
-    if (btn) btn.disabled = !enabled;
+    buttons?.forEach((btn) => { btn.disabled = !enabled; });
   }
 
   private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {
