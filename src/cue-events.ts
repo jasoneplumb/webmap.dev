@@ -27,7 +27,7 @@ import {
   type GradableOutcome,
   type GradeMap,
 } from './cue-grades';
-import { createFileBackedOverlay, type FileBackedOverlay } from './file-overlay';
+import { createFileBackedOverlay, downloadJson, type FileBackedOverlay } from './file-overlay';
 import { escapeHtml } from './html';
 import { decodeReasons } from './squeeze-zones';
 
@@ -266,19 +266,6 @@ const TRACK_OPACITY = 0.6;
 
 function isTrack(f: CueFileFeature): f is TrackFeature {
   return f.properties.kind === 'track';
-}
-
-function downloadJson(filename: string, text: string): void {
-  const blob = new Blob([text], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // Deferred revoke — Safari can drop the download if the URL dies before the click lands.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export interface CueEventsOverlay extends FileBackedOverlay {

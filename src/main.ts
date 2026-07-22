@@ -23,6 +23,7 @@ import { createMap, initOfflineTileFallback, getTileLayers } from './map';
 import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
 import { createSqueezeZonesOverlay } from './squeeze-zones';
 import { createCueEventsOverlay } from './cue-events';
+import { createCustomZonesOverlay, addDrawZoneControl } from './custom-zones';
 import { addLocateControl, updateLocateIcon } from './controls';
 import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
@@ -386,6 +387,7 @@ const squeezeZonesOverlay = createSqueezeZonesOverlay(showToast, () => {
 const cueEventsOverlay = createCueEventsOverlay(showToast, () => {
   setTimeout(() => layersControl?.setOverlayEnabled('cue-events', false), 0);
 });
+const customZonesOverlay = createCustomZonesOverlay(showToast);
 
 const overlayDefs: OverlayDef[] = [
   {
@@ -422,6 +424,18 @@ const overlayDefs: OverlayDef[] = [
       onClick: cueEventsOverlay.requestReviewExport,
     },
   },
+  {
+    id: 'custom-squeeze-zones',
+    name: 'Custom squeeze zones',
+    description: 'Zones you draw yourself with the Draw zone map button — shown in blue, separate from the derived overlay above',
+    tileLayer: customZonesOverlay.group,
+    requestFilePick: customZonesOverlay.requestFilePick,
+    rowAction: {
+      label: 'Export',
+      title: 'Download your custom zones as a GeoJSON file',
+      onClick: customZonesOverlay.requestExport,
+    },
+  },
 ];
 
 layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'hiking-routes', 'cycling-routes']);
@@ -431,6 +445,7 @@ addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state, showToast);
 addGuidanceControl(map, state, activatePolling, deactivatePolling);
 addCompassControl(map, state);
+addDrawZoneControl(map, customZonesOverlay, showToast, () => layersControl?.setOverlayEnabled('custom-squeeze-zones', true));
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');
