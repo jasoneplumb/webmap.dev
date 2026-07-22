@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.39.0-beta (2026-07-21)
+
+### Added
+
+- **New "Custom squeeze zones" overlay** — a **Draw zone** map control lets you click points to draw your own zone (Finish/Cancel or Enter/Esc to commit/discard), rendered dashed blue so it's never mistaken for the derived Squeeze zones overlay's severity-colored solid lines. Tap a drawn zone to edit its label or delete it; zones persist to localStorage like the other overlays. The layers-control row adds **Export** (downloads the set as GeoJSON) and **Change…** (imports a previously-exported file, replacing the current set — same contract as the other overlays). No exporter tool yet; it's a map-only annotation layer for now (#243)
+
+### Fixed
+
+- **Draw mode no longer breaks reverse-geocode pin-drop** — the new draw-zone control was unconditionally re-enabling double-click-zoom on every Finish/Cancel/Esc, silently undoing the app's permanent disable of it (which lets a double-click drop a reverse-geocode pin instead of zooming); fixed by deferring to that existing ownership instead of toggling it per draw session (#243)
+- **Custom zone clicks no longer bleed into draw mode** — tapping an existing custom zone while drawing a new one nearby both opened that zone's edit popup and added a spurious vertex to the in-progress zone; rendered zone lines now set `bubblingMouseEvents: false` (#243)
+
 ## v0.38.0-beta (2026-07-16)
 
 ### Added
