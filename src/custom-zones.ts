@@ -215,6 +215,10 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
         opacity: ZONE_OPACITY,
         dashArray: ZONE_DASH,
         interactive: true,
+        // Leaflet Path layers bubble clicks to the map by default — without this, tapping an
+        // existing zone while drawing a new one would both open this zone's popup AND add a
+        // spurious vertex to the in-progress zone via addDrawZoneControl's map click handler.
+        bubblingMouseEvents: false,
       });
       // Tooltip content is set via innerHTML by Leaflet; label is free-form user/file text — escape it.
       line.bindTooltip(escapeHtml(zoneDisplayLabel(zone.properties)), { sticky: true });
