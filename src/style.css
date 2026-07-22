@@ -1768,3 +1768,91 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .cue-grade-progress.visible {
   display: block;
 }
+
+/* Popup on a rendered custom zone — optional label + Save/Delete, matches the grade-row's plain
+   button styling but doesn't need outcome coloring (custom zones carry no outcome). */
+.custom-zone-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.custom-zone-popup__label {
+  font: 13px system-ui, sans-serif;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.custom-zone-popup__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.custom-zone-popup__actions button {
+  flex: 1;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font: 12px system-ui, sans-serif;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.custom-zone-popup__actions button:hover {
+  background: #f0f0f0;
+}
+
+.custom-zone-popup__delete {
+  color: #d63131;
+  border-color: #d63131;
+}
+
+/* Draw-mode toolbar — bottom center, interactive (unlike .cue-grade-progress), visible only while
+   the "Draw zone" control is actively collecting vertices. */
+.draw-zone-toolbar {
+  display: none;
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  background: rgba(38, 50, 56, 0.9);
+  color: #fff;
+  font: 13px/1.3 system-ui, sans-serif;
+  padding: 8px 12px;
+  border-radius: 10px;
+  z-index: 900;
+}
+
+.draw-zone-toolbar.visible {
+  display: flex;
+}
+
+.draw-zone-toolbar__hint {
+  white-space: nowrap;
+}
+
+.draw-zone-toolbar button {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: 13px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.draw-zone-toolbar__finish {
+  background: #1e88e5;
+  color: #fff;
+}
+
+.draw-zone-toolbar__cancel {
+  background: #eee;
+  color: #333;
+}

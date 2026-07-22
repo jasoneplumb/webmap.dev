@@ -11,6 +11,20 @@
  */
 import L from 'leaflet';
 
+/** Trigger a browser download of `text` as a file named `filename`. */
+export function downloadJson(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Deferred revoke — Safari can drop the download if the URL dies before the click lands.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export interface FileOverlayConfig<T> {
   /** localStorage key holding the raw GeoJSON text */
   storageKey: string;
