@@ -316,20 +316,19 @@ export function addDrawZoneControl(
   document.body.appendChild(toolbar);
 
   function updateDraft(): void {
+    if (points.length < 2) return;
     if (draftLine) {
-      map.removeLayer(draftLine);
-      draftLine = null;
+      draftLine.setLatLngs(points);
+      return;
     }
-    if (points.length >= 2) {
-      draftLine = L.polyline(points, {
-        color: CUSTOM_ZONE_COLOR,
-        weight: 4,
-        opacity: 0.9,
-        dashArray: ZONE_DASH,
-        interactive: false,
-      });
-      draftLine.addTo(map);
-    }
+    draftLine = L.polyline(points, {
+      color: CUSTOM_ZONE_COLOR,
+      weight: 4,
+      opacity: 0.9,
+      dashArray: ZONE_DASH,
+      interactive: false,
+    });
+    draftLine.addTo(map);
   }
 
   function addPoint(latlng: L.LatLng): void {
@@ -361,7 +360,6 @@ export function addDrawZoneControl(
     for (const marker of vertexMarkers) map.removeLayer(marker);
     vertexMarkers = [];
     map.getContainer().style.cursor = '';
-    map.doubleClickZoom.enable();
     map.off('click', onMapClick);
     document.removeEventListener('keydown', onKeyDown);
     toolbar.classList.remove('visible');
@@ -384,6 +382,9 @@ export function addDrawZoneControl(
   }
 
   function onKeyDown(e: KeyboardEvent): void {
+    // Ignore keys typed into an unrelated focused control (e.g. the address search box) —
+    // otherwise looking up an address mid-draw would finish/cancel the in-progress zone.
+    if (e.target instanceof HTMLElement && e.target.closest('input, textarea')) return;
     if (e.key === 'Escape') onCancel();
     else if (e.key === 'Enter') onFinish();
   }
@@ -398,7 +399,9 @@ export function addDrawZoneControl(
     }
     drawing = true;
     map.getContainer().style.cursor = 'crosshair';
-    map.doubleClickZoom.disable();
+    // No doubleClickZoom.disable()/enable() here — geocoding.ts already disables it for the
+    // app's lifetime (dblclick drops a reverse-geocode pin instead), so toggling it per draw
+    // session would re-enable map-zoom-on-dblclick and silently break that feature.
     map.on('click', onMapClick);
     document.addEventListener('keydown', onKeyDown);
     toolbar.classList.add('visible');
