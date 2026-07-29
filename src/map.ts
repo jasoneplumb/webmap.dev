@@ -144,7 +144,9 @@ export function createMap(): L.Map {
     // constraint: fractional zoom (0.5 steps) required for smooth pinch-to-zoom on mobile; integer steps feel jarring
     zoomSnap: 0.5,
     zoomDelta: 0.5,
-    maxZoom: 18,
+    // Past each layer's maxNativeZoom Leaflet scales the native tiles, so the
+    // last levels render progressively blurrier rather than fetching new tiles.
+    maxZoom: 19,
   }).fitWorld();
 
   // Tile loading indicator — shows spinner while tiles are fetching
@@ -195,7 +197,7 @@ export function createMap(): L.Map {
   const stdConfig = {
     tileSize: 512,
     zoomOffset: -1,
-    maxZoom: 20,
+    maxZoom: 19,
     maxNativeZoom: 18,
     minZoom: 2,
     minNativeZoom: 2,
@@ -284,7 +286,7 @@ export function createMap(): L.Map {
       attribution: 'Esri, Maxar, Earthstar Geographics',
       tileSize: 256,
       zoomOffset: 0,
-      maxZoom: 18,
+      maxZoom: 19,
       maxNativeZoom: 18,
       minZoom: 2,
       minNativeZoom: 2,
@@ -300,7 +302,7 @@ export function createMap(): L.Map {
       className: 'multiply-blend',
       tileSize: 256,
       zoomOffset: 0,
-      maxZoom: 18,
+      maxZoom: 19,
       maxNativeZoom: 16,
       minZoom: 2,
       minNativeZoom: 2,
