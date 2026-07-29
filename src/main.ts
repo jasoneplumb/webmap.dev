@@ -19,6 +19,7 @@ import changelogRaw from '../CHANGELOG.md?raw';
 
 import { hasConsent, showConsentModal } from './consent';
 import { createInitialState } from './types';
+import { HILLSHADE_AZIMUTH_DEG, HILLSHADE_NW_AZIMUTH_DEG } from './hillshade';
 import { createMap, initOfflineTileFallback, getTileLayers } from './map';
 import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
 import { createSqueezeZonesOverlay } from './squeeze-zones';
@@ -348,6 +349,12 @@ map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passi
 // Initialize custom layers control with free OSM tile sources
 const tileLayers = getTileLayers();
 
+// Hillshade sun direction — persisted independently of the overlay on/off state.
+// Default 'satellite' (SE sun); anything else stored means the NW convention.
+const HILLSHADE_DIRECTION_KEY = 'webmap-hillshade-direction';
+const hillshadeSatelliteSun = localStorage.getItem(HILLSHADE_DIRECTION_KEY) !== 'nw';
+if (!hillshadeSatelliteSun) tileLayers.hillshadeLayer.setAzimuth(HILLSHADE_NW_AZIMUTH_DEG);
+
 const layerDefs: LayerDef[] = [
   {
     id: 'cycle',
@@ -399,7 +406,17 @@ const overlayDefs: OverlayDef[] = [
   {
     id: 'hillshade',
     name: 'Hillshade',
+    description: 'Terrain shading over any base map',
     tileLayer: tileLayers.hillshadeLayer,
+    subToggle: {
+      label: 'Satellite sun',
+      title: 'Checked: south-east sun matching Satellite imagery shadows. Unchecked: classic north-west cartographic light.',
+      initial: hillshadeSatelliteSun,
+      onChange: (checked) => {
+        localStorage.setItem(HILLSHADE_DIRECTION_KEY, checked ? 'satellite' : 'nw');
+        tileLayers.hillshadeLayer.setAzimuth(checked ? HILLSHADE_AZIMUTH_DEG : HILLSHADE_NW_AZIMUTH_DEG);
+      },
+    },
   },
   {
     id: 'cycle-blend',
