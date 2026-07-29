@@ -10,6 +10,7 @@ import { OSM_TILE_CACHE_NAME } from './sw-constants';
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmStreetsLayer: L.TileLayer | null = null;
 let cycleLayer: L.TileLayer | null = null;
+let cycleBlendLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
 let satelliteLayer: L.TileLayer | null = null;
@@ -41,7 +42,7 @@ let osmCachePromise: Promise<Cache> | null = null;
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmStreetsLayer, cycleLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
+  const layers = [osmStreetsLayer, cycleLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
     (l): l is L.TileLayer => l !== null,
   );
   if (layers.length === 0) {
@@ -238,6 +239,18 @@ export function createMap(): L.Map {
     },
   );
 
+  // Cycle base tiles reused as an overlay: multiply blend turns the style's
+  // light ground colors near-transparent so its route ink composites over any
+  // base (e.g. bike routes over Satellite). See .multiply-blend in style.css.
+  cycleBlendLayer = L.tileLayer(
+    'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=' + tfKey,
+    {
+      attribution: tfAttribution,
+      className: 'multiply-blend',
+      ...stdConfig,
+    },
+  );
+
   // Waymarked route highlights — transparent overlays that compose over any base.
   // Exposed as TWO independent toggles (Hiking routes / Cycling routes) rather
   // than one combined layer: Waymarked colors routes by network hierarchy, not by
@@ -283,8 +296,8 @@ export function createMap(): L.Map {
     'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
     {
       attribution: 'Esri',
-      // multiply: flat/lit pixels (near-white) pass through; slopes darken. See .hillshade-blend in style.css.
-      className: 'hillshade-blend',
+      // multiply: flat/lit pixels (near-white) pass through; slopes darken. See .multiply-blend in style.css.
+      className: 'multiply-blend',
       tileSize: 256,
       zoomOffset: 0,
       maxZoom: 18,
@@ -302,6 +315,7 @@ export function createMap(): L.Map {
 export function getTileLayers(): {
   osmStreetsLayer: L.TileLayer;
   cycleLayer: L.TileLayer;
+  cycleBlendLayer: L.TileLayer;
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
   satelliteLayer: L.TileLayer;
@@ -309,12 +323,13 @@ export function getTileLayers(): {
   hikingLayer: L.TileLayer;
   cyclingLayer: L.TileLayer;
 } {
-  if (!osmStreetsLayer || !cycleLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
     osmStreetsLayer,
     cycleLayer,
+    cycleBlendLayer,
     outdoorsLayer,
     humanitarianLayer,
     satelliteLayer,

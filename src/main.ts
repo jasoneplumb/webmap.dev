@@ -402,6 +402,12 @@ const overlayDefs: OverlayDef[] = [
     tileLayer: tileLayers.hillshadeLayer,
   },
   {
+    id: 'cycle-blend',
+    name: 'Cycle blend',
+    description: 'The Cycle base map composited over any base — lighter colors turn transparent',
+    tileLayer: tileLayers.cycleBlendLayer,
+  },
+  {
     id: 'hiking-routes',
     name: 'Hiking routes',
     tileLayer: tileLayers.hikingLayer,
