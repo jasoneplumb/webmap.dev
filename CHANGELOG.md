@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.41.0-beta (2026-07-29)
+
+### Changed
+
+- **Zoom limit raised from 18 to 19** — the map and every tile layer now allow one more zoom level. No provider is asked for tiles beyond its native resolution: the extra level renders the deepest native tiles scaled up, so z19 looks slightly blurrier in exchange for the closer view
+
 ## v0.40.0-beta (2026-07-29)
 
 ### Added
