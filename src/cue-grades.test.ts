@@ -93,6 +93,15 @@ describe('parseGradeStore / updateGradeStore', () => {
       '6': { outcome: null, reviewed_at: T2 },
     });
   });
+
+  it('accepts the unrecognized grade as a valid stored outcome', () => {
+    const json = JSON.stringify({
+      files: { abc123: { '7': { outcome: 'unrecognized', reviewed_at: T1 } } },
+    });
+    expect(parseGradeStore(json, 'abc123')).toEqual({
+      '7': { outcome: 'unrecognized', reviewed_at: T1 },
+    });
+  });
 });
 
 describe('effectiveOutcome', () => {
@@ -123,6 +132,13 @@ describe('buildReviews', () => {
     const grades: GradeMap = { '57053650': { outcome: 'useful', reviewed_at: T1 } };
     expect(buildReviews(grades)).toEqual([
       { event_id: 57053650, outcome: 'useful', reviewed_at: T1 },
+    ]);
+  });
+
+  it('round-trips an unrecognized grade into the sidecar', () => {
+    const grades: GradeMap = { '2502598877': { outcome: 'unrecognized', reviewed_at: T1 } };
+    expect(buildReviews(grades)).toEqual([
+      { event_id: 2502598877, outcome: 'unrecognized', reviewed_at: T1 },
     ]);
   });
 

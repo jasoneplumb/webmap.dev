@@ -14,8 +14,9 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    full-screen map is a no-op. */
 #map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
 
-/* Blend at the layer container so multiply composites against the base-layer sibling below. */
-.hillshade-blend { mix-blend-mode: multiply; }
+/* Blend at the layer container so multiply composites against the base-layer sibling below.
+   Shared by the Hillshade and Cycle blend overlays: near-white pixels pass through, darker ink shows. */
+.multiply-blend { mix-blend-mode: multiply; }
 
 /* Icon state classes for GPS accuracy filter visual feedback */
 #disabled {

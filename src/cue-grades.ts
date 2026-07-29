@@ -13,9 +13,11 @@
  */
 import type { CueFileFeature, CueOutcome, CueProps } from './cue-events';
 
-// Outcomes gradable from the map. missed_risk is deliberately absent: a cue that
-// fired was not missed — missed risks become map-authored markers in v2.
-export const GRADABLE_OUTCOMES = ['useful', 'false_alarm', 'too_late'] as const;
+// Outcomes gradable from the map — matches the app's grade vocabulary so a map
+// sidecar can express any grade the phone can. missed_risk is deliberately
+// absent: a cue that fired was not missed — missed risks become map-authored
+// markers in v2.
+export const GRADABLE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'unrecognized'] as const;
 export type GradableOutcome = (typeof GRADABLE_OUTCOMES)[number];
 
 /** A pending review; outcome null is a Clear tombstone (renders ungraded, omitted from export). */

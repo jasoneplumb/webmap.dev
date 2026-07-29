@@ -373,6 +373,12 @@ const layerDefs: LayerDef[] = [
     description: 'Highlights parks and amenities',
     tileLayer: tileLayers.humanitarianLayer,
   },
+  {
+    id: 'satellite',
+    name: 'Satellite',
+    description: 'Aerial imagery (Esri World Imagery)',
+    tileLayer: tileLayers.satelliteLayer,
+  },
 ];
 
 // File-backed overlays must be able to switch themselves off (file picker
@@ -394,6 +400,12 @@ const overlayDefs: OverlayDef[] = [
     id: 'hillshade',
     name: 'Hillshade',
     tileLayer: tileLayers.hillshadeLayer,
+  },
+  {
+    id: 'cycle-blend',
+    name: 'Cycle blend',
+    description: 'The Cycle base map composited over any base — lighter colors turn transparent',
+    tileLayer: tileLayers.cycleBlendLayer,
   },
   {
     id: 'hiking-routes',
@@ -438,7 +450,7 @@ const overlayDefs: OverlayDef[] = [
   },
 ];
 
-layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'hiking-routes', 'cycling-routes']);
+layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'cycle-blend', 'hiking-routes', 'cycling-routes']);
 
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);

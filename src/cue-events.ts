@@ -32,7 +32,8 @@ import { escapeHtml } from './html';
 import { decodeReasons } from './squeeze-zones';
 
 // FR-008 review grades from the cue ride trace; a cue without a grade renders as "ungraded" gray.
-export const CUE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'missed_risk'] as const;
+// missed_risk is retired in the trace schema (replaced by unrecognized) but kept for older exports.
+export const CUE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'missed_risk', 'unrecognized'] as const;
 export type CueOutcome = (typeof CUE_OUTCOMES)[number];
 
 export interface CueProps {
@@ -75,6 +76,7 @@ export function outcomeColor(outcome: CueOutcome | undefined): string {
     case 'false_alarm': return '#d63131'; // red — matches squeeze-zone red
     case 'too_late': return '#f57c00'; // orange — matches squeeze-zone orange
     case 'missed_risk': return '#7b1fa2'; // purple
+    case 'unrecognized': return '#00838f'; // teal — distinct from the custom-zone blue
     default: return '#757575'; // ungraded gray
   }
 }
@@ -84,6 +86,7 @@ const OUTCOME_LABELS: Record<CueOutcome, string> = {
   false_alarm: 'false alarm',
   too_late: 'too late',
   missed_risk: 'missed risk',
+  unrecognized: 'unrecognized',
 };
 
 // Tooltip/popup line: `cue <id> · <clock> · lead N s · delivered N ms · <outcome> · <reasons>`,
@@ -252,6 +255,7 @@ const GRADE_BUTTON_LABELS: Record<GradableOutcome, string> = {
   useful: 'Useful',
   false_alarm: 'False alarm',
   too_late: 'Too late',
+  unrecognized: 'Unrecognized',
 };
 
 const CUE_RADIUS = 7;
