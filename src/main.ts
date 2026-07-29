@@ -450,7 +450,7 @@ const overlayDefs: OverlayDef[] = [
   },
 ];
 
-layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'hiking-routes', 'cycling-routes']);
+layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'cycle-blend', 'hiking-routes', 'cycling-routes']);
 
 addOfflineDownloadControl(map, showToast);
 addSearchControl(map, state, showToast);
