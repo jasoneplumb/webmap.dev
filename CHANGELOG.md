@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.40.0-beta (2026-07-29)
+
+### Added
+
+- **New "Satellite" base map** — Esri World Imagery joins the base-map choices in the layers popover, served from the same free, key-less ArcGIS Online host as the hillshade overlay. Native 256px tiles capped at z18 so behavior stays uniform where metro-area imagery goes deeper; composes with the existing overlays (hillshade multiplies over the imagery, route tiles draw on top) and participates in offline tile-error handling like the other non-OSM bases (#244)
+- **New "Cycle blend" overlay, on by default** — the Cycle base map's tiles reused as a multiply-blended overlay: lighter ground colors turn near-transparent so the style's bike-route ink composites over any base, including Satellite. The `.hillshade-blend` CSS rule is generalized to `.multiply-blend`, now shared by both blend overlays. On by default for new visitors; browsers with a persisted overlay selection keep their existing choices (#244)
+
+### Fixed
+
+- **Cue events files with the `unrecognized` grade no longer fail to load** — the cue trace schema replaced `missed_risk` with `unrecognized` as the fourth review grade, and the overlay rejected such files wholesale (`outcome must be one of …`). The overlay now accepts and renders it (teal, distinct from the outcome palette and the custom-zone blue) and the map's grade row gains an **Unrecognized** button so map grading matches the app's vocabulary; `missed_risk` (purple) stays render-only for older exports (#244)
+
 ## v0.39.0-beta (2026-07-21)
 
 ### Added
