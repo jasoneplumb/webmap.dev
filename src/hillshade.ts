@@ -191,18 +191,23 @@ export class HillshadeLayer extends L.GridLayer {
   private getShadedAncestor(z: number, x: number, y: number): Promise<HTMLCanvasElement> {
     const key = `${z}/${x}/${y}`;
     let entry = this.ancestorCache.get(key);
-    if (!entry) {
-      if (this.ancestorCache.size >= ANCESTOR_CACHE_MAX) {
-        // Drop the oldest entry (Map preserves insertion order)
-        const oldest = this.ancestorCache.keys().next().value;
-        if (oldest !== undefined) this.ancestorCache.delete(oldest);
-      }
-      entry = this.fetchAndShade(z, x, y).catch((err: Error) => {
-        this.ancestorCache.delete(key); // allow retry after a failed fetch
-        throw err;
-      });
+    if (entry) {
+      // LRU touch: re-insert so eviction targets the least-recently-used entry,
+      // not merely the oldest-inserted (which could still back visible subtiles)
+      this.ancestorCache.delete(key);
       this.ancestorCache.set(key, entry);
+      return entry;
     }
+    if (this.ancestorCache.size >= ANCESTOR_CACHE_MAX) {
+      // Drop the least-recently-used entry (Map preserves insertion order; hits re-insert)
+      const oldest = this.ancestorCache.keys().next().value;
+      if (oldest !== undefined) this.ancestorCache.delete(oldest);
+    }
+    entry = this.fetchAndShade(z, x, y).catch((err: Error) => {
+      this.ancestorCache.delete(key); // allow retry after a failed fetch
+      throw err;
+    });
+    this.ancestorCache.set(key, entry);
     return entry;
   }
 

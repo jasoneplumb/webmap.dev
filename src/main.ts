@@ -363,6 +363,12 @@ const layerDefs: LayerDef[] = [
     tileLayer: tileLayers.cycleLayer,
   },
   {
+    id: 'cyclosm',
+    name: 'CyclOSM',
+    description: 'Bike infrastructure map without baked-in hillshade',
+    tileLayer: tileLayers.cyclosmLayer,
+  },
+  {
     id: 'outdoors',
     name: 'Outdoors',
     description: 'Hiking trails & terrain',

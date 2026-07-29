@@ -11,6 +11,7 @@ import { OSM_TILE_CACHE_NAME } from './sw-constants';
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmStreetsLayer: L.TileLayer | null = null;
 let cycleLayer: L.TileLayer | null = null;
+let cyclosmLayer: L.TileLayer | null = null;
 let cycleBlendLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
@@ -20,7 +21,7 @@ let hikingLayer: L.TileLayer | null = null;
 let cyclingLayer: L.TileLayer | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
 interface TileErrorEvent extends L.LeafletEvent {
-  tile: HTMLImageElement;
+  tile: HTMLElement; // <img> for TileLayers, <canvas> for HillshadeLayer
   coords: { x: number; y: number; z: number };
   error: Error;
 }
@@ -43,7 +44,7 @@ let osmCachePromise: Promise<Cache> | null = null;
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmStreetsLayer, cycleLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
+  const layers = [osmStreetsLayer, cycleLayer, cyclosmLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
     (l): l is L.TileLayer | HillshadeLayer => l !== null,
   );
   if (layers.length === 0) {
@@ -76,9 +77,9 @@ async function handleTileError(
     }, 10000);
   }
 
-  if (!isOsmLayer || navigator.onLine || osmCachePromise === null || e.tile.src.startsWith('data:')) return;
-
   const tile = e.tile;
+  if (!isOsmLayer || !(tile instanceof HTMLImageElement) || navigator.onLine ||
+      osmCachePromise === null || tile.src.startsWith('data:')) return;
   const coords = e.coords;
   const cache = await osmCachePromise;
 
@@ -242,6 +243,18 @@ export function createMap(): L.Map {
     },
   );
 
+  // CyclOSM — community cycling cartography with no baked-in hillshade (the
+  // Thunderforest Cycle style rasterizes NW-lit relief into its artwork), so
+  // the app's own Hillshade overlay can be the only relief source. Contour
+  // lines remain part of the style. Free OSM-France community tiles, no key.
+  cyclosmLayer = L.tileLayer(
+    'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+    {
+      attribution: '© CyclOSM, OpenStreetMap contributors',
+      ...stdConfig,
+    },
+  );
+
   // Cycle base tiles reused as an overlay: multiply blend turns the style's
   // light ground colors near-transparent so its route ink composites over any
   // base (e.g. bike routes over Satellite). See .multiply-blend in style.css.
@@ -316,6 +329,7 @@ export function createMap(): L.Map {
 export function getTileLayers(): {
   osmStreetsLayer: L.TileLayer;
   cycleLayer: L.TileLayer;
+  cyclosmLayer: L.TileLayer;
   cycleBlendLayer: L.TileLayer;
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
@@ -324,12 +338,13 @@ export function getTileLayers(): {
   hikingLayer: L.TileLayer;
   cyclingLayer: L.TileLayer;
 } {
-  if (!osmStreetsLayer || !cycleLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !cyclosmLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
     osmStreetsLayer,
     cycleLayer,
+    cyclosmLayer,
     cycleBlendLayer,
     outdoorsLayer,
     humanitarianLayer,
