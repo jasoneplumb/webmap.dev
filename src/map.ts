@@ -11,7 +11,7 @@ import { OSM_TILE_CACHE_NAME } from './sw-constants';
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmStreetsLayer: L.TileLayer | null = null;
 let cycleLayer: L.TileLayer | null = null;
-let cyclosmLayer: L.TileLayer | null = null;
+let bikeInfraLayer: L.TileLayer | null = null;
 let cycleBlendLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
@@ -44,7 +44,7 @@ let osmCachePromise: Promise<Cache> | null = null;
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmStreetsLayer, cycleLayer, cyclosmLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
+  const layers = [osmStreetsLayer, cycleLayer, bikeInfraLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
     (l): l is L.TileLayer | HillshadeLayer => l !== null,
   );
   if (layers.length === 0) {
@@ -243,12 +243,13 @@ export function createMap(): L.Map {
     },
   );
 
-  // CyclOSM — community cycling cartography with no baked-in hillshade (the
-  // Thunderforest Cycle style rasterizes NW-lit relief into its artwork), so
-  // the app's own Hillshade overlay can be the only relief source. Contour
-  // lines remain part of the style. Free OSM-France community tiles, no key.
-  cyclosmLayer = L.tileLayer(
-    'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+  // CyclOSM-lite — transparent bike-infrastructure-only overlay (the full
+  // CyclOSM base bakes shaded relief in at mid zooms, same problem as the
+  // Thunderforest Cycle style). Composes over any base so the app's own
+  // Hillshade overlay stays the only relief source. Free OSM-France community
+  // tiles, no key.
+  bikeInfraLayer = L.tileLayer(
+    'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png',
     {
       attribution: '© CyclOSM, OpenStreetMap contributors',
       ...stdConfig,
@@ -329,7 +330,7 @@ export function createMap(): L.Map {
 export function getTileLayers(): {
   osmStreetsLayer: L.TileLayer;
   cycleLayer: L.TileLayer;
-  cyclosmLayer: L.TileLayer;
+  bikeInfraLayer: L.TileLayer;
   cycleBlendLayer: L.TileLayer;
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
@@ -338,13 +339,13 @@ export function getTileLayers(): {
   hikingLayer: L.TileLayer;
   cyclingLayer: L.TileLayer;
 } {
-  if (!osmStreetsLayer || !cycleLayer || !cyclosmLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !bikeInfraLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
     osmStreetsLayer,
     cycleLayer,
-    cyclosmLayer,
+    bikeInfraLayer,
     cycleBlendLayer,
     outdoorsLayer,
     humanitarianLayer,

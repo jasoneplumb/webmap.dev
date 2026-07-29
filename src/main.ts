@@ -363,12 +363,6 @@ const layerDefs: LayerDef[] = [
     tileLayer: tileLayers.cycleLayer,
   },
   {
-    id: 'cyclosm',
-    name: 'CyclOSM',
-    description: 'Bike infrastructure map without baked-in hillshade',
-    tileLayer: tileLayers.cyclosmLayer,
-  },
-  {
     id: 'outdoors',
     name: 'Outdoors',
     description: 'Hiking trails & terrain',
@@ -439,6 +433,12 @@ const overlayDefs: OverlayDef[] = [
     id: 'cycling-routes',
     name: 'Cycling routes',
     tileLayer: tileLayers.cyclingLayer,
+  },
+  {
+    id: 'bike-infra',
+    name: 'Bike infrastructure',
+    description: 'Bike lanes & paths (CyclOSM-lite) — composes over any base, no baked-in hillshade',
+    tileLayer: tileLayers.bikeInfraLayer,
   },
   {
     id: 'squeeze-zones',
