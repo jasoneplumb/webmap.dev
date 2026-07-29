@@ -5,6 +5,7 @@
  * Future: Tile layer config (tokens, URLs, zoom limits) is hardcoded; no runtime layer switching beyond the built-in layer control
  */
 import L from 'leaflet';
+import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
@@ -14,7 +15,7 @@ let cycleBlendLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
 let satelliteLayer: L.TileLayer | null = null;
-let hillshadeLayer: L.TileLayer | null = null;
+let hillshadeLayer: HillshadeLayer | null = null;
 let hikingLayer: L.TileLayer | null = null;
 let cyclingLayer: L.TileLayer | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
@@ -43,7 +44,7 @@ export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
   const layers = [osmStreetsLayer, cycleLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
-    (l): l is L.TileLayer => l !== null,
+    (l): l is L.TileLayer | HillshadeLayer => l !== null,
   );
   if (layers.length === 0) {
     console.warn('initOfflineTileFallback: no tile layers found — call createMap() first');
@@ -294,21 +295,18 @@ export function createMap(): L.Map {
     },
   );
 
-  hillshadeLayer = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
-    {
-      attribution: 'Esri',
-      // multiply: flat/lit pixels (near-white) pass through; slopes darken. See .multiply-blend in style.css.
-      className: 'multiply-blend',
-      tileSize: 256,
-      zoomOffset: 0,
-      maxZoom: 19,
-      maxNativeZoom: 16,
-      minZoom: 2,
-      minNativeZoom: 2,
-      ...tilePerf,
-    },
-  );
+  // Client-side SE-lit hillshade (see hillshade.ts) — replaces Esri's NW-lit
+  // World Hillshade so terrain shading agrees with the Satellite base's real
+  // shadows. Overzoom past Terrarium's z15 is handled inside the layer.
+  // multiply: flat/lit pixels (near-white) pass through; slopes darken. See .multiply-blend in style.css.
+  hillshadeLayer = createHillshadeLayer({
+    attribution: 'Terrain: Mapzen, AWS Open Data',
+    className: 'multiply-blend',
+    tileSize: 256,
+    maxZoom: 19,
+    minZoom: 2,
+    ...tilePerf,
+  });
 
 
   return map;
@@ -321,7 +319,7 @@ export function getTileLayers(): {
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
   satelliteLayer: L.TileLayer;
-  hillshadeLayer: L.TileLayer;
+  hillshadeLayer: HillshadeLayer;
   hikingLayer: L.TileLayer;
   cyclingLayer: L.TileLayer;
 } {
