@@ -66,13 +66,15 @@ describe('shadeElevationGrid', () => {
     const facingSE = shadeElevationGrid(plane(SIZE, -CELL, -CELL), SIZE, SIZE, CELL);
     // Elevation rising to the SE: surface faces NW — should fall in shadow
     const facingNW = shadeElevationGrid(plane(SIZE, CELL, CELL), SIZE, SIZE, CELL);
-    expect(center(facingSE)).toBeGreaterThan(200);
+    expect(center(facingSE)).toBeGreaterThan(160);
+    // Highlights are damped (HILLSHADE_HIGHLIGHT_GAIN) so bright bases don't blow out
+    expect(center(facingSE)).toBeLessThanOrEqual(128 + Math.ceil(127 * 0.5));
     expect(center(facingNW)).toBeLessThan(64);
     expect(HILLSHADE_AZIMUTH_DEG).toBe(150);
   });
 
   it('flips which slope is lit when the azimuth flips to NW', () => {
     const facingNWUnderNWSun = shadeElevationGrid(plane(SIZE, CELL, CELL), SIZE, SIZE, CELL, 315);
-    expect(center(facingNWUnderNWSun)).toBeGreaterThan(200);
+    expect(center(facingNWUnderNWSun)).toBeGreaterThan(160);
   });
 });

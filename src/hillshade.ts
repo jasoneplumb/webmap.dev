@@ -19,6 +19,9 @@ import L from 'leaflet';
 export const HILLSHADE_AZIMUTH_DEG = 150; // SSE — matches mid-morning imagery sun
 export const HILLSHADE_NW_AZIMUTH_DEG = 315; // classic cartographic convention
 export const HILLSHADE_ALTITUDE_DEG = 45;
+// Highlights at half strength: full-range overlay lightening blows out already
+// bright base pixels (snow, pale rock); shadows keep their full range.
+export const HILLSHADE_HIGHLIGHT_GAIN = 0.5;
 
 const TERRARIUM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
 const TERRARIUM_MAX_ZOOM = 15;
@@ -86,10 +89,11 @@ export function shadeElevationGrid(
       const shade =
         cosZenith * Math.cos(slope) + sinZenith * Math.sin(slope) * Math.cos(azimuthMath - aspect);
       // Piecewise-linear normalization around flat (shade = cosZenith) → 0.5:
-      // sun-facing [cosZenith..1] maps to [0.5..1], away-facing [0..cosZenith] to [0..0.5]
+      // sun-facing [cosZenith..1] maps to [0.5..0.5+gain/2] (damped highlights),
+      // away-facing [0..cosZenith] to [0..0.5] (full-range shadows)
       const v =
         shade >= cosZenith
-          ? 0.5 + (0.5 * (shade - cosZenith)) / (1 - cosZenith)
+          ? 0.5 + (HILLSHADE_HIGHLIGHT_GAIN * 0.5 * (shade - cosZenith)) / (1 - cosZenith)
           : (0.5 * Math.max(0, shade)) / cosZenith;
       out[y * width + x] = Math.round(Math.max(0, Math.min(1, v)) * 255);
     }
