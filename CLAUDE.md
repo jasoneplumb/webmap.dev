@@ -27,7 +27,7 @@ npm run preview      # Preview production build
 npm run type-check   # TypeScript check (tsc --noEmit)
 npm run lint         # ESLint
 npm test             # vitest run
-npm run size         # size-limit (gzipped JS bundle, capped at 100 kB)
+npm run size         # size-limit (gzipped JS bundle; run `npm run build` first — measures dist/ as-is; cap lives in package.json, raised per feature wave)
 ```
 
 ## File Structure

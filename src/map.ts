@@ -5,21 +5,23 @@
  * Future: Tile layer config (tokens, URLs, zoom limits) is hardcoded; no runtime layer switching beyond the built-in layer control
  */
 import L from 'leaflet';
+import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmStreetsLayer: L.TileLayer | null = null;
 let cycleLayer: L.TileLayer | null = null;
+let bikeInfraLayer: L.TileLayer | null = null;
 let cycleBlendLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
 let satelliteLayer: L.TileLayer | null = null;
-let hillshadeLayer: L.TileLayer | null = null;
+let hillshadeLayer: HillshadeLayer | null = null;
 let hikingLayer: L.TileLayer | null = null;
 let cyclingLayer: L.TileLayer | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
 interface TileErrorEvent extends L.LeafletEvent {
-  tile: HTMLImageElement;
+  tile: HTMLElement; // <img> for TileLayers, <canvas> for HillshadeLayer
   coords: { x: number; y: number; z: number };
   error: Error;
 }
@@ -42,8 +44,8 @@ let osmCachePromise: Promise<Cache> | null = null;
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmStreetsLayer, cycleLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
-    (l): l is L.TileLayer => l !== null,
+  const layers = [osmStreetsLayer, cycleLayer, bikeInfraLayer, cycleBlendLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
+    (l): l is L.TileLayer | HillshadeLayer => l !== null,
   );
   if (layers.length === 0) {
     console.warn('initOfflineTileFallback: no tile layers found — call createMap() first');
@@ -75,9 +77,9 @@ async function handleTileError(
     }, 10000);
   }
 
-  if (!isOsmLayer || navigator.onLine || osmCachePromise === null || e.tile.src.startsWith('data:')) return;
-
   const tile = e.tile;
+  if (!isOsmLayer || !(tile instanceof HTMLImageElement) || navigator.onLine ||
+      osmCachePromise === null || tile.src.startsWith('data:')) return;
   const coords = e.coords;
   const cache = await osmCachePromise;
 
@@ -241,6 +243,19 @@ export function createMap(): L.Map {
     },
   );
 
+  // CyclOSM-lite — transparent bike-infrastructure-only overlay (the full
+  // CyclOSM base bakes shaded relief in at mid zooms, same problem as the
+  // Thunderforest Cycle style). Composes over any base so the app's own
+  // Hillshade overlay stays the only relief source. Free OSM-France community
+  // tiles, no key.
+  bikeInfraLayer = L.tileLayer(
+    'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png',
+    {
+      attribution: '© CyclOSM, OpenStreetMap contributors',
+      ...stdConfig,
+    },
+  );
+
   // Cycle base tiles reused as an overlay: multiply blend turns the style's
   // light ground colors near-transparent so its route ink composites over any
   // base (e.g. bike routes over Satellite). See .multiply-blend in style.css.
@@ -294,21 +309,19 @@ export function createMap(): L.Map {
     },
   );
 
-  hillshadeLayer = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
-    {
-      attribution: 'Esri',
-      // multiply: flat/lit pixels (near-white) pass through; slopes darken. See .multiply-blend in style.css.
-      className: 'multiply-blend',
-      tileSize: 256,
-      zoomOffset: 0,
-      maxZoom: 19,
-      maxNativeZoom: 16,
-      minZoom: 2,
-      minNativeZoom: 2,
-      ...tilePerf,
-    },
-  );
+  // Client-side SE-lit hillshade (see hillshade.ts) — replaces Esri's NW-lit
+  // World Hillshade so terrain shading agrees with the Satellite base's real
+  // shadows. Overzoom past Terrarium's z15 is handled inside the layer.
+  // overlay: flat terrain (mid-gray) passes through; sun-facing slopes lighten
+  // the base, shadowed slopes darken it. See .overlay-blend in style.css.
+  hillshadeLayer = createHillshadeLayer({
+    attribution: 'Terrain: Mapzen, AWS Open Data',
+    className: 'overlay-blend',
+    tileSize: 256,
+    maxZoom: 19,
+    minZoom: 2,
+    ...tilePerf,
+  });
 
 
   return map;
@@ -317,20 +330,22 @@ export function createMap(): L.Map {
 export function getTileLayers(): {
   osmStreetsLayer: L.TileLayer;
   cycleLayer: L.TileLayer;
+  bikeInfraLayer: L.TileLayer;
   cycleBlendLayer: L.TileLayer;
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
   satelliteLayer: L.TileLayer;
-  hillshadeLayer: L.TileLayer;
+  hillshadeLayer: HillshadeLayer;
   hikingLayer: L.TileLayer;
   cyclingLayer: L.TileLayer;
 } {
-  if (!osmStreetsLayer || !cycleLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !bikeInfraLayer || !cycleBlendLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
     osmStreetsLayer,
     cycleLayer,
+    bikeInfraLayer,
     cycleBlendLayer,
     outdoorsLayer,
     humanitarianLayer,
