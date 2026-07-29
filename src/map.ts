@@ -12,6 +12,7 @@ let osmStreetsLayer: L.TileLayer | null = null;
 let cycleLayer: L.TileLayer | null = null;
 let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
+let satelliteLayer: L.TileLayer | null = null;
 let hillshadeLayer: L.TileLayer | null = null;
 let hikingLayer: L.TileLayer | null = null;
 let cyclingLayer: L.TileLayer | null = null;
@@ -40,7 +41,7 @@ let osmCachePromise: Promise<Cache> | null = null;
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
 ): void {
-  const layers = [osmStreetsLayer, cycleLayer, outdoorsLayer, humanitarianLayer, hillshadeLayer].filter(
+  const layers = [osmStreetsLayer, cycleLayer, outdoorsLayer, humanitarianLayer, satelliteLayer, hillshadeLayer].filter(
     (l): l is L.TileLayer => l !== null,
   );
   if (layers.length === 0) {
@@ -260,6 +261,24 @@ export function createMap(): L.Map {
     },
   );
 
+  // Esri World Imagery — same free ArcGIS Online host as the hillshade layer,
+  // no API key required. Native 256px tiles, so it skips stdConfig's 512/offset
+  // scheme. Global coverage tops out around z18; metro areas go deeper but 18
+  // keeps behavior uniform.
+  satelliteLayer = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: 'Esri, Maxar, Earthstar Geographics',
+      tileSize: 256,
+      zoomOffset: 0,
+      maxZoom: 18,
+      maxNativeZoom: 18,
+      minZoom: 2,
+      minNativeZoom: 2,
+      ...tilePerf,
+    },
+  );
+
   hillshadeLayer = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',
     {
@@ -285,11 +304,12 @@ export function getTileLayers(): {
   cycleLayer: L.TileLayer;
   outdoorsLayer: L.TileLayer;
   humanitarianLayer: L.TileLayer;
+  satelliteLayer: L.TileLayer;
   hillshadeLayer: L.TileLayer;
   hikingLayer: L.TileLayer;
   cyclingLayer: L.TileLayer;
 } {
-  if (!osmStreetsLayer || !cycleLayer || !outdoorsLayer || !humanitarianLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
+  if (!osmStreetsLayer || !cycleLayer || !outdoorsLayer || !humanitarianLayer || !satelliteLayer || !hillshadeLayer || !hikingLayer || !cyclingLayer) {
     throw new Error('Tile layers not initialized — call createMap() first');
   }
   return {
@@ -297,6 +317,7 @@ export function getTileLayers(): {
     cycleLayer,
     outdoorsLayer,
     humanitarianLayer,
+    satelliteLayer,
     hillshadeLayer,
     hikingLayer,
     cyclingLayer,

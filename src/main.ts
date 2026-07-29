@@ -373,6 +373,12 @@ const layerDefs: LayerDef[] = [
     description: 'Highlights parks and amenities',
     tileLayer: tileLayers.humanitarianLayer,
   },
+  {
+    id: 'satellite',
+    name: 'Satellite',
+    description: 'Aerial imagery (Esri World Imagery)',
+    tileLayer: tileLayers.satelliteLayer,
+  },
 ];
 
 // File-backed overlays must be able to switch themselves off (file picker
