@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.42.0-beta (2026-07-29)
+
+### Added
+
+- **Hillshade re-lit to match Satellite imagery, computed on-device** — the overlay is no longer Esri's pre-rendered NW-lit World Hillshade (roughly opposite the real sun in the imagery) but is shaded client-side from AWS Open Data Terrarium elevation tiles under a south-east sun (azimuth 150°). Flat terrain stays neutral and the layer composites with an overlay blend, so sun-facing slopes *lighten* the base map while shadowed slopes darken it — highlights run at half strength so snow and pale rock don't blow out. A **Satellite sun** checkbox on the Hillshade row (persisted, on by default) switches back to the classic NW cartographic light. Shaded tiles above the elevation data's native z15 reuse a cached ancestor, and in-flight tile fetches cancel when panned away (#246)
+- **New "Bike infrastructure" overlay** — CyclOSM-lite's transparent bike-lanes-and-paths tiles compose over any base with no baked-in hillshade, so the app's own Hillshade overlay stays the only relief source (the full CyclOSM and Thunderforest Cycle styles both rasterize shaded relief into their artwork at some zooms) (#246)
+
 ## v0.41.0-beta (2026-07-29)
 
 ### Changed
