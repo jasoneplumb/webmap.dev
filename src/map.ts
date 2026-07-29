@@ -298,10 +298,11 @@ export function createMap(): L.Map {
   // Client-side SE-lit hillshade (see hillshade.ts) — replaces Esri's NW-lit
   // World Hillshade so terrain shading agrees with the Satellite base's real
   // shadows. Overzoom past Terrarium's z15 is handled inside the layer.
-  // multiply: flat/lit pixels (near-white) pass through; slopes darken. See .multiply-blend in style.css.
+  // overlay: flat terrain (mid-gray) passes through; sun-facing slopes lighten
+  // the base, shadowed slopes darken it. See .overlay-blend in style.css.
   hillshadeLayer = createHillshadeLayer({
     attribution: 'Terrain: Mapzen, AWS Open Data',
-    className: 'multiply-blend',
+    className: 'overlay-blend',
     tileSize: 256,
     maxZoom: 19,
     minZoom: 2,

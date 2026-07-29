@@ -55,24 +55,24 @@ describe('shadeElevationGrid', () => {
   const CELL = 10;
   const center = (s: Uint8ClampedArray): number => s[(SIZE / 2) * SIZE + SIZE / 2] as number;
 
-  it('renders flat terrain white (multiply pass-through)', () => {
+  it('renders flat terrain neutral mid-gray (overlay pass-through)', () => {
     const shade = shadeElevationGrid(new Float32Array(SIZE * SIZE), SIZE, SIZE, CELL);
-    expect(Array.from(shade).every((v) => v === 255)).toBe(true);
+    expect(Array.from(shade).every((v) => v === 128)).toBe(true);
   });
 
-  it('with the SSE sun, lights SE-facing slopes and shades NW-facing ones', () => {
+  it('with the SSE sun, lightens SE-facing slopes and shades NW-facing ones', () => {
     // Elevation rising to the NW (+x is east, +y is south in raster space):
-    // surface faces SE — should catch the SSE sun (bright, clips to white)
+    // surface faces SE — should catch the SSE sun (well above neutral)
     const facingSE = shadeElevationGrid(plane(SIZE, -CELL, -CELL), SIZE, SIZE, CELL);
     // Elevation rising to the SE: surface faces NW — should fall in shadow
     const facingNW = shadeElevationGrid(plane(SIZE, CELL, CELL), SIZE, SIZE, CELL);
-    expect(center(facingSE)).toBe(255);
-    expect(center(facingNW)).toBeLessThan(128);
+    expect(center(facingSE)).toBeGreaterThan(200);
+    expect(center(facingNW)).toBeLessThan(64);
     expect(HILLSHADE_AZIMUTH_DEG).toBe(150);
   });
 
   it('flips which slope is lit when the azimuth flips to NW', () => {
     const facingNWUnderNWSun = shadeElevationGrid(plane(SIZE, CELL, CELL), SIZE, SIZE, CELL, 315);
-    expect(center(facingNWUnderNWSun)).toBe(255);
+    expect(center(facingNWUnderNWSun)).toBeGreaterThan(200);
   });
 });
