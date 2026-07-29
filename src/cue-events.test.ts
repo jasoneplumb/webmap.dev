@@ -56,6 +56,7 @@ describe('outcomeColor', () => {
     expect(outcomeColor('false_alarm')).toBe('#d63131');
     expect(outcomeColor('too_late')).toBe('#f57c00');
     expect(outcomeColor('missed_risk')).toBe('#7b1fa2');
+    expect(outcomeColor('unrecognized')).toBe('#00838f');
   });
 
   it('maps ungraded (absent outcome) to gray', () => {
@@ -97,6 +98,7 @@ describe('formatCueLabel', () => {
   it('renders outcomes with spaces, not underscores', () => {
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'false_alarm' })).toBe('cue 1 · false alarm');
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'missed_risk' })).toBe('cue 1 · missed risk');
+    expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'unrecognized' })).toBe('cue 1 · unrecognized');
   });
 
   it('includes reserved labels for unknown reason bits and omits a zero bitmask', () => {
@@ -246,7 +248,7 @@ describe('parseCueEvents', () => {
 
   it('throws on an unknown outcome grade', () => {
     expect(() => parseCueEvents(collection(syntheticCue({ outcome: 'great' }))))
-      .toThrow('outcome must be one of useful, false_alarm, too_late, missed_risk');
+      .toThrow('outcome must be one of useful, false_alarm, too_late, missed_risk, unrecognized');
   });
 
   it('throws (all-or-nothing) when only a later feature is malformed', () => {
