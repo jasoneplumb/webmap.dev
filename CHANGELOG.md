@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.44.0-beta (2026-07-29)
+
+### Added
+
+- **Direction-of-travel arrows and a "Too early" grade on cue events** — cue files exported with GPS debug carry `heading_deg`; each cue dot gains a small tick rotated to the direction of travel, with the rounded heading in the label. The grade vocabulary gains **Too early** (yellow) alongside Useful / False alarm / Too late / Unrecognized, and the Unrecognized grade button's missing active-state background is fixed (#248)
+
+### Changed
+
+- **The bottom navigation sheet is now two sizes: default and minimized** — the full-height state is removed (it only revealed empty sheet area; the default size already shows the handle, action row, and guidance dashboard). Tapping the handle toggles between the two sizes, upward drag stops just past the default size, and assistive tech hears expanded/collapsed to match (#247 follow-up)
+
 ## v0.43.0-beta (2026-07-29)
 
 ### Changed
