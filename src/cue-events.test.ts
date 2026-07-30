@@ -215,6 +215,15 @@ describe('parseCueEvents', () => {
     expect((features[0]!.properties as { heading_deg?: number }).heading_deg).toBe(245.3);
   });
 
+  it('accepts due-north heading_deg 0 and rejects values outside [0, 360)', () => {
+    const dueNorth = parseCueEvents(collection(syntheticCue({ heading_deg: 0 })));
+    expect((dueNorth[0]!.properties as { heading_deg?: number }).heading_deg).toBe(0);
+    expect(() => parseCueEvents(collection(syntheticCue({ heading_deg: 360 }))))
+      .toThrow('heading_deg must be in [0, 360)');
+    expect(() => parseCueEvents(collection(syntheticCue({ heading_deg: -1 }))))
+      .toThrow('heading_deg must be in [0, 360)');
+  });
+
   it('throws when an optional field has the wrong type', () => {
     expect(() => parseCueEvents(collection(syntheticCue({ latency_ms: '752' }))))
       .toThrow('latency_ms must be a number');

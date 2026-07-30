@@ -222,6 +222,13 @@ export function parseCueEvents(text: string): CueFileFeature[] {
       if (outcome !== undefined && !(CUE_OUTCOMES as readonly string[]).includes(outcome)) {
         throw new Error(`feature ${i}: outcome must be one of ${CUE_OUTCOMES.join(', ')}`);
       }
+      // The producer emits bearings in [0, 360) and omits unknowns — a value
+      // outside that range is a malformed export, rejected loudly like an
+      // unknown outcome rather than rendered as a silently-wrong label.
+      const headingDeg = optionalNumber(p, 'heading_deg', i);
+      if (headingDeg !== undefined && (headingDeg < 0 || headingDeg >= 360)) {
+        throw new Error(`feature ${i}: heading_deg must be in [0, 360)`);
+      }
       features.push({
         coordinate,
         properties: {
@@ -233,7 +240,7 @@ export function parseCueEvents(text: string): CueFileFeature[] {
           delivered: optionalBoolean(p, 'delivered', i),
           latency_ms: optionalNumber(p, 'latency_ms', i),
           outcome: outcome as CueOutcome | undefined,
-          heading_deg: optionalNumber(p, 'heading_deg', i),
+          heading_deg: headingDeg,
           approx: optionalBoolean(p, 'approx', i),
         },
       });
