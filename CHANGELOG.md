@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.43.0-beta (2026-07-29)
+
+### Changed
+
+- **Dismissing the bottom navigation sheet now minimizes it instead of destroying it** — the × button or a drag-down collapses the geocode-bar to just its drag-handle pill at the screen edge, keeping the destination and route context available; tap or drag the handle to bring it back. Fully clearing the pin is still possible as a deliberate gesture (drag well below the minimized position). The minimized handle announces "Restore navigation sheet" to assistive tech, and the map stays fully interactive beneath the pill (#247)
+
 ## v0.42.0-beta (2026-07-29)
 
 ### Added
