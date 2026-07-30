@@ -453,6 +453,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   pointer-events: none;
 }
 
+/* Minimized: only the drag handle remains above the edge and interactive. */
+.geocode-bar--min {
+  pointer-events: none;
+}
+
+.geocode-bar--min .geocode-bar__handle,
 .geocode-bar--peek .geocode-bar__handle,
 .geocode-bar--peek .geocode-bar__dashboard,
 .geocode-bar--peek .geocode-bar__profile,
