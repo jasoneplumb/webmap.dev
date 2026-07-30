@@ -106,6 +106,8 @@ describe('formatCueLabel', () => {
   it('renders heading rounded to whole degrees, omitted when absent', () => {
     expect(formatCueLabel({ kind: 'cue', event_id: 4, heading_deg: 245.3 })).toBe('cue 4 · heading 245°');
     expect(formatCueLabel({ kind: 'cue', event_id: 4, heading_deg: 0 })).toBe('cue 4 · heading 0°');
+    // 359.7 rounds to 360, which must wrap — the label always reads [0, 359].
+    expect(formatCueLabel({ kind: 'cue', event_id: 4, heading_deg: 359.7 })).toBe('cue 4 · heading 0°');
     expect(formatCueLabel({ kind: 'cue', event_id: 4 })).toBe('cue 4');
   });
 

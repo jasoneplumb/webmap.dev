@@ -112,8 +112,9 @@ export function formatCueLabel(props: CueProps): string {
     if (reasons !== '') parts.push(reasons);
   }
   // Whole degrees — the tenth of a degree the producer preserves is below
-  // what a rider can act on in a tooltip.
-  if (props.heading_deg !== undefined) parts.push(`heading ${Math.round(props.heading_deg)}°`);
+  // what a rider can act on in a tooltip. Rounding can hit 360 (e.g. 359.7),
+  // which wraps to 0 so the label always reads [0, 359].
+  if (props.heading_deg !== undefined) parts.push(`heading ${Math.round(props.heading_deg) % 360}°`);
   if (props.approx === true) parts.push('approximate position');
   return parts.join(' · ');
 }
@@ -461,7 +462,7 @@ export function createCueEventsOverlay(
           group.addLayer(L.marker(latlng, {
             icon: L.divIcon({
               className: 'cue-heading-arrow',
-              html: `<span class="cue-heading-arrow__glyph" style="--heading-deg: ${props.heading_deg}deg">▲</span>`,
+              html: `<span class="cue-heading-arrow__glyph" aria-hidden="true" style="--heading-deg: ${props.heading_deg}deg">▲</span>`,
               iconSize: [16, 16],
               iconAnchor: [8, 8],
             }),
