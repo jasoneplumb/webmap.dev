@@ -17,7 +17,7 @@ import type { CueFileFeature, CueOutcome, CueProps } from './cue-events';
 // sidecar can express any grade the phone can. missed_risk is deliberately
 // absent: a cue that fired was not missed — missed risks become map-authored
 // markers in v2.
-export const GRADABLE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'unrecognized'] as const;
+export const GRADABLE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'too_early', 'unrecognized'] as const;
 export type GradableOutcome = (typeof GRADABLE_OUTCOMES)[number];
 
 /** A pending review; outcome null is a Clear tombstone (renders ungraded, omitted from export). */

@@ -55,6 +55,7 @@ describe('outcomeColor', () => {
     expect(outcomeColor('useful')).toBe('#2e7d32');
     expect(outcomeColor('false_alarm')).toBe('#d63131');
     expect(outcomeColor('too_late')).toBe('#f57c00');
+    expect(outcomeColor('too_early')).toBe('#fbc02d');
     expect(outcomeColor('missed_risk')).toBe('#7b1fa2');
     expect(outcomeColor('unrecognized')).toBe('#00838f');
   });
@@ -97,8 +98,15 @@ describe('formatCueLabel', () => {
 
   it('renders outcomes with spaces, not underscores', () => {
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'false_alarm' })).toBe('cue 1 · false alarm');
+    expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'too_early' })).toBe('cue 1 · too early');
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'missed_risk' })).toBe('cue 1 · missed risk');
     expect(formatCueLabel({ kind: 'cue', event_id: 1, outcome: 'unrecognized' })).toBe('cue 1 · unrecognized');
+  });
+
+  it('renders heading rounded to whole degrees, omitted when absent', () => {
+    expect(formatCueLabel({ kind: 'cue', event_id: 4, heading_deg: 245.3 })).toBe('cue 4 · heading 245°');
+    expect(formatCueLabel({ kind: 'cue', event_id: 4, heading_deg: 0 })).toBe('cue 4 · heading 0°');
+    expect(formatCueLabel({ kind: 'cue', event_id: 4 })).toBe('cue 4');
   });
 
   it('includes reserved labels for unknown reason bits and omits a zero bitmask', () => {
@@ -202,9 +210,16 @@ describe('parseCueEvents', () => {
       .toThrow('event_id must be a number');
   });
 
+  it('parses an optional heading_deg through to the cue props', () => {
+    const features = parseCueEvents(collection(syntheticCue({ heading_deg: 245.3 })));
+    expect((features[0]!.properties as { heading_deg?: number }).heading_deg).toBe(245.3);
+  });
+
   it('throws when an optional field has the wrong type', () => {
     expect(() => parseCueEvents(collection(syntheticCue({ latency_ms: '752' }))))
       .toThrow('latency_ms must be a number');
+    expect(() => parseCueEvents(collection(syntheticCue({ heading_deg: '245' }))))
+      .toThrow('heading_deg must be a number');
     expect(() => parseCueEvents(collection(syntheticCue({ delivered: 'yes' }))))
       .toThrow('delivered must be a boolean');
     expect(() => parseCueEvents(collection(syntheticCue({ ride_clock: 627 }))))
@@ -248,7 +263,7 @@ describe('parseCueEvents', () => {
 
   it('throws on an unknown outcome grade', () => {
     expect(() => parseCueEvents(collection(syntheticCue({ outcome: 'great' }))))
-      .toThrow('outcome must be one of useful, false_alarm, too_late, missed_risk, unrecognized');
+      .toThrow('outcome must be one of useful, false_alarm, too_late, too_early, missed_risk, unrecognized');
   });
 
   it('throws (all-or-nothing) when only a later feature is malformed', () => {
