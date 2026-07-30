@@ -216,10 +216,10 @@ describe('sheetSettleTarget', () => {
   const PEEK = HEIGHT - 150; // 250
   const MIN = HEIGHT - 22; // 378
 
-  it('snaps full above the full/peek midpoint and peek below it', () => {
-    expect(sheetSettleTarget(PEEK / 2 - 1, PEEK, MIN)).toBe('full');
-    expect(sheetSettleTarget(PEEK / 2 + 1, PEEK, MIN)).toBe('peek');
+  it('settles to peek anywhere at or above the minimize threshold', () => {
+    expect(sheetSettleTarget(0, PEEK, MIN)).toBe('peek');
     expect(sheetSettleTarget(PEEK, PEEK, MIN)).toBe('peek');
+    expect(sheetSettleTarget(PEEK + MIN_BELOW_PEEK_PX, PEEK, MIN)).toBe('peek');
   });
 
   it('minimizes when released well below peek, keeping the destination', () => {
