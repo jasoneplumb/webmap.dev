@@ -1725,8 +1725,31 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   cursor: pointer;
 }
 
-/* Grade row inside a cue popup — Useful / False alarm / Too late verdicts plus
-   Clear; the active verdict fills with its outcome color (matches the point). */
+/* Direction-of-travel tick on a cue point — sits just outside the dot in the
+   direction of travel, rotated by --heading-deg set inline per feature (same
+   convention as .blue-dot__heading). Non-interactive: hover/tap belong to the
+   circle marker beneath. */
+.cue-heading-arrow {
+  pointer-events: none;
+}
+
+.cue-heading-arrow__glyph {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: #37474f;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff;
+  /* Right-to-left: offset outward first, then rotate about the dot center —
+     the glyph lands 13px from center along the heading, pointing outward. */
+  transform: rotate(var(--heading-deg, 0deg)) translateY(-13px);
+}
+
+/* Grade row inside a cue popup — Useful / False alarm / Too late / Too early /
+   Unrecognized verdicts plus Clear; the active verdict fills with its outcome
+   color (matches the point). */
 .cue-popup__label {
   margin-bottom: 6px;
 }
@@ -1766,6 +1789,17 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .cue-grade-row__btn.is-active[data-outcome='too_late'] {
   background: #f57c00;
+}
+
+.cue-grade-row__btn.is-active[data-outcome='too_early'] {
+  background: #fbc02d;
+  /* The one light fill in the outcome palette — the shared white active
+     text fails contrast on yellow. */
+  color: #263238;
+}
+
+.cue-grade-row__btn.is-active[data-outcome='unrecognized'] {
+  background: #00838f;
 }
 
 .cue-grade-row__btn--clear {

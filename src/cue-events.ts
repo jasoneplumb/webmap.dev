@@ -33,7 +33,7 @@ import { decodeReasons } from './squeeze-zones';
 
 // FR-008 review grades from the cue ride trace; a cue without a grade renders as "ungraded" gray.
 // missed_risk is retired in the trace schema (replaced by unrecognized) but kept for older exports.
-export const CUE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'missed_risk', 'unrecognized'] as const;
+export const CUE_OUTCOMES = ['useful', 'false_alarm', 'too_late', 'too_early', 'missed_risk', 'unrecognized'] as const;
 export type CueOutcome = (typeof CUE_OUTCOMES)[number];
 
 export interface CueProps {
@@ -46,6 +46,8 @@ export interface CueProps {
   delivered?: boolean;
   latency_ms?: number;
   outcome?: CueOutcome;
+  /** rider's direction of travel at cue time, degrees clockwise from north; absent when unknown */
+  heading_deg?: number;
   /** true → point is a segment midpoint, not a GPS fix; absent/false → exact position */
   approx?: boolean;
 }
@@ -75,6 +77,7 @@ export function outcomeColor(outcome: CueOutcome | undefined): string {
     case 'useful': return '#2e7d32'; // green
     case 'false_alarm': return '#d63131'; // red — matches squeeze-zone red
     case 'too_late': return '#f57c00'; // orange — matches squeeze-zone orange
+    case 'too_early': return '#fbc02d'; // yellow — too_late's timing pair, one step lighter
     case 'missed_risk': return '#7b1fa2'; // purple
     case 'unrecognized': return '#00838f'; // teal — distinct from the custom-zone blue
     default: return '#757575'; // ungraded gray
@@ -85,6 +88,7 @@ const OUTCOME_LABELS: Record<CueOutcome, string> = {
   useful: 'useful',
   false_alarm: 'false alarm',
   too_late: 'too late',
+  too_early: 'too early',
   missed_risk: 'missed risk',
   unrecognized: 'unrecognized',
 };
@@ -107,6 +111,10 @@ export function formatCueLabel(props: CueProps): string {
     const reasons = decodeReasons(props.reasons_bitmask).join(', ');
     if (reasons !== '') parts.push(reasons);
   }
+  // Whole degrees — the tenth of a degree the producer preserves is below
+  // what a rider can act on in a tooltip. Rounding can hit 360 (e.g. 359.7),
+  // which wraps to 0 so the label always reads [0, 359].
+  if (props.heading_deg !== undefined) parts.push(`heading ${Math.round(props.heading_deg) % 360}°`);
   if (props.approx === true) parts.push('approximate position');
   return parts.join(' · ');
 }
@@ -215,6 +223,13 @@ export function parseCueEvents(text: string): CueFileFeature[] {
       if (outcome !== undefined && !(CUE_OUTCOMES as readonly string[]).includes(outcome)) {
         throw new Error(`feature ${i}: outcome must be one of ${CUE_OUTCOMES.join(', ')}`);
       }
+      // The producer emits bearings in [0, 360) and omits unknowns — a value
+      // outside that range is a malformed export, rejected loudly like an
+      // unknown outcome rather than rendered as a silently-wrong label.
+      const headingDeg = optionalNumber(p, 'heading_deg', i);
+      if (headingDeg !== undefined && (headingDeg < 0 || headingDeg >= 360)) {
+        throw new Error(`feature ${i}: heading_deg must be in [0, 360)`);
+      }
       features.push({
         coordinate,
         properties: {
@@ -226,6 +241,7 @@ export function parseCueEvents(text: string): CueFileFeature[] {
           delivered: optionalBoolean(p, 'delivered', i),
           latency_ms: optionalNumber(p, 'latency_ms', i),
           outcome: outcome as CueOutcome | undefined,
+          heading_deg: headingDeg,
           approx: optionalBoolean(p, 'approx', i),
         },
       });
@@ -255,6 +271,7 @@ const GRADE_BUTTON_LABELS: Record<GradableOutcome, string> = {
   useful: 'Useful',
   false_alarm: 'False alarm',
   too_late: 'Too late',
+  too_early: 'Too early',
   unrecognized: 'Unrecognized',
 };
 
@@ -285,7 +302,7 @@ export interface CueEventsOverlay extends FileBackedOverlay {
 /**
  * Build the layers-control overlay — see createFileBackedOverlay for the
  * file-picker / persistence / self-disable contract. Cue popups carry a grade
- * row (Useful / False alarm / Too late / Clear); a grade recolors the point
+ * row (Useful / False alarm / Too late / Too early / Unrecognized / Clear); a grade recolors the point
  * immediately and overwrites any prior grade, file-baked or session (latest
  * wins). Grades persist per file in localStorage and export as a reviews[]
  * sidecar via requestReviewExport.
@@ -438,6 +455,21 @@ export function createCueEventsOverlay(
         layer.bindPopup(popup.root); // tap opens it on touch devices; hosts the grade row
         cueEntries.push({ props, layer, labelEl: popup.labelEl, buttons: popup.buttons });
         group.addLayer(layer);
+        if (props.heading_deg !== undefined) {
+          // Direction-of-travel tick just outside the dot, rotated via the
+          // --heading-deg custom-property convention (see .blue-dot__heading).
+          // heading_deg is parse-validated finite, safe to interpolate.
+          group.addLayer(L.marker(latlng, {
+            icon: L.divIcon({
+              className: 'cue-heading-arrow',
+              html: `<span class="cue-heading-arrow__glyph" aria-hidden="true" style="--heading-deg: ${props.heading_deg}deg">▲</span>`,
+              iconSize: [16, 16],
+              iconAnchor: [8, 8],
+            }),
+            interactive: false,
+            keyboard: false,
+          }));
+        }
       } else {
         // Distinct glyph from the circular cue points — a rider-placed "unsafe here" triangle.
         const label = escapeHtml(formatMarkerLabel(f.properties));

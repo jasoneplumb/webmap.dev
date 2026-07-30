@@ -102,6 +102,15 @@ describe('parseGradeStore / updateGradeStore', () => {
       '7': { outcome: 'unrecognized', reviewed_at: T1 },
     });
   });
+
+  it('accepts the too_early grade as a valid stored outcome', () => {
+    const json = JSON.stringify({
+      files: { abc123: { '8': { outcome: 'too_early', reviewed_at: T1 } } },
+    });
+    expect(parseGradeStore(json, 'abc123')).toEqual({
+      '8': { outcome: 'too_early', reviewed_at: T1 },
+    });
+  });
 });
 
 describe('effectiveOutcome', () => {
@@ -139,6 +148,13 @@ describe('buildReviews', () => {
     const grades: GradeMap = { '2502598877': { outcome: 'unrecognized', reviewed_at: T1 } };
     expect(buildReviews(grades)).toEqual([
       { event_id: 2502598877, outcome: 'unrecognized', reviewed_at: T1 },
+    ]);
+  });
+
+  it('round-trips a too_early grade into the sidecar', () => {
+    const grades: GradeMap = { '4273742981': { outcome: 'too_early', reviewed_at: T1 } };
+    expect(buildReviews(grades)).toEqual([
+      { event_id: 4273742981, outcome: 'too_early', reviewed_at: T1 },
     ]);
   });
 
