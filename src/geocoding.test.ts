@@ -3,6 +3,12 @@
 //   1. Pressing Enter collapses the control before results arrive (blur fires on Enter)
 //   2. Spinner never resolves when suggest() errors (only results() was patched)
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  DISMISS_BELOW_MIN_PX,
+  DRAG_PAST_BOTTOM_PX,
+  MIN_BELOW_PEEK_PX,
+  sheetSettleTarget,
+} from './geocoding';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
 
@@ -201,5 +207,38 @@ describe('collapse controller', () => {
     ctrl.onBlur();
     vi.runAllTimers();
     expect(wrapper.classList.contains('geocoder-control-expanded')).toBe(false);
+  });
+});
+
+describe('sheetSettleTarget', () => {
+  // Representative inset-less geometry: 400px sheet, 150px peek, 22px handle
+  const HEIGHT = 400;
+  const PEEK = HEIGHT - 150; // 250
+  const MIN = HEIGHT - 22; // 378
+
+  it('snaps full above the full/peek midpoint and peek below it', () => {
+    expect(sheetSettleTarget(PEEK / 2 - 1, PEEK, MIN)).toBe('full');
+    expect(sheetSettleTarget(PEEK / 2 + 1, PEEK, MIN)).toBe('peek');
+    expect(sheetSettleTarget(PEEK, PEEK, MIN)).toBe('peek');
+  });
+
+  it('minimizes when released well below peek, keeping the destination', () => {
+    expect(sheetSettleTarget(PEEK + MIN_BELOW_PEEK_PX + 1, PEEK, MIN)).toBe('min');
+    expect(sheetSettleTarget(MIN, PEEK, MIN)).toBe('min');
+  });
+
+  it('dismisses only well below the minimized position', () => {
+    expect(sheetSettleTarget(MIN + DISMISS_BELOW_MIN_PX, PEEK, MIN)).toBe('min');
+    expect(sheetSettleTarget(MIN + DISMISS_BELOW_MIN_PX + 1, PEEK, MIN)).toBe('dismiss');
+  });
+
+  it('keeps the dismiss window reachable within the drag clamp on inset-less devices', () => {
+    // The in-drag clamp caps travel at HEIGHT + DRAG_PAST_BOTTOM_PX; the
+    // dismiss threshold must sit comfortably inside that (regression guard —
+    // a +20 clamp once left a ~2px window, making the clear gesture untriggerable)
+    const clampMax = HEIGHT + DRAG_PAST_BOTTOM_PX;
+    const dismissThreshold = MIN + DISMISS_BELOW_MIN_PX;
+    expect(clampMax - dismissThreshold).toBeGreaterThanOrEqual(30);
+    expect(sheetSettleTarget(clampMax, PEEK, MIN)).toBe('dismiss');
   });
 });
