@@ -385,6 +385,26 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   });
 }
 
+// ── Bottom-sheet drag-settle thresholds (module scope, unit-tested) ──────────
+// The in-drag clamp must allow travel past the minimized position so the clear
+// gesture (DISMISS_BELOW_MIN_PX past min) has real room even on devices with
+// no safe-area inset — the min offset sits only ~a handle-height above the
+// clamp floor, so the old +20 clamp left a ~2px window.
+export const DRAG_PAST_BOTTOM_PX = 80;
+export const DISMISS_BELOW_MIN_PX = 40;
+export const MIN_BELOW_PEEK_PX = 80;
+
+/** Pure end-of-drag snap decision for the geocode-bar bottom sheet. */
+export function sheetSettleTarget(
+  currentOffset: number,
+  peekOffset: number,
+  minOffset: number,
+): 'dismiss' | 'min' | 'full' | 'peek' {
+  if (currentOffset > minOffset + DISMISS_BELOW_MIN_PX) return 'dismiss';
+  if (currentOffset > peekOffset + MIN_BELOW_PEEK_PX) return 'min';
+  return currentOffset < peekOffset / 2 ? 'full' : 'peek';
+}
+
 export function addReverseGeocoding(
   map: L.Map,
   state: AppState,
@@ -579,7 +599,7 @@ export function addReverseGeocoding(
         geocodeBar.style.display = 'none';
         geocodeBar.style.transform = '';
       }, { once: true });
-      geocodeBar.classList.remove('geocode-bar--peek');
+      geocodeBar.classList.remove('geocode-bar--peek', 'geocode-bar--min');
       barHandle.setAttribute('aria-expanded', 'false');
     } else {
       sheetState = target;
@@ -589,6 +609,11 @@ export function addReverseGeocoding(
       geocodeBar.classList.toggle('geocode-bar--peek', target === 'peek');
       geocodeBar.classList.toggle('geocode-bar--min', target === 'min');
       barHandle.setAttribute('aria-expanded', target === 'full' ? 'true' : 'false');
+      // Distinct AT semantics for min: the sheet is parked, not resizable-in-place.
+      barHandle.setAttribute(
+        'aria-label',
+        target === 'min' ? 'Restore navigation sheet' : 'Drag to resize sheet',
+      );
     }
   }
 
@@ -649,7 +674,7 @@ export function addReverseGeocoding(
     const touch = e.touches[0];
     if (!touch) return;
     const delta = touch.clientY - dragStartY;
-    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + 20, dragStartOffset + delta));
+    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + DRAG_PAST_BOTTOM_PX, dragStartOffset + delta));
     geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
   }, { passive: true });
 
@@ -657,17 +682,13 @@ export function addReverseGeocoding(
   // position (clears the pin); a drag below peek minimizes but keeps the
   // destination; otherwise snap to the nearest of full/peek.
   function settleDrag(currentOffset: number): void {
-    const peekOffset = getPeekOffset();
-    if (currentOffset > getMinOffset() + 40) {
+    const target = sheetSettleTarget(currentOffset, getPeekOffset(), getMinOffset());
+    if (target === 'dismiss') {
       hideGeocodeBar();
       pinLayer.clearLayers();
       return;
     }
-    if (currentOffset > peekOffset + 80) {
-      snapTo('min');
-      return;
-    }
-    snapTo(currentOffset < peekOffset / 2 ? 'full' : 'peek');
+    snapTo(target);
   }
 
   barHandle.addEventListener('touchend', (e: TouchEvent) => {
@@ -703,7 +724,7 @@ export function addReverseGeocoding(
     }
     const delta = e.clientY - dragStartY;
     if (Math.abs(delta) > 3) dragMoved = true;
-    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + 20, dragStartOffset + delta));
+    const clamped = Math.max(-20, Math.min(geocodeBar.offsetHeight + DRAG_PAST_BOTTOM_PX, dragStartOffset + delta));
     geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
   });
 
