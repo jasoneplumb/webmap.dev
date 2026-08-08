@@ -605,17 +605,37 @@ export function addReverseGeocoding(
 
   // Animate to offsetPx with a CSS transition. willChange is enabled for the
   // duration of the animation only, then cleared to avoid pinning a GPU layer.
+  /**
+   * Run `done` once the sheet's own snap has settled — on transitionend, or on a
+   * timer if that never arrives. Both are needed: transitionend BUBBLES, so a
+   * child's transition (the handle pill's hover) would fire it early, and it does
+   * not fire at all when the transition never starts — setting transition and
+   * transform in one frame straight out of transition:none, which every drag
+   * settle does — nor when a re-open cancels it (transitioncancel replaces it).
+   */
+  function onSheetSettled(done: () => void): void {
+    let finished = false;
+    const handler = (e: TransitionEvent): void => {
+      if (e.target !== geocodeBar) return; // a child's transition, not the sheet's
+      finish();
+    };
+    function finish(): void {
+      if (finished) return;
+      finished = true;
+      geocodeBar.removeEventListener('transitionend', handler);
+      clearTimeout(timer);
+      done();
+    }
+    geocodeBar.addEventListener('transitionend', handler);
+    // Declared last but read inside finish() — only ever reached asynchronously.
+    const timer = setTimeout(finish, SHEET_ANIM_MS + 50);
+  }
+
   function animateTo(offsetPx: number): void {
     geocodeBar.style.willChange = 'transform';
     geocodeBar.style.transition = `transform ${SHEET_ANIM_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
     geocodeBar.style.transform = sheetTransform(offsetPx);
-    geocodeBar.addEventListener('transitionend', function clearWillChange(e: TransitionEvent) {
-      // Same bubbling hazard as finishHide below: .geocode-bar__handle-pill has
-      // its own transition, and its events would clear willChange mid-animation.
-      if (e.target !== geocodeBar) return;
-      geocodeBar.removeEventListener('transitionend', clearWillChange);
-      geocodeBar.style.willChange = '';
-    });
+    onSheetSettled(() => { geocodeBar.style.willChange = ''; });
   }
 
   /**
@@ -646,27 +666,11 @@ export function addReverseGeocoding(
       // fire at the end of the NEW transition, hiding the freshly-opened sheet.
       sheetState = 'hidden';
       animateTo(geocodeBar.offsetHeight + 20);
-      const finishHide = (e?: TransitionEvent): void => {
-        // transitionend bubbles: a child's transition (the Copy button's colour
-        // swap, a profile button) would otherwise tear the sheet down mid-flight.
-        // Returning early here rather than using { once: true } matters — once
-        // would let a child's event consume the listener before the sheet's own.
-        if (e && e.target !== geocodeBar) return;
-        // Unbind on the first real invocation, including the timer path, so
-        // repeated dismissals don't pile up listeners for the life of the page.
-        geocodeBar.removeEventListener('transitionend', finishHide);
-        if (sheetState !== 'hidden') return; // re-opened before the transition ended
+      onSheetSettled(() => {
+        if (sheetState !== 'hidden') return; // re-opened before the snap settled
         geocodeBar.style.display = 'none';
         geocodeBar.style.transform = '';
-      };
-      geocodeBar.addEventListener('transitionend', finishHide);
-      // transitionend is not guaranteed: it never fires if the transition doesn't
-      // start (setting transition and transform in one frame straight after
-      // transition:none, which is exactly what a drag-dismiss does) and it is
-      // replaced by transitioncancel if a re-open interrupts it. Without a
-      // fallback the sheet keeps display:flex with a stale inline transform,
-      // leaving the reopen path to fight state that should already be cleared.
-      setTimeout(finishHide, SHEET_ANIM_MS + 50);
+      });
       geocodeBar.classList.remove('geocode-bar--peek', 'geocode-bar--min');
       barHandle.setAttribute('aria-expanded', 'false');
     } else {
