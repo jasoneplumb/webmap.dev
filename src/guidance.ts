@@ -89,6 +89,11 @@ const guidanceRenderListeners = new Set<() => void>();
  * every accepted GPS fix — putting them in a live region re-announces the whole
  * instruction roughly once a second, which is unusable. This returns only what
  * genuinely changes: the current maneuver, and status transitions.
+ *
+ * The wording intentionally differs from renderGuidanceDashboard()'s, which is
+ * abbreviated to fit the banner ("Off route — recalculating…" vs "Off route,
+ * recalculating"). Spoken copy wants punctuation a reader handles well and no
+ * ellipses. Keep the two in step when adding a status.
  */
 export function guidanceAnnouncement(state: AppState): string {
   const g = state.guidance;
@@ -143,6 +148,9 @@ export function addGuidanceControl(
   live.className = 'sr-only';
   live.setAttribute('role', 'status');
   live.setAttribute('aria-live', 'polite');
+  // Announce the region as a whole. textContent replacement is already atomic in
+  // practice, but this removes any doubt about partial reads across readers.
+  live.setAttribute('aria-atomic', 'true');
   document.body.appendChild(live);
 
   let lastAnnounced = '';
