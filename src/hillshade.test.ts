@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import L from 'leaflet';
 import {
   HILLSHADE_AZIMUTH_DEG,
@@ -88,13 +88,18 @@ describe('shadeElevationGrid', () => {
 // refetch on every sun toggle left the map unshaded until the network answered —
 // and permanently when it didn't (offline, flaky cellular, throttled tile burst).
 describe('HillshadeLayer.setAzimuth', () => {
-  interface StubCtx {
-    putImageData: (img: { data: Uint8ClampedArray }) => void;
-  }
+  // Shaded output captured per fetchAndShade call, so a test can assert the tile
+  // was genuinely re-shaded and not just re-served.
+  let painted: Uint8ClampedArray[];
+  let fetchMock: ReturnType<typeof vi.fn>;
+  const realGetContext = HTMLCanvasElement.prototype.getContext;
+  const realFetch = globalThis.fetch;
+  const realCreateImageBitmap = globalThis.createImageBitmap;
 
-  /** Minimal 2D-context stub: jsdom has no canvas backend. */
-  function stubCanvas(painted: Uint8ClampedArray[]): void {
-    (HTMLCanvasElement.prototype as unknown as { getContext: () => StubCtx }).getContext = () => ({
+  beforeEach(() => {
+    painted = [];
+    // Minimal 2D-context stub: jsdom has no canvas backend.
+    (HTMLCanvasElement.prototype as unknown as { getContext: () => unknown }).getContext = () => ({
       drawImage: () => {},
       // A ramp in the red channel decodes to terrain with a real gradient, so the
       // two sun directions produce genuinely different shading.
@@ -107,8 +112,19 @@ describe('HillshadeLayer.setAzimuth', () => {
       createImageData: () => ({ data: new Uint8ClampedArray(256 * 256 * 4) }),
       putImageData: (img: { data: Uint8ClampedArray }) => painted.push(img.data.slice()),
       imageSmoothingEnabled: false,
-    } as unknown as StubCtx);
-  }
+    });
+    globalThis.createImageBitmap = (async () => ({ close: () => {} })) as never;
+    fetchMock = vi.fn(async () => ({ ok: true, status: 200, blob: async () => ({}) }));
+    globalThis.fetch = fetchMock as never;
+  });
+
+  // Restore the globals: vi.restoreAllMocks() can't undo a direct prototype patch,
+  // and leaving it in place would silently bleed into any test added later.
+  afterEach(() => {
+    HTMLCanvasElement.prototype.getContext = realGetContext;
+    globalThis.fetch = realFetch;
+    globalThis.createImageBitmap = realCreateImageBitmap;
+  });
 
   function paint(layer: HillshadeLayer, z: number, x: number, y: number): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -118,12 +134,6 @@ describe('HillshadeLayer.setAzimuth', () => {
   }
 
   it('re-shades from cached elevation instead of re-downloading the tile', async () => {
-    const painted: Uint8ClampedArray[] = [];
-    stubCanvas(painted);
-    globalThis.createImageBitmap = (async () => ({ close: () => {} })) as never;
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, blob: async () => ({}) }));
-    globalThis.fetch = fetchMock as never;
-
     const layer = createHillshadeLayer({ tileSize: 256 });
     await paint(layer, 14, 2620, 6333);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -136,5 +146,38 @@ describe('HillshadeLayer.setAzimuth', () => {
     // … and the tile really was re-shaded under the new sun.
     expect(painted).toHaveLength(2);
     expect(painted[1]).not.toEqual(painted[0]);
+  });
+
+  it('re-shades overzoomed tiles from the cached ancestor elevation', async () => {
+    // z17 crops a z15 ancestor (dz = 2) — the getShadedAncestor path, which
+    // clears on setAzimuth and so must re-shade from elevCache rather than refetch.
+    const layer = createHillshadeLayer({ tileSize: 256 });
+    await paint(layer, 17, 20960, 50664);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/15/5240/12666.png'),
+      undefined,
+    );
+
+    layer.setAzimuth(HILLSHADE_NW_AZIMUTH_DEG);
+    await paint(layer, 17, 20960, 50664);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(painted).toHaveLength(2);
+    expect(painted[1]).not.toEqual(painted[0]);
+  });
+
+  it('shares one download across sibling subtiles of the same ancestor', async () => {
+    const layer = createHillshadeLayer({ tileSize: 256 });
+    await Promise.all([
+      paint(layer, 17, 20960, 50664),
+      paint(layer, 17, 20961, 50664),
+      paint(layer, 17, 20960, 50665),
+      paint(layer, 17, 20961, 50665),
+    ]);
+
+    // All four crop the same z15 ancestor: one fetch, one Horn pass.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(painted).toHaveLength(1);
   });
 });
