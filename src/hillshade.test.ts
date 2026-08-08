@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import L from 'leaflet';
 import {
+  ELEV_CACHE_MAX,
   HILLSHADE_AZIMUTH_DEG,
   HILLSHADE_NW_AZIMUTH_DEG,
   type HillshadeLayer,
@@ -165,6 +166,25 @@ describe('HillshadeLayer.setAzimuth', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(painted).toHaveLength(2);
     expect(painted[1]).not.toEqual(painted[0]);
+  });
+
+  it('evicts the least-recently-used elevation grid once the cache is full', async () => {
+    const layer = createHillshadeLayer({ tileSize: 256 });
+    // Exactly fill the cache with distinct native tiles …
+    for (let i = 0; i < ELEV_CACHE_MAX; i++) await paint(layer, 14, 2620 + i, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(ELEV_CACHE_MAX);
+
+    // … one more evicts the least-recently-used entry (the first tile painted) …
+    await paint(layer, 14, 2620 + ELEV_CACHE_MAX, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(ELEV_CACHE_MAX + 1);
+
+    // … so that one must be re-downloaded …
+    await paint(layer, 14, 2620, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(ELEV_CACHE_MAX + 2);
+
+    // … while a still-resident entry is served from memory.
+    await paint(layer, 14, 2620 + ELEV_CACHE_MAX, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(ELEV_CACHE_MAX + 2);
   });
 
   it('shares one download across sibling subtiles of the same ancestor', async () => {

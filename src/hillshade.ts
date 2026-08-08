@@ -123,7 +123,7 @@ export function decodeTerrarium(rgba: Uint8ClampedArray, pixelCount: number): Fl
  * quadrant is cropped and scaled — mirroring TileLayer's maxNativeZoom behavior.
  */
 const ANCESTOR_CACHE_MAX = 24; // ~6 MB of shaded 256px canvases at worst
-const ELEV_CACHE_MAX = 24; // ~6 MB of 256×256 Float32 elevation grids at worst
+export const ELEV_CACHE_MAX = 24; // ~6 MB of 256×256 Float32 elevation grids at worst
 
 /** LRU read: a hit re-inserts, so eviction targets the least-recently-*used* entry. */
 function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
