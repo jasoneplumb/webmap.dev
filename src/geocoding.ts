@@ -626,7 +626,12 @@ export function addReverseGeocoding(
       const finishHide = (e?: TransitionEvent): void => {
         // transitionend bubbles: a child's transition (the Copy button's colour
         // swap, a profile button) would otherwise tear the sheet down mid-flight.
+        // Returning early here rather than using { once: true } matters — once
+        // would let a child's event consume the listener before the sheet's own.
         if (e && e.target !== geocodeBar) return;
+        // Unbind on the first real invocation, including the timer path, so
+        // repeated dismissals don't pile up listeners for the life of the page.
+        geocodeBar.removeEventListener('transitionend', finishHide);
         if (sheetState !== 'hidden') return; // re-opened before the transition ended
         geocodeBar.style.display = 'none';
         geocodeBar.style.transform = '';
@@ -890,9 +895,21 @@ export function addReverseGeocoding(
     // Debounced reverse geocode as pin is dragged to a new location
     let dragDebounce: ReturnType<typeof setTimeout> | undefined;
     pin.on('dragend', () => {
+      const moved = pin.getLatLng();
+      // Move the sheet's destination with the pin, synchronously. currentPinLatLng
+      // is what Start routes to, and it also gates the stale-reply guard in
+      // updateGeocodeBarAddress — leaving it at the drop point would both freeze
+      // the address label and silently route to where the pin used to be.
+      currentPinLatLng = moved;
+      const label = coordLabel(moved);
+      currentPinLabel = label;
+      barAddrEl.textContent = label;
+      barAddrEl.title = label;
+      barCopyBtn.dataset['copy'] = label;
+
       if (dragDebounce !== undefined) clearTimeout(dragDebounce);
       dragDebounce = setTimeout(() => {
-        reverseGeocode(pin.getLatLng());
+        reverseGeocode(moved);
       }, 300);
     });
   }
