@@ -13,9 +13,24 @@ export function hasConsent(): boolean {
   return localStorage.getItem(KEY_VERSION) === CONSENT_VERSION;
 }
 
+/**
+ * UUID v4 without requiring a secure context. crypto.randomUUID() is
+ * secure-context-only, so it is undefined over plain HTTP — e.g. a phone
+ * hitting a dev server at http://192.168.x.x:5173. crypto.getRandomValues()
+ * carries no such restriction, so derive the same shape from it when needed.
+ */
+function randomId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = ((bytes[6] as number) & 0x0f) | 0x40; // version 4
+  bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80; // variant 10xx
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function ensureInstallId(): void {
   if (!localStorage.getItem(KEY_INSTALL_ID)) {
-    localStorage.setItem(KEY_INSTALL_ID, crypto.randomUUID());
+    localStorage.setItem(KEY_INSTALL_ID, randomId());
   }
 }
 
@@ -100,12 +115,27 @@ export function showConsentModal(): Promise<boolean> {
     }
 
     function cleanup(accepted: boolean): void {
-      // Symmetric teardown — tear down both listeners regardless of which path closes
+      // Symmetric teardown — tear down every listener regardless of which path closes
       // the modal (e.g. decline-before-scroll leaves the scroll listener attached).
       body.removeEventListener('scroll', onScrollOrResize);
       window.removeEventListener('resize', onScrollOrResize);
+      document.removeEventListener('keydown', onKey);
       overlay.remove();
-      if (accepted) recordConsent();
+      // Persisting must never block resolution. This promise is the app's boot
+      // gate (main.ts awaits it before bootApp), so a throw here used to remove
+      // the modal and then hang forever on a blank page — with consent unsaved,
+      // so the next load re-prompted. Storage can fail for real: iOS Safari
+      // private browsing throws QuotaExceededError on setItem.
+      if (accepted) {
+        try {
+          recordConsent();
+        } catch (err) {
+          console.error(
+            '[webmap] could not persist consent — continuing; terms will be shown again next load',
+            err,
+          );
+        }
+      }
       resolve(accepted);
     }
 
@@ -115,12 +145,11 @@ export function showConsentModal(): Promise<boolean> {
       if (e.target === overlay) cleanup(false);
     });
 
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        document.removeEventListener('keydown', onKey);
-        cleanup(false);
-      }
-    };
+    // Declared (not assigned to a const) so cleanup() above can unbind it on
+    // every close path, including accept.
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') cleanup(false);
+    }
     document.addEventListener('keydown', onKey);
 
     // Focus the scrollable terms so keyboard users can scroll to read (and thereby
