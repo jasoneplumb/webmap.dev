@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import L from 'leaflet';
-import { setGuidanceCosting, updateGuidance, stopGuidance } from './guidance';
+import { guidanceAnnouncement, setGuidanceCosting, updateGuidance, stopGuidance } from './guidance';
 import { createInitialState } from './types';
 import type { AppState } from './types';
 import type { Route, RouteStep } from './routing';
@@ -299,5 +299,60 @@ describe('stopGuidance', () => {
     stopGuidance(state, map);
     expect(ac.signal.aborted).toBe(true);
     expect(state.guidance.recalcInFlight).toBeNull();
+  });
+});
+
+describe('guidanceAnnouncement', () => {
+  const dest = { lat: 1, lng: 1, label: 'Pike Place Market' };
+
+  it('says nothing when idle', () => {
+    expect(guidanceAnnouncement(createInitialState())).toBe('');
+  });
+
+  it('is unchanged when only distance and ETA move', () => {
+    // The whole point of #258: these fields change on every accepted GPS fix,
+    // and the banner shows them. If they leaked into the announcement, a screen
+    // reader would re-read the instruction about once a second.
+    const state = createInitialState();
+    setGuiding(state, makeRoute([[0, 0], [1, 1]]), dest);
+
+    state.guidance.distanceToManeuverM = 400;
+    state.guidance.distanceToDestinationM = 1200;
+    const first = guidanceAnnouncement(state);
+
+    state.guidance.distanceToManeuverM = 120;
+    state.guidance.distanceToDestinationM = 900;
+    expect(guidanceAnnouncement(state)).toBe(first);
+  });
+
+  it('changes when the maneuver advances', () => {
+    const state = createInitialState();
+    setGuiding(state, makeRoute([[0, 0], [1, 1]], [
+      { instruction: 'Turn left onto Pine', type: 15, lengthM: 100, durationS: 60, streetNames: [], beginShapeIndex: 0 },
+      { instruction: 'Turn right onto 1st', type: 10, lengthM: 100, durationS: 60, streetNames: [], beginShapeIndex: 1 },
+    ]), dest);
+
+    expect(guidanceAnnouncement(state)).toBe('Turn left onto Pine');
+    state.guidance.currentStepIdx = 1;
+    expect(guidanceAnnouncement(state)).toBe('Turn right onto 1st');
+  });
+
+  it('announces each status transition distinctly', () => {
+    const state = createInitialState();
+    setGuiding(state, makeRoute([[0, 0], [1, 1]]), dest);
+
+    state.guidance.status = 'routing';
+    expect(guidanceAnnouncement(state)).toBe('Routing to Pike Place Market');
+    state.guidance.status = 'off-route';
+    expect(guidanceAnnouncement(state)).toBe('Off route, recalculating');
+    state.guidance.status = 'arrived';
+    expect(guidanceAnnouncement(state)).toBe('Arrived at Pike Place Market');
+  });
+
+  it('survives a step index past the end of the route', () => {
+    const state = createInitialState();
+    setGuiding(state, makeRoute([[0, 0], [1, 1]]), dest);
+    state.guidance.currentStepIdx = 99;
+    expect(guidanceAnnouncement(state)).toBe('Go');
   });
 });

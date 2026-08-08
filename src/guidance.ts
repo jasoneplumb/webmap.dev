@@ -84,6 +84,30 @@ let arrivedTimer: ReturnType<typeof setTimeout> | null = null;
 const guidanceRenderListeners = new Set<() => void>();
 
 /**
+ * Text a screen reader should hear, which is deliberately NOT what the banner
+ * shows. The visible dashboard carries distance and ETA, and those change on
+ * every accepted GPS fix — putting them in a live region re-announces the whole
+ * instruction roughly once a second, which is unusable. This returns only what
+ * genuinely changes: the current maneuver, and status transitions.
+ */
+export function guidanceAnnouncement(state: AppState): string {
+  const g = state.guidance;
+  if (g.status === 'idle') return '';
+  if (g.status === 'routing') {
+    return `Routing to ${g.destination?.label ?? 'destination'}`;
+  }
+  if (g.status === 'arrived') {
+    return g.destination ? `Arrived at ${g.destination.label}` : 'Arrived';
+  }
+  if (g.status === 'off-route') return 'Off route, recalculating';
+
+  const route = g.route;
+  if (!route) return '';
+  const step = route.steps[Math.min(g.currentStepIdx, route.steps.length - 1)];
+  return step?.instruction ?? '';
+}
+
+/**
  * Mounts the turn-by-turn banner and captures the GPS polling callbacks.
  *
  * The banner is a fixed element on document.body rather than a Leaflet control:
@@ -92,6 +116,10 @@ const guidanceRenderListeners = new Set<() => void>();
  * renderGuidanceDashboard() returns '' while idle, so the banner is only
  * visible during navigation — that's when covering the search bar is the right
  * trade, and it stays out of the way entirely the rest of the time.
+ *
+ * Sighted and assistive output are split on purpose: the banner is aria-hidden
+ * and repaints on every fix, while a separate live region receives only
+ * guidanceAnnouncement() and only when that text actually changes (#258).
  */
 export function addGuidanceControl(
   map: L.Map,
@@ -105,15 +133,32 @@ export function addGuidanceControl(
 
   const banner = document.createElement('div');
   banner.className = 'guidance-banner';
-  // Announce maneuver changes without stealing focus from the map.
-  banner.setAttribute('role', 'status');
-  banner.setAttribute('aria-live', 'polite');
+  // Hidden from assistive tech: it repaints on every GPS fix, and the live
+  // region below is what announces. Without this the banner's own text would
+  // be read again on each repaint.
+  banner.setAttribute('aria-hidden', 'true');
   document.body.appendChild(banner);
 
+  const live = document.createElement('div');
+  live.className = 'sr-only';
+  live.setAttribute('role', 'status');
+  live.setAttribute('aria-live', 'polite');
+  document.body.appendChild(live);
+
+  let lastAnnounced = '';
   const renderBanner = (): void => {
     const html = renderGuidanceDashboard(state);
     banner.innerHTML = html;
     banner.classList.toggle('guidance-banner--visible', html !== '');
+
+    // Writing identical text to a live region still re-announces it, so compare
+    // before touching the DOM. The announcement excludes distance/ETA, so this
+    // stays quiet through the fixes that only move those.
+    const announcement = guidanceAnnouncement(state);
+    if (announcement !== lastAnnounced) {
+      lastAnnounced = announcement;
+      live.textContent = announcement;
+    }
   };
 
   renderBanner();
