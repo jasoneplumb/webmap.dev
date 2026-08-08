@@ -394,6 +394,18 @@ export const DRAG_PAST_BOTTOM_PX = 80;
 export const DISMISS_BELOW_MIN_PX = 40;
 export const MIN_BELOW_PEEK_PX = 80;
 
+/**
+ * Transform for the geocode-bar at a given vertical offset. The sheet is
+ * right-anchored (see .geocode-bar in style.css), so the transform carries ONLY
+ * the vertical offset — a horizontal component here would fight the CSS anchor
+ * and push the sheet off-screen. Centralized because four call sites write this
+ * (snap, open, touch-drag, mouse-drag) and one missed edit is invisible until
+ * the user drags.
+ */
+export function sheetTransform(offsetPx: number): string {
+  return `translateY(${offsetPx}px)`;
+}
+
 /** Pure end-of-drag snap decision for the geocode-bar bottom sheet. */
 export function sheetSettleTarget(
   currentOffset: number,
@@ -580,7 +592,7 @@ export function addReverseGeocoding(
   function animateTo(offsetPx: number): void {
     geocodeBar.style.willChange = 'transform';
     geocodeBar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-    geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
+    geocodeBar.style.transform = sheetTransform(offsetPx);
     geocodeBar.addEventListener('transitionend', () => {
       geocodeBar.style.willChange = '';
     }, { once: true });
@@ -634,7 +646,7 @@ export function addReverseGeocoding(
       // starting the transition (single-rAF can batch both into one paint frame).
       geocodeBar.style.display = 'flex';
       geocodeBar.style.transition = 'none';
-      geocodeBar.style.transform = `translateX(-50%) translateY(${geocodeBar.offsetHeight}px)`;
+      geocodeBar.style.transform = sheetTransform(geocodeBar.offsetHeight);
       barHandle.setAttribute('aria-expanded', 'false');
       requestAnimationFrame(() => {
         requestAnimationFrame(() => { snapTo('peek'); });
@@ -676,7 +688,7 @@ export function addReverseGeocoding(
     const delta = touch.clientY - dragStartY;
     // Upward travel stops just past peek — there is no larger state to reach
     const clamped = Math.max(getPeekOffset() - 20, Math.min(geocodeBar.offsetHeight + DRAG_PAST_BOTTOM_PX, dragStartOffset + delta));
-    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+    geocodeBar.style.transform = sheetTransform(clamped);
   }, { passive: true });
 
   // Shared end-of-drag settle: full dismiss only from below the minimized
@@ -727,7 +739,7 @@ export function addReverseGeocoding(
     if (Math.abs(delta) > 3) dragMoved = true;
     // Upward travel stops just past peek — there is no larger state to reach
     const clamped = Math.max(getPeekOffset() - 20, Math.min(geocodeBar.offsetHeight + DRAG_PAST_BOTTOM_PX, dragStartOffset + delta));
-    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+    geocodeBar.style.transform = sheetTransform(clamped);
   });
 
   document.addEventListener('mouseup', () => {

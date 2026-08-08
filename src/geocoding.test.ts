@@ -8,6 +8,7 @@ import {
   DRAG_PAST_BOTTOM_PX,
   MIN_BELOW_PEEK_PX,
   sheetSettleTarget,
+  sheetTransform,
 } from './geocoding';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -240,5 +241,22 @@ describe('sheetSettleTarget', () => {
     const dismissThreshold = MIN + DISMISS_BELOW_MIN_PX;
     expect(clampMax - dismissThreshold).toBeGreaterThanOrEqual(30);
     expect(sheetSettleTarget(clampMax, PEEK, MIN)).toBe('dismiss');
+  });
+});
+
+describe('sheetTransform', () => {
+  it('carries only the vertical offset', () => {
+    expect(sheetTransform(0)).toBe('translateY(0px)');
+    expect(sheetTransform(137)).toBe('translateY(137px)');
+    expect(sheetTransform(-20)).toBe('translateY(-20px)');
+  });
+
+  it('never emits a horizontal component', () => {
+    // The sheet is right-anchored in CSS (#253). A translateX here would fight
+    // that anchor and push it off-screen — and because four call sites write
+    // this transform, a stale one is invisible until the user drags.
+    for (const offset of [0, 137, -20, 999]) {
+      expect(sheetTransform(offset)).not.toContain('translateX');
+    }
   });
 });

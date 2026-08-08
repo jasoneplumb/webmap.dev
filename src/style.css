@@ -428,16 +428,24 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* ── Reverse geocode bottom sheet ── */
+/* Right-anchored, not centred, and never full-width: the bottom-left control
+   cluster (zoom / locate / scale / version / attribution) sits under a centred
+   full-width sheet, and in peek every pixel of the visible band belongs to an
+   interactive child, so those controls are unreachable until the sheet is
+   minimized (#253). 67vw leaves a clear left column at phone widths; the 480px
+   cap keeps the sheet from ballooning on desktop.
+   The transform carries only translateY — see sheetTransform() in geocoding.ts. */
 .geocode-bar {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(0);
-  width: min(480px, 100vw);
+  right: env(safe-area-inset-right, 0px);
+  left: auto;
+  transform: translateY(0);
+  width: min(480px, 67vw);
   height: 60vh;
   min-height: calc(130px + var(--sai-bottom));
   background: #fff;
-  border-radius: 12px 12px 0 0;
+  border-radius: 12px 0 0 0;
   box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.18);
   z-index: 1500;
   font-family: system-ui, sans-serif;
@@ -850,6 +858,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
      (zoom, version-badge) from stretching to match wider siblings like
      the attribution. */
   align-items: flex-start;
+  /* Stay clear of the right-anchored geocode-bar. The buttons are all narrow
+     enough to fit regardless, but the attribution runs ~330px with a base map
+     plus Hillshade and would otherwise sit permanently under the sheet — OSM's
+     tile usage policy wants that credit visible, so cap the column and let it
+     wrap instead. Mirrors the sheet's own width formula. */
+  max-width: calc(
+    100vw - min(480px, 67vw)
+    - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px
+  );
 }
 
 .leaflet-bottom.leaflet-left .leaflet-control-toggle {
