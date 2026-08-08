@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.45.0-beta (2026-08-08)
+
+### Changed
+
+- **Turn-by-turn directions moved to a banner across the top of the screen** — the guidance dashboard used to render inside the bottom sheet, so directions sat at the bottom of the display and vanished whenever the sheet was minimized. They now appear in a fixed banner at the top, the convention for navigation apps, present only while actually navigating. The sheet keeps the Start/Stop button and the Drive/Bike/Walk selector; only the read-only dashboard moved (#257)
+- **The navigation sheet is anchored to the right edge and half its former height** — 30vh instead of 60vh, capped at 480px so it doesn't stretch across a wide monitor (#257)
+- **Dropping a pin opens the sheet immediately** — it previously waited for the address lookup to return, so a slow or blocked geocode left no sheet at all. Coordinates appear at once and the address fills in when it arrives, or stays as coordinates if the lookup fails (#257)
+- **Draw-zone control moved to the top-right, directly below the download button**, and is now icon-only. The pencil renders as a monochrome glyph on iOS rather than a colour emoji (#257)
+- **Long-press to drop a pin is twice as fast** — 250 ms instead of 500 ms on iOS (#257)
+
+### Fixed
+
+- **Zoom, the scale bar, the version badge and the attribution were unusable whenever the navigation sheet was open** — the full-width sheet sat on top of the bottom-left controls, and because every pixel of its visible band belongs to an interactive element, those controls were genuinely unreachable rather than merely hidden. The locate button sits highest and kept working, which is why it looked like zoom specifically was broken. The cluster now rides above the sheet and moves with it, so nothing is ever covered (#253, #257)
+- **Dragging a dropped pin left navigation pointing at the original spot** — the address stopped updating and Start routed to where the pin used to be, with nothing on screen to indicate it (#257)
+- **The app could hang on a blank page after accepting the terms** — if recording the consent throws, which iOS Safari private browsing and "Block All Cookies" both cause, the promise gating startup never settled. The app never booted, no error surfaced, and the next load asked for consent again (#255, #256)
+- **Concurrent requests for the same elevation tile now share one download** — a directly-visible tile and an overzoomed tile needing the same data could each start their own fetch (#251, #252)
+
 ## v0.44.1-beta (2026-08-08)
 
 ### Fixed
