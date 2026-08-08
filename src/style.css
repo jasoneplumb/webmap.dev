@@ -267,6 +267,23 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   display: flex;
 }
 
+/* Available to assistive tech, invisible on screen. Used for the guidance live
+   region, which carries only the maneuver — the banner shows distance and ETA
+   but is aria-hidden, so those don't re-announce on every fix (#258).
+   Not display:none or visibility:hidden: both remove the node from the
+   accessibility tree, which would silence the announcement entirely. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 
 /* Destination marker — red pin with white border */
 .guidance-dest-marker {
