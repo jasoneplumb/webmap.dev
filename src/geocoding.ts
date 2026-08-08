@@ -42,6 +42,51 @@ function applyMapZoomClass(map: L.Map): void {
   el.classList.toggle('map-zoom-close', z >= 12);
 }
 
+/** Shape of the error esri-leaflet hands back; every field is best-effort. */
+export interface SearchProviderError {
+  code?: number;
+  message?: string;
+}
+
+/**
+ * Explain a search failure in terms the user can act on. The causes need
+ * genuinely different responses — an unauthorised key is a config problem
+ * nobody browsing can fix, while a 429 just needs a moment — so a single
+ * "search failed" string would be worse than useless.
+ *
+ * Pure so it can be unit-tested: the widget itself is not reachable under jsdom.
+ */
+export function describeSearchFailure(
+  error: SearchProviderError | null,
+  opts: { hasApiKey: boolean; online: boolean },
+): string {
+  if (!opts.online) {
+    return 'Address search needs a connection — you appear to be offline.';
+  }
+  if (!opts.hasApiKey) {
+    return 'Address search isn\u2019t available: this build has no ArcGIS API key configured.';
+  }
+
+  const code = error?.code;
+  // ArcGIS returns 403 for a referrer/origin the key doesn't allow, and
+  // 498/499 for an invalid or missing token. All three are key configuration,
+  // not anything the person searching did.
+  if (code === 403 || code === 498 || code === 499) {
+    return 'Address search was refused by ArcGIS \u2014 the API key doesn\u2019t allow this site.';
+  }
+  if (code === 429) {
+    return 'Address search is rate-limited right now \u2014 try again in a moment.';
+  }
+  if (typeof code === 'number' && code >= 500) {
+    return `Address search is temporarily down \u2014 ArcGIS returned ${code}.`;
+  }
+  // A rejected fetch (DNS, CORS, blocked request) arrives with no status code.
+  if (code === undefined) {
+    return 'Address search couldn\u2019t reach ArcGIS \u2014 the request was blocked or timed out.';
+  }
+  return `Address search failed \u2014 ArcGIS returned ${code}.`;
+}
+
 function zoomForAddrType(addrType: string): number {
   switch (addrType) {
     case 'PointAddress': case 'StreetAddress': case 'SubAddress': case 'StreetInt': return 17;
@@ -59,7 +104,7 @@ let _clearSearchSelection: (() => void) | null = null;
 let _showGeocodeBar: ((label: string, copyText: string, latlng: L.LatLng) => void) | null = null;
 const SEARCH_PLACEHOLDER = '';
 
-export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
+export function addSearchControl(map: L.Map, state: AppState, showMessage: (message: string, durationMs?: number) => void): void {
   // state is read in the results callback (for future extensibility)
   void state;
 
@@ -72,7 +117,27 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
       'Set VITE_ESRI_API_KEY in your .env file.'
     );
   }
-  const logProviderErrors = Boolean(apikey);
+  // Most recent provider failure, or null after any success. The results handler
+  // reads this to tell an outage apart from a genuine zero-match search — the
+  // two need opposite advice, and previously both rendered as "no results".
+  let lastProviderError: SearchProviderError | null = null;
+  // suggest() runs per keystroke, so an outage would otherwise toast on every
+  // letter typed. One notice per window is enough to explain what's happening.
+  const FAILURE_NOTICE_INTERVAL_MS = 15000;
+  let lastNoticeAt = 0;
+
+  function noticeSearchFailure(): void {
+    const now = Date.now();
+    if (now - lastNoticeAt < FAILURE_NOTICE_INTERVAL_MS) return;
+    lastNoticeAt = now;
+    showMessage(
+      describeSearchFailure(lastProviderError, {
+        hasApiKey: Boolean(apikey),
+        online: navigator.onLine,
+      }),
+      6000,
+    );
+  }
 
   // Wrap a provider so that errors in results() and suggest() are logged and
   // silenced rather than propagated. Wrapping before construction avoids
@@ -93,7 +158,16 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
         cb: (err: null, results: unknown[]) => void,
       ): unknown {
         return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
-          if (error && logProviderErrors) console.warn('Search provider error:', error);
+          // Keep converting errors to empty results so the widget stays happy,
+          // but remember the failure — discarding it here is what made outages
+          // indistinguishable from a search that simply matched nothing.
+          lastProviderError = error ? (error as SearchProviderError) : null;
+          if (error) {
+            // Logged unconditionally: a keyless build is exactly when every
+            // request fails, and the old gate stayed silent in that case.
+            console.warn('Search provider error:', error);
+            noticeSearchFailure();
+          }
           cb(null, error ? [] : results);
         });
       };
@@ -144,9 +218,31 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   dropdownEl.style.display = 'none';
   document.body.appendChild(dropdownEl);
 
+  // Toggle button for the results list, mounted below the search bar. Only
+  // meaningful once a search has produced results, so it stays hidden until then.
+  let resultsToggleEl: HTMLElement | null = null;
+
+  /** Results survive hiding — innerHTML is preserved — so they can be revealed. */
+  function hasResults(): boolean {
+    return dropdownEl.innerHTML !== '';
+  }
+
+  function isDropdownOpen(): boolean {
+    return dropdownEl.style.display === 'block';
+  }
+
+  function syncResultsToggle(): void {
+    if (resultsToggleEl === null) return;
+    resultsToggleEl.style.display = hasResults() ? '' : 'none';
+    const open = isDropdownOpen();
+    resultsToggleEl.setAttribute('aria-pressed', open ? 'true' : 'false');
+    resultsToggleEl.title = open ? 'Hide search results' : 'Show search results';
+  }
+
   function hideDropdown(): void {
     dropdownEl.style.display = 'none';
     // Preserve innerHTML so it can be restored when clicking a marker.
+    syncResultsToggle();
   }
 
   function showDropdown(): void {
@@ -158,7 +254,42 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     // Width is read after display so the measured value reflects the CSS bounds.
     const maxLeft = window.innerWidth - dropdownEl.offsetWidth - 4;
     dropdownEl.style.left = `${Math.max(4, Math.min(rect.left, maxLeft))}px`;
+    syncResultsToggle();
   }
+
+  function toggleDropdown(): void {
+    if (!hasResults()) return;
+    if (isDropdownOpen()) hideDropdown();
+    else showDropdown();
+  }
+
+  // topleft, registered after the search control, so Leaflet stacks it directly
+  // below the search bar it belongs to.
+  const ResultsToggleControl = L.Control.extend({
+    onAdd(): HTMLElement {
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      container.setAttribute('role', 'button');
+      container.setAttribute('tabindex', '0');
+      const icon = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
+      icon.textContent = '\u2630'; // ☰ — plain text glyph, no emoji presentation
+      container.appendChild(icon);
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.on(container, 'click', (e: Event) => {
+        toggleDropdown();
+        e.stopImmediatePropagation();
+      });
+      L.DomEvent.on(container, 'keydown', (e: Event) => {
+        const key = (e as KeyboardEvent).key;
+        if (key !== 'Enter' && key !== ' ') return;
+        e.preventDefault();
+        toggleDropdown();
+      });
+      resultsToggleEl = container;
+      syncResultsToggle(); // starts hidden: no results yet
+      return container;
+    },
+  });
+  new (ResultsToggleControl as new (opts: L.ControlOptions) => L.Control)({ position: 'topleft' }).addTo(map);
 
   // Dropdown is dismissed only via the close button inside it.
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
@@ -380,7 +511,19 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
         easeLinearity: 0.25,
       });
     } else {
-      onNoResults('No results found. Try zooming out or rewording your search.');
+      // Only blame the query when the service actually answered. Telling someone
+      // to reword their search during an outage is worse than saying nothing.
+      if (lastProviderError !== null) {
+        showMessage(
+          describeSearchFailure(lastProviderError, {
+            hasApiKey: Boolean(apikey),
+            online: navigator.onLine,
+          }),
+          6000,
+        );
+      } else {
+        showMessage('No results found. Try zooming out or rewording your search.');
+      }
     }
   });
 }
