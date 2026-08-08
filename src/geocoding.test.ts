@@ -9,6 +9,7 @@ import {
   MIN_BELOW_PEEK_PX,
   sheetSettleTarget,
   sheetTransform,
+  isReplyForPin,
 } from './geocoding';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -258,5 +259,22 @@ describe('sheetTransform', () => {
     for (const offset of [0, 137, -20, 999]) {
       expect(sheetTransform(offset)).not.toContain('translateX');
     }
+  });
+});
+
+describe('isReplyForPin', () => {
+  it('accepts a reply for the pin the sheet points at', () => {
+    expect(isReplyForPin({ lat: 47.6, lng: -122.3 }, { lat: 47.6, lng: -122.3 })).toBe(true);
+  });
+
+  it('drops a reply for a position the pin has moved on from', () => {
+    // A slow reverse-geocode landing after the user dragged the pin elsewhere
+    // must not overwrite the newer address.
+    expect(isReplyForPin({ lat: 47.6, lng: -122.3 }, { lat: 47.7, lng: -122.3 })).toBe(false);
+    expect(isReplyForPin({ lat: 47.6, lng: -122.3 }, { lat: 47.6, lng: -122.4 })).toBe(false);
+  });
+
+  it('drops any reply once the pin is cleared', () => {
+    expect(isReplyForPin(null, { lat: 47.6, lng: -122.3 })).toBe(false);
   });
 });

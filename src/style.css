@@ -823,9 +823,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
      (zoom, version-badge) from stretching to match wider siblings like
      the attribution. */
   align-items: flex-start;
-  /* Match animateTo()'s curve in geocoding.ts so the cluster rides with the
-     sheet instead of snapping after it lands. */
-  transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Rides with the sheet rather than snapping after it lands. Duration comes
+     from SHEET_ANIM_MS via --sheet-anim (set in geocoding.ts), so the two can't
+     drift; the fallback only applies before the first snap publishes it. */
+  transition: bottom var(--sheet-anim, 300ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .leaflet-bottom.leaflet-left .leaflet-control-toggle {

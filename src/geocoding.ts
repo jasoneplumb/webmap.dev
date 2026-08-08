@@ -392,9 +392,25 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
 // clamp floor, so the old +20 clamp left a ~2px window.
 export const DRAG_PAST_BOTTOM_PX = 80;
 
-/** Sheet snap animation duration (ms). Mirrored by the cluster's
- *  `transition: bottom` in style.css so the two move together. */
+/**
+ * Sheet snap animation duration (ms). Published to CSS as --sheet-anim so the
+ * control cluster's `transition: bottom` uses this exact value rather than a
+ * second hardcoded copy that could silently drift.
+ */
 export const SHEET_ANIM_MS = 300;
+
+/** Structural latlng so callers (and tests) don't need a Leaflet instance. */
+interface LatLngLike { lat: number; lng: number }
+
+/**
+ * True when a geocoder reply still describes the pin the sheet points at.
+ * Exported for testing: a late reply for a pin the user has moved on from must
+ * not overwrite a newer address.
+ */
+export function isReplyForPin(current: LatLngLike | null, reply: LatLngLike): boolean {
+  if (current === null) return false;
+  return current.lat === reply.lat && current.lng === reply.lng;
+}
 export const DISMISS_BELOW_MIN_PX = 40;
 export const MIN_BELOW_PEEK_PX = 80;
 
@@ -593,9 +609,13 @@ export function addReverseGeocoding(
     geocodeBar.style.willChange = 'transform';
     geocodeBar.style.transition = `transform ${SHEET_ANIM_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
     geocodeBar.style.transform = sheetTransform(offsetPx);
-    geocodeBar.addEventListener('transitionend', () => {
+    geocodeBar.addEventListener('transitionend', function clearWillChange(e: TransitionEvent) {
+      // Same bubbling hazard as finishHide below: .geocode-bar__handle-pill has
+      // its own transition, and its events would clear willChange mid-animation.
+      if (e.target !== geocodeBar) return;
+      geocodeBar.removeEventListener('transitionend', clearWillChange);
       geocodeBar.style.willChange = '';
-    }, { once: true });
+    });
   }
 
   /**
@@ -606,6 +626,9 @@ export function addReverseGeocoding(
    * Set on snap only — `bottom` is a layout property, so writing it on every
    * pointermove would reflow the cluster each frame.
    */
+  // Publish the snap duration once so style.css can't hold a second copy.
+  document.documentElement.style.setProperty('--sheet-anim', `${SHEET_ANIM_MS}ms`);
+
   function publishSheetHeight(target: SheetState): void {
     const occupied =
       target === 'hidden' ? 0 :
@@ -846,8 +869,7 @@ export function addReverseGeocoding(
    * location can't overwrite a newer one.
    */
   function updateGeocodeBarAddress(label: string, copyText: string, latlng: L.LatLng): void {
-    if (currentPinLatLng === null) return;
-    if (currentPinLatLng.lat !== latlng.lat || currentPinLatLng.lng !== latlng.lng) return;
+    if (!isReplyForPin(currentPinLatLng, latlng)) return;
     barAddrEl.textContent = label;
     barAddrEl.title = label;
     barCopyBtn.dataset['copy'] = copyText;
