@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import L from 'leaflet';
 import {
   HILLSHADE_AZIMUTH_DEG,
+  HILLSHADE_NW_AZIMUTH_DEG,
+  type HillshadeLayer,
+  createHillshadeLayer,
   decodeTerrarium,
   metersPerPixel,
   shadeElevationGrid,
@@ -76,5 +80,61 @@ describe('shadeElevationGrid', () => {
   it('flips which slope is lit when the azimuth flips to NW', () => {
     const facingNWUnderNWSun = shadeElevationGrid(plane(SIZE, CELL, CELL), SIZE, SIZE, CELL, 315);
     expect(center(facingNWUnderNWSun)).toBeGreaterThan(160);
+  });
+});
+
+// Layer-level regression guard: re-lighting must not go back to the network.
+// Terrarium tiles aren't service-worker cached (src/sw.ts only caches OSM), so a
+// refetch on every sun toggle left the map unshaded until the network answered —
+// and permanently when it didn't (offline, flaky cellular, throttled tile burst).
+describe('HillshadeLayer.setAzimuth', () => {
+  interface StubCtx {
+    putImageData: (img: { data: Uint8ClampedArray }) => void;
+  }
+
+  /** Minimal 2D-context stub: jsdom has no canvas backend. */
+  function stubCanvas(painted: Uint8ClampedArray[]): void {
+    (HTMLCanvasElement.prototype as unknown as { getContext: () => StubCtx }).getContext = () => ({
+      drawImage: () => {},
+      // A ramp in the red channel decodes to terrain with a real gradient, so the
+      // two sun directions produce genuinely different shading.
+      getImageData: () => ({
+        data: Uint8ClampedArray.from(
+          { length: 256 * 256 * 4 },
+          (_, i) => (i % 4 === 0 ? 128 + Math.floor(i / 4 / 256) % 8 : 0),
+        ),
+      }),
+      createImageData: () => ({ data: new Uint8ClampedArray(256 * 256 * 4) }),
+      putImageData: (img: { data: Uint8ClampedArray }) => painted.push(img.data.slice()),
+      imageSmoothingEnabled: false,
+    } as unknown as StubCtx);
+  }
+
+  function paint(layer: HillshadeLayer, z: number, x: number, y: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const coords = Object.assign(L.point(x, y), { z }) as L.Coords;
+      layer.createTile(coords, (err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  it('re-shades from cached elevation instead of re-downloading the tile', async () => {
+    const painted: Uint8ClampedArray[] = [];
+    stubCanvas(painted);
+    globalThis.createImageBitmap = (async () => ({ close: () => {} })) as never;
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, blob: async () => ({}) }));
+    globalThis.fetch = fetchMock as never;
+
+    const layer = createHillshadeLayer({ tileSize: 256 });
+    await paint(layer, 14, 2620, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    layer.setAzimuth(HILLSHADE_NW_AZIMUTH_DEG);
+    await paint(layer, 14, 2620, 6333);
+
+    // The elevation grid is kept across the sun change — no second download …
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // … and the tile really was re-shaded under the new sun.
+    expect(painted).toHaveLength(2);
+    expect(painted[1]).not.toEqual(painted[0]);
   });
 });

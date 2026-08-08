@@ -9,6 +9,9 @@
  *          fetches AWS Open Data Terrarium tiles (free, key-less, z0–15) and
  *          paints shaded canvas tiles; overzoom past 15 crops the z15 ancestor,
  *          with shaded ancestors cached so sibling subtiles don't recompute.
+ *          Decoded elevation is cached separately from the shading it feeds —
+ *          elevation doesn't depend on the sun, so changing azimuth re-shades
+ *          from memory instead of re-downloading (Terrarium isn't SW-cached).
  *          Shade is normalized to neutral mid-gray on flat terrain for the
  *          overlay blend: sun-facing slopes LIGHTEN the base, shadowed darken
  * Future: Azimuth is fixed; southern-hemisphere imagery is sunlit from the north,
@@ -120,13 +123,37 @@ export function decodeTerrarium(rgba: Uint8ClampedArray, pixelCount: number): Fl
  * quadrant is cropped and scaled — mirroring TileLayer's maxNativeZoom behavior.
  */
 const ANCESTOR_CACHE_MAX = 24; // ~6 MB of shaded 256px canvases at worst
+const ELEV_CACHE_MAX = 24; // ~6 MB of 256×256 Float32 elevation grids at worst
+
+/** LRU read: a hit re-inserts, so eviction targets the least-recently-*used* entry. */
+function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
+  const entry = cache.get(key);
+  if (entry === undefined) return undefined;
+  cache.delete(key);
+  cache.set(key, entry);
+  return entry;
+}
+
+/** LRU write: evicts the least-recently-used entry once the cache is at capacity. */
+function lruSet<V>(cache: Map<string, V>, key: string, value: V, max: number): void {
+  cache.delete(key);
+  if (cache.size >= max) {
+    // Map preserves insertion order and hits re-insert, so the first key is the LRU one
+    const lru = cache.keys().next().value;
+    if (lru !== undefined) cache.delete(lru);
+  }
+  cache.set(key, value);
+}
 
 export class HillshadeLayer extends L.GridLayer {
   private azimuthDeg = HILLSHADE_AZIMUTH_DEG;
   // Shaded z≤15 ancestors shared by overzoomed subtiles (up to 256 siblings at
-  // z19 share one z15 ancestor) — cached so the fetch + Horn pass runs once.
+  // z19 share one z15 ancestor) — cached so the Horn pass runs once.
   // Keyed by tile path only: setAzimuth clears the cache, so entries never mix suns.
   private ancestorCache = new Map<string, Promise<HTMLCanvasElement>>();
+  // Decoded elevation per native tile. Elevation is sun-independent, so this
+  // SURVIVES setAzimuth — that's what keeps re-lighting off the network.
+  private elevCache = new Map<string, Float32Array>();
   // In-flight fetch per native-zoom tile so panning away cancels the request.
   private aborts = new WeakMap<HTMLElement, AbortController>();
 
@@ -137,7 +164,11 @@ export class HillshadeLayer extends L.GridLayer {
     });
   }
 
-  /** Switch the sun direction and re-render all visible tiles. */
+  /**
+   * Switch the sun direction and re-render all visible tiles. Only the shaded
+   * output is invalidated — the elevation it was computed from is kept, so the
+   * repaint runs off cached data and never re-downloads.
+   */
   setAzimuth(azimuthDeg: number): void {
     if (azimuthDeg === this.azimuthDeg) return;
     this.azimuthDeg = azimuthDeg;
@@ -155,8 +186,16 @@ export class HillshadeLayer extends L.GridLayer {
     return tile;
   }
 
-  /** Fetch a Terrarium tile and shade it under the current sun. */
-  private async fetchAndShade(z: number, x: number, y: number, signal?: AbortSignal): Promise<HTMLCanvasElement> {
+  /**
+   * Decoded elevation for a native-zoom tile, from cache when possible. The
+   * scratch canvas used to read the PNG's pixels is dropped once decoded — only
+   * the Float32 grid is retained, and it outlives any sun-direction change.
+   */
+  private async getElevation(z: number, x: number, y: number, signal?: AbortSignal): Promise<Float32Array> {
+    const key = `${z}/${x}/${y}`;
+    const cached = lruGet(this.elevCache, key);
+    if (cached) return cached;
+
     const resp = await fetch(`${TERRARIUM_URL}/${z}/${x}/${y}.png`, signal ? { signal } : undefined);
     if (!resp.ok) throw new Error(`terrarium tile ${z}/${x}/${y}: HTTP ${resp.status}`);
     const bitmap = await createImageBitmap(await resp.blob());
@@ -171,11 +210,24 @@ export class HillshadeLayer extends L.GridLayer {
 
     const rgba = srcCtx.getImageData(0, 0, TILE_PX, TILE_PX).data;
     const elev = decodeTerrarium(rgba, TILE_PX * TILE_PX);
+    lruSet(this.elevCache, key, elev, ELEV_CACHE_MAX);
+    return elev;
+  }
+
+  /** Shade a Terrarium tile under the current sun. */
+  private async fetchAndShade(z: number, x: number, y: number, signal?: AbortSignal): Promise<HTMLCanvasElement> {
+    const elev = await this.getElevation(z, x, y, signal);
     const shade = shadeElevationGrid(
       elev, TILE_PX, TILE_PX, metersPerPixel(z, tileCenterLat(y, z)), this.azimuthDeg,
     );
 
-    const gray = srcCtx.createImageData(TILE_PX, TILE_PX);
+    const out = document.createElement('canvas');
+    out.width = TILE_PX;
+    out.height = TILE_PX;
+    const ctx = out.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+
+    const gray = ctx.createImageData(TILE_PX, TILE_PX);
     for (let i = 0; i < shade.length; i++) {
       const v = shade[i] as number;
       gray.data[i * 4] = v;
@@ -183,31 +235,21 @@ export class HillshadeLayer extends L.GridLayer {
       gray.data[i * 4 + 2] = v;
       gray.data[i * 4 + 3] = 255;
     }
-    srcCtx.putImageData(gray, 0, 0);
-    return src;
+    ctx.putImageData(gray, 0, 0);
+    return out;
   }
 
   /** Cached shaded ancestor for overzoomed tiles; not abortable — it's shared. */
   private getShadedAncestor(z: number, x: number, y: number): Promise<HTMLCanvasElement> {
     const key = `${z}/${x}/${y}`;
-    let entry = this.ancestorCache.get(key);
-    if (entry) {
-      // LRU touch: re-insert so eviction targets the least-recently-used entry,
-      // not merely the oldest-inserted (which could still back visible subtiles)
-      this.ancestorCache.delete(key);
-      this.ancestorCache.set(key, entry);
-      return entry;
-    }
-    if (this.ancestorCache.size >= ANCESTOR_CACHE_MAX) {
-      // Drop the least-recently-used entry (Map preserves insertion order; hits re-insert)
-      const oldest = this.ancestorCache.keys().next().value;
-      if (oldest !== undefined) this.ancestorCache.delete(oldest);
-    }
-    entry = this.fetchAndShade(z, x, y).catch((err: Error) => {
+    const cached = lruGet(this.ancestorCache, key);
+    if (cached) return cached;
+
+    const entry = this.fetchAndShade(z, x, y).catch((err: Error) => {
       this.ancestorCache.delete(key); // allow retry after a failed fetch
       throw err;
     });
-    this.ancestorCache.set(key, entry);
+    lruSet(this.ancestorCache, key, entry, ANCESTOR_CACHE_MAX);
     return entry;
   }
 
