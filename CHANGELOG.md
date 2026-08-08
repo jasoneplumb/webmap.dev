@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.44.1-beta (2026-08-08)
+
+### Fixed
+
+- **Switching the Hillshade sun direction no longer wipes the shading** — toggling **Satellite sun** threw away the decoded elevation along with the shaded tiles, and because Terrarium elevation tiles aren't service-worker cached, every toggle re-downloaded all visible tiles from AWS. The map sat unshaded for the whole round trip, and stayed blank when a refetch failed — offline, on flaky cellular, or when the burst of requests was throttled — since tiles are only rebuilt on the next pan or zoom. Elevation is now cached separately from the shading it feeds (elevation doesn't depend on the sun), so re-lighting re-shades from memory with no network at all. This also removes the same redundant refetch when panning back over ground at z15 or below, which previously had no cache (#250)
+
 ## v0.44.0-beta (2026-07-29)
 
 ### Added
