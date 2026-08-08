@@ -83,6 +83,16 @@ let storedDeactivatePolling: (() => void) | null = null;
 let arrivedTimer: ReturnType<typeof setTimeout> | null = null;
 const guidanceRenderListeners = new Set<() => void>();
 
+/**
+ * Mounts the turn-by-turn banner and captures the GPS polling callbacks.
+ *
+ * The banner is a fixed element on document.body rather than a Leaflet control:
+ * it spans the top of the viewport, which no single control corner does, and it
+ * has to sit above the corner containers rather than stack inside one.
+ * renderGuidanceDashboard() returns '' while idle, so the banner is only
+ * visible during navigation — that's when covering the search bar is the right
+ * trade, and it stays out of the way entirely the rest of the time.
+ */
 export function addGuidanceControl(
   map: L.Map,
   state: AppState,
@@ -90,9 +100,24 @@ export function addGuidanceControl(
   deactivatePolling: () => void,
 ): void {
   void map;
-  void state;
   storedActivatePolling = activatePolling;
   storedDeactivatePolling = deactivatePolling;
+
+  const banner = document.createElement('div');
+  banner.className = 'guidance-banner';
+  // Announce maneuver changes without stealing focus from the map.
+  banner.setAttribute('role', 'status');
+  banner.setAttribute('aria-live', 'polite');
+  document.body.appendChild(banner);
+
+  const renderBanner = (): void => {
+    const html = renderGuidanceDashboard(state);
+    banner.innerHTML = html;
+    banner.classList.toggle('guidance-banner--visible', html !== '');
+  };
+
+  renderBanner();
+  onGuidanceRender(renderBanner);
 }
 
 // ── Public state-machine API ───────────────────────────────────────────────

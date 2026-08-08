@@ -7,7 +7,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { onGuidanceRender, renderGuidanceDashboard, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
+import { onGuidanceRender, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
 import type { Costing } from './routing';
 import { escapeHtml } from './html';
 
@@ -439,7 +439,6 @@ export function addReverseGeocoding(
     '  <div class="geocode-bar__handle-pill"></div>' +
     '</div>' +
     '<div class="geocode-bar__body">' +
-    '  <div class="geocode-bar__dashboard"></div>' +
     '  <div class="geocode-bar__profile" role="group" aria-label="Navigation type">' +
     '    <button type="button" class="geocode-bar__profile-btn geocode-bar__profile-btn--active" data-costing="auto" aria-pressed="true">Drive</button>' +
     '    <button type="button" class="geocode-bar__profile-btn" data-costing="bicycle" aria-pressed="false">Bike</button>' +
@@ -452,7 +451,6 @@ export function addReverseGeocoding(
     '</div>';
   document.body.appendChild(geocodeBar);
 
-  const dashboardEl = geocodeBar.querySelector<HTMLElement>('.geocode-bar__dashboard')!;
   const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
   const barNavBtn  = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__nav')!;
@@ -490,8 +488,6 @@ export function addReverseGeocoding(
   }
 
   function renderNavigationTray(): void {
-    dashboardEl.innerHTML = renderGuidanceDashboard(state);
-    dashboardEl.classList.toggle('geocode-bar__dashboard--visible', dashboardEl.innerHTML !== '');
     barNavBtn.textContent = isNavigating() ? 'Stop' : 'Start';
     barNavBtn.setAttribute('aria-label', isNavigating() ? 'Stop navigation' : 'Start navigation');
     barNavBtn.classList.toggle('geocode-bar__nav--stop', isNavigating());

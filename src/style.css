@@ -233,6 +233,40 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   to { transform: rotate(360deg); }
 }
 
+/* ── Turn-by-turn banner ───────────────────────────────────────────────────
+   Container for the dashboard above, mounted on document.body by
+   addGuidanceControl(). Top of the viewport, the convention for navigation
+   apps and where the eye already is when driving. Only rendered while
+   navigating (renderGuidanceDashboard returns '' when idle), so it covers the
+   search bar and top-right controls exactly when they matter least.
+   z-index clears the Leaflet control corners (1000) and the geocode sheet
+   (1500) but stays under toasts and modals (3000). */
+.guidance-banner {
+  display: none;
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 16px));
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  z-index: 1600;
+  /* Read-only status: never intercept taps meant for the map beneath. */
+  pointer-events: none;
+}
+
+.guidance-banner--visible {
+  display: flex;
+}
+
 
 /* Destination marker — red pin with white border */
 .guidance-dest-marker {
@@ -411,7 +445,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .geocode-bar--min .geocode-bar__handle,
 .geocode-bar--peek .geocode-bar__handle,
-.geocode-bar--peek .geocode-bar__dashboard,
 .geocode-bar--peek .geocode-bar__profile,
 .geocode-bar--peek .geocode-bar__profile-btn,
 .geocode-bar--peek .geocode-bar__nav,
@@ -458,23 +491,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   min-height: 44px;
   flex-shrink: 0;
-}
-
-.geocode-bar__dashboard {
-  display: none;
-  flex: 1 0 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(17, 24, 39, 0.95);
-  color: #fff;
-}
-
-.geocode-bar__dashboard--visible {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .geocode-bar__profile {
