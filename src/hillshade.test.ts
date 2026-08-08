@@ -198,6 +198,20 @@ describe('HillshadeLayer.setAzimuth', () => {
     expect(painted).toHaveLength(1);
   });
 
+  it('retries after a failed download instead of caching the rejection', async () => {
+    // The cache holds pending promises now, so a rejected entry must be dropped
+    // or the tile would be permanently unshaded until eviction.
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 503, blob: async () => ({}) }));
+    const layer = createHillshadeLayer({ tileSize: 256 });
+
+    await expect(paint(layer, 14, 2620, 6333)).rejects.toThrow('HTTP 503');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await paint(layer, 14, 2620, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(painted).toHaveLength(1);
+  });
+
   it('coalesces concurrent requests for the same native tile', async () => {
     const layer = createHillshadeLayer({ tileSize: 256 });
     // Both paints start before either fetch resolves — the elevation cache holds
