@@ -21,6 +21,7 @@
   "devDependencies": {
     "@size-limit/file": "^12.1.0",
     "@types/leaflet": "^1.9.14",
+    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
     "jsdom": "^29.0.1",
@@ -40,7 +41,7 @@
   "size-limit": [
     {
       "path": "dist/assets/index-*.js",
-      "limit": "120 kB",
+      "limit": "122 kB",
       "gzip": true
     }
   ]

@@ -160,42 +160,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   color: #fff;
 }
 
-/* ── Routed-guidance pill ──────────────────────────────────────────────────
-   Bottom-left pill driven by guidance.ts state machine. Hidden when idle;
-   compact during routing; expanded with maneuver / off-route / arrived
-   variants while a destination is set. */
-
-.guidance-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-radius: 16px;
-  font-family: system-ui, sans-serif;
-  font-size: 14px;
-  white-space: nowrap;
-  min-width: 0;
-  max-width: 360px;
-  padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.88);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: padding 0.2s ease, background-color 0.2s ease;
-}
-
-.guidance-panel--idle {
-  display: none;
-}
-
-.guidance-panel--arrived {
-  background: rgba(34, 197, 94, 0.92);
-  text-align: center;
-  font-weight: 600;
-}
-
-.guidance-panel--off-route {
-  background: rgba(245, 158, 11, 0.92);
-  color: #1f2937;
-}
+/* ── Guidance dashboard content ────────────────────────────────────────────
+   The markup renderGuidanceDashboard() emits: maneuver row, summary row, and
+   the routing / arrived status variants. Styles the content only — its
+   container is styled where the container lives. */
 
 .guidance-row {
   display: flex;
@@ -265,31 +233,40 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   to { transform: rotate(360deg); }
 }
 
-.guidance-btn {
-  align-self: flex-start;
-  padding: 6px 14px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.15);
-  color: inherit;
-}
-
-.guidance-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.guidance-btn--stop {
-  background: #ef4444;
+/* ── Turn-by-turn banner ───────────────────────────────────────────────────
+   Container for the dashboard above, mounted on document.body by
+   addGuidanceControl(). Top of the viewport, the convention for navigation
+   apps and where the eye already is when driving. Only rendered while
+   navigating (renderGuidanceDashboard returns '' when idle), so it covers the
+   search bar and top-right controls exactly when they matter least.
+   z-index clears the Leaflet control corners (1000) and the geocode sheet
+   (1500) but stays under toasts and modals (3000). */
+.guidance-banner {
+  display: none;
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 16px));
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.95);
   color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  z-index: 1600;
+  /* Read-only status: never intercept taps meant for the map beneath. */
+  pointer-events: none;
 }
 
-.guidance-btn--cancel {
-  background: rgba(239, 68, 68, 0.7);
-  color: #fff;
+.guidance-banner--visible {
+  display: flex;
 }
+
 
 /* Destination marker — red pin with white border */
 .guidance-dest-marker {
@@ -428,13 +405,22 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* ── Reverse geocode bottom sheet ── */
+/* Right-anchored rather than centred, and capped at 480px so it doesn't balloon
+   on a wide monitor. The sheet must never obscure the bottom-left cluster
+   (zoom, ruler, version, attribution) — in peek every pixel of its visible band
+   belongs to a pointer-events:auto child, so anything underneath is unreachable,
+   not merely hidden (#253). That separation is VERTICAL, not horizontal: the
+   attribution alone runs ~330px, most of a phone's width, so no side-by-side
+   split can clear it. The cluster rides above the sheet via --sheet-h below.
+   The transform carries only translateY — see sheetTransform() in geocoding.ts. */
 .geocode-bar {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(0);
+  right: env(safe-area-inset-right, 0px);
+  left: auto;
+  transform: translateY(0);
   width: min(480px, 100vw);
-  height: 60vh;
+  height: 30vh;
   min-height: calc(130px + var(--sai-bottom));
   background: #fff;
   border-radius: 12px 12px 0 0;
@@ -460,7 +446,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .geocode-bar--min .geocode-bar__handle,
 .geocode-bar--peek .geocode-bar__handle,
-.geocode-bar--peek .geocode-bar__dashboard,
 .geocode-bar--peek .geocode-bar__profile,
 .geocode-bar--peek .geocode-bar__profile-btn,
 .geocode-bar--peek .geocode-bar__nav,
@@ -507,23 +492,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
   min-height: 44px;
   flex-shrink: 0;
-}
-
-.geocode-bar__dashboard {
-  display: none;
-  flex: 1 0 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(17, 24, 39, 0.95);
-  color: #fff;
-}
-
-.geocode-bar__dashboard--visible {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .geocode-bar__profile {
@@ -746,9 +714,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   }
 
 
-  /* Bottom-left control group: scale — match bottom offset of right group */
+  /* Bottom-left control group — rides above the navigation sheet via --sheet-h
+     (set in geocoding.ts snapTo). The sheet must never cover zoom, the ruler,
+     or the attribution; see the .geocode-bar comment for why the separation is
+     vertical rather than side-by-side. */
   .leaflet-bottom.leaflet-left {
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--sheet-h, 0px));
     left: calc(10px + env(safe-area-inset-left, 0px));
   }
 
@@ -800,9 +771,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 @media (min-width: 769px) {
 
-  /* Bottom-left control group: scale — match bottom offset of right group */
+  /* Bottom-left control group — same lift as mobile. Still needed here: at
+     ~800px wide the 480px right-anchored sheet reaches left far enough to
+     overlap a full-width attribution. */
   .leaflet-bottom.leaflet-left {
-    bottom: 10px;
+    bottom: calc(10px + var(--sheet-h, 0px));
     left: 10px;
   }
 
@@ -850,6 +823,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
      (zoom, version-badge) from stretching to match wider siblings like
      the attribution. */
   align-items: flex-start;
+  /* Rides with the sheet rather than snapping after it lands. Duration comes
+     from SHEET_ANIM_MS via --sheet-anim (set in geocoding.ts), so the two can't
+     drift; the fallback only applies before the first snap publishes it. */
+  transition: bottom var(--sheet-anim, 300ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .leaflet-bottom.leaflet-left .leaflet-control-toggle {
@@ -863,7 +840,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    locate → recording → zoom → scale → version-badge → attribution.
    Registration order doesn't match this so we use explicit `order`. */
 .leaflet-bottom.leaflet-left .leaflet-control-toggle { order: 1; }
-.leaflet-bottom.leaflet-left .guidance-panel         { order: 2; }
 .leaflet-bottom.leaflet-left .leaflet-control-zoom   { order: 3; }
 .leaflet-bottom.leaflet-left .leaflet-control-scale  { order: 4; }
 .leaflet-bottom.leaflet-left #version-badge          { order: 5; }

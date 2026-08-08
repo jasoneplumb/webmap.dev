@@ -7,7 +7,7 @@
 import L from 'leaflet';
 import { geosearch, arcgisOnlineProvider, geocodeService } from 'esri-leaflet-geocoder';
 import type { AppState } from './types';
-import { onGuidanceRender, renderGuidanceDashboard, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
+import { onGuidanceRender, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
 import type { Costing } from './routing';
 import { escapeHtml } from './html';
 
@@ -391,8 +391,40 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
 // no safe-area inset — the min offset sits only ~a handle-height above the
 // clamp floor, so the old +20 clamp left a ~2px window.
 export const DRAG_PAST_BOTTOM_PX = 80;
+
+/**
+ * Sheet snap animation duration (ms). Published to CSS as --sheet-anim so the
+ * control cluster's `transition: bottom` uses this exact value rather than a
+ * second hardcoded copy that could silently drift.
+ */
+export const SHEET_ANIM_MS = 300;
+
+/** Structural latlng so callers (and tests) don't need a Leaflet instance. */
+interface LatLngLike { lat: number; lng: number }
+
+/**
+ * True when a geocoder reply still describes the pin the sheet points at.
+ * Exported for testing: a late reply for a pin the user has moved on from must
+ * not overwrite a newer address.
+ */
+export function isReplyForPin(current: LatLngLike | null, reply: LatLngLike): boolean {
+  if (current === null) return false;
+  return current.lat === reply.lat && current.lng === reply.lng;
+}
 export const DISMISS_BELOW_MIN_PX = 40;
 export const MIN_BELOW_PEEK_PX = 80;
+
+/**
+ * Transform for the geocode-bar at a given vertical offset. The sheet is
+ * right-anchored (see .geocode-bar in style.css), so the transform carries ONLY
+ * the vertical offset — a horizontal component here would fight the CSS anchor
+ * and push the sheet off-screen. Centralized because four call sites write this
+ * (snap, open, touch-drag, mouse-drag) and one missed edit is invisible until
+ * the user drags.
+ */
+export function sheetTransform(offsetPx: number): string {
+  return `translateY(${offsetPx}px)`;
+}
 
 /** Pure end-of-drag snap decision for the geocode-bar bottom sheet. */
 export function sheetSettleTarget(
@@ -427,7 +459,6 @@ export function addReverseGeocoding(
     '  <div class="geocode-bar__handle-pill"></div>' +
     '</div>' +
     '<div class="geocode-bar__body">' +
-    '  <div class="geocode-bar__dashboard"></div>' +
     '  <div class="geocode-bar__profile" role="group" aria-label="Navigation type">' +
     '    <button type="button" class="geocode-bar__profile-btn geocode-bar__profile-btn--active" data-costing="auto" aria-pressed="true">Drive</button>' +
     '    <button type="button" class="geocode-bar__profile-btn" data-costing="bicycle" aria-pressed="false">Bike</button>' +
@@ -440,7 +471,6 @@ export function addReverseGeocoding(
     '</div>';
   document.body.appendChild(geocodeBar);
 
-  const dashboardEl = geocodeBar.querySelector<HTMLElement>('.geocode-bar__dashboard')!;
   const barAddrEl  = geocodeBar.querySelector<HTMLElement>('.geocode-bar__addr')!;
   const barCopyBtn = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__copy')!;
   const barNavBtn  = geocodeBar.querySelector<HTMLButtonElement>('.geocode-bar__nav')!;
@@ -478,8 +508,6 @@ export function addReverseGeocoding(
   }
 
   function renderNavigationTray(): void {
-    dashboardEl.innerHTML = renderGuidanceDashboard(state);
-    dashboardEl.classList.toggle('geocode-bar__dashboard--visible', dashboardEl.innerHTML !== '');
     barNavBtn.textContent = isNavigating() ? 'Stop' : 'Start';
     barNavBtn.setAttribute('aria-label', isNavigating() ? 'Stop navigation' : 'Start navigation');
     barNavBtn.classList.toggle('geocode-bar__nav--stop', isNavigating());
@@ -577,16 +605,60 @@ export function addReverseGeocoding(
 
   // Animate to offsetPx with a CSS transition. willChange is enabled for the
   // duration of the animation only, then cleared to avoid pinning a GPU layer.
+  /**
+   * Run `done` once the sheet's own snap has settled — on transitionend, or on a
+   * timer if that never arrives. Both are needed: transitionend BUBBLES, so a
+   * child's transition (the handle pill's hover) would fire it early, and it does
+   * not fire at all when the transition never starts — setting transition and
+   * transform in one frame straight out of transition:none, which every drag
+   * settle does — nor when a re-open cancels it (transitioncancel replaces it).
+   */
+  function onSheetSettled(done: () => void): void {
+    let finished = false;
+    const handler = (e: TransitionEvent): void => {
+      if (e.target !== geocodeBar) return; // a child's transition, not the sheet's
+      finish();
+    };
+    function finish(): void {
+      if (finished) return;
+      finished = true;
+      geocodeBar.removeEventListener('transitionend', handler);
+      clearTimeout(timer);
+      done();
+    }
+    geocodeBar.addEventListener('transitionend', handler);
+    // Declared last but read inside finish() — only ever reached asynchronously.
+    const timer = setTimeout(finish, SHEET_ANIM_MS + 50);
+  }
+
   function animateTo(offsetPx: number): void {
     geocodeBar.style.willChange = 'transform';
-    geocodeBar.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-    geocodeBar.style.transform = `translateX(-50%) translateY(${offsetPx}px)`;
-    geocodeBar.addEventListener('transitionend', () => {
-      geocodeBar.style.willChange = '';
-    }, { once: true });
+    geocodeBar.style.transition = `transform ${SHEET_ANIM_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+    geocodeBar.style.transform = sheetTransform(offsetPx);
+    onSheetSettled(() => { geocodeBar.style.willChange = ''; });
+  }
+
+  /**
+   * Publish how much of the bottom edge the sheet occupies, so the control
+   * cluster can sit above it. Horizontal separation can't work: the attribution
+   * runs ~330px with a base map plus Hillshade, which is most of a phone's
+   * width, so the sheet and the cluster have to be stacked, not side by side.
+   * Set on snap only — `bottom` is a layout property, so writing it on every
+   * pointermove would reflow the cluster each frame.
+   */
+  // Publish the snap duration once so style.css can't hold a second copy.
+  document.documentElement.style.setProperty('--sheet-anim', `${SHEET_ANIM_MS}ms`);
+
+  function publishSheetHeight(target: SheetState): void {
+    const occupied =
+      target === 'hidden' ? 0 :
+      target === 'min' ? barHandle.offsetHeight + getSafeAreaBottom() :
+      getPeekHeight();
+    document.documentElement.style.setProperty('--sheet-h', `${occupied}px`);
   }
 
   function snapTo(target: SheetState): void {
+    publishSheetHeight(target);
     if (target === 'hidden') {
       // Update sheetState immediately so any concurrent showGeocodeBar call
       // takes the correct 'hidden' branch rather than calling snapTo('peek')
@@ -594,11 +666,11 @@ export function addReverseGeocoding(
       // fire at the end of the NEW transition, hiding the freshly-opened sheet.
       sheetState = 'hidden';
       animateTo(geocodeBar.offsetHeight + 20);
-      geocodeBar.addEventListener('transitionend', () => {
-        if (sheetState !== 'hidden') return; // re-opened before transition ended
+      onSheetSettled(() => {
+        if (sheetState !== 'hidden') return; // re-opened before the snap settled
         geocodeBar.style.display = 'none';
         geocodeBar.style.transform = '';
-      }, { once: true });
+      });
       geocodeBar.classList.remove('geocode-bar--peek', 'geocode-bar--min');
       barHandle.setAttribute('aria-expanded', 'false');
     } else {
@@ -634,7 +706,7 @@ export function addReverseGeocoding(
       // starting the transition (single-rAF can batch both into one paint frame).
       geocodeBar.style.display = 'flex';
       geocodeBar.style.transition = 'none';
-      geocodeBar.style.transform = `translateX(-50%) translateY(${geocodeBar.offsetHeight}px)`;
+      geocodeBar.style.transform = sheetTransform(geocodeBar.offsetHeight);
       barHandle.setAttribute('aria-expanded', 'false');
       requestAnimationFrame(() => {
         requestAnimationFrame(() => { snapTo('peek'); });
@@ -676,7 +748,7 @@ export function addReverseGeocoding(
     const delta = touch.clientY - dragStartY;
     // Upward travel stops just past peek — there is no larger state to reach
     const clamped = Math.max(getPeekOffset() - 20, Math.min(geocodeBar.offsetHeight + DRAG_PAST_BOTTOM_PX, dragStartOffset + delta));
-    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+    geocodeBar.style.transform = sheetTransform(clamped);
   }, { passive: true });
 
   // Shared end-of-drag settle: full dismiss only from below the minimized
@@ -727,7 +799,7 @@ export function addReverseGeocoding(
     if (Math.abs(delta) > 3) dragMoved = true;
     // Upward travel stops just past peek — there is no larger state to reach
     const clamped = Math.max(getPeekOffset() - 20, Math.min(geocodeBar.offsetHeight + DRAG_PAST_BOTTOM_PX, dragStartOffset + delta));
-    geocodeBar.style.transform = `translateX(-50%) translateY(${clamped}px)`;
+    geocodeBar.style.transform = sheetTransform(clamped);
   });
 
   document.addEventListener('mouseup', () => {
@@ -785,24 +857,38 @@ export function addReverseGeocoding(
   // Disable double-click zoom so dblclick can drop a pin instead
   map.doubleClickZoom.disable();
 
-  function reverseGeocode(latlng: L.LatLng): void {
-    const lat = latlng.lat;
-    const lng = latlng.lng;
+  /** Human-readable coordinates — shown immediately, and kept if the geocoder
+   *  has nothing better to offer. */
+  function coordLabel(latlng: L.LatLng): string {
+    const { lat, lng } = latlng;
     const latStr = `${Math.abs(lat).toFixed(5)}\u00b0\u00a0${lat >= 0 ? 'N' : 'S'}`;
     const lngStr = `${Math.abs(lng).toFixed(5)}\u00b0\u00a0${lng >= 0 ? 'E' : 'W'}`;
-    const coordLabel = `${latStr},  ${lngStr}`;
+    return `${latStr},  ${lngStr}`;
+  }
 
+  /**
+   * Upgrade the address of an already-open sheet. Deliberately does not snap:
+   * a slow response must not yank a sheet the user has since minimized back up
+   * to peek. Ignored when the pin has moved on, so a late reply for an old
+   * location can't overwrite a newer one.
+   */
+  function updateGeocodeBarAddress(label: string, copyText: string, latlng: L.LatLng): void {
+    if (!isReplyForPin(currentPinLatLng, latlng)) return;
+    barAddrEl.textContent = label;
+    barAddrEl.title = label;
+    barCopyBtn.dataset['copy'] = copyText;
+    currentPinLabel = label;
+  }
+
+  function reverseGeocode(latlng: L.LatLng): void {
     geocoder
       .reverse()
       .latlng(latlng)
       .run((error, result) => {
-        if (error || !result) {
-          // Geocoding failed — fall back to coordinates.
-          showGeocodeBar(coordLabel, coordLabel, latlng);
-          return;
-        }
+        // No fallback needed: the sheet is already open showing coordinates.
+        if (error || !result) return;
         const addr = result.address.Match_addr;
-        showGeocodeBar(addr, addr, latlng);
+        if (addr) updateGeocodeBarAddress(addr, addr, latlng);
       });
   }
 
@@ -823,14 +909,33 @@ export function addReverseGeocoding(
     const pin = L.marker(latlng, { draggable: true, icon: redIcon });
     pinLayer.addLayer(pin);
 
+    // Open the sheet synchronously. Previously the only calls to showGeocodeBar
+    // were inside the geocoder callback, so a request that never came back left
+    // no sheet at all — and the ESRI key is referrer-restricted, which fails
+    // silently on an origin that isn't allowlisted. The pin is the user's
+    // action; the sheet should not depend on a third party answering.
+    const label = coordLabel(latlng);
+    showGeocodeBar(label, label, latlng);
     reverseGeocode(latlng);
 
     // Debounced reverse geocode as pin is dragged to a new location
     let dragDebounce: ReturnType<typeof setTimeout> | undefined;
     pin.on('dragend', () => {
+      const moved = pin.getLatLng();
+      // Move the sheet's destination with the pin, synchronously. currentPinLatLng
+      // is what Start routes to, and it also gates the stale-reply guard in
+      // updateGeocodeBarAddress — leaving it at the drop point would both freeze
+      // the address label and silently route to where the pin used to be.
+      currentPinLatLng = moved;
+      const label = coordLabel(moved);
+      currentPinLabel = label;
+      barAddrEl.textContent = label;
+      barAddrEl.title = label;
+      barCopyBtn.dataset['copy'] = label;
+
       if (dragDebounce !== undefined) clearTimeout(dragDebounce);
       dragDebounce = setTimeout(() => {
-        reverseGeocode(pin.getLatLng());
+        reverseGeocode(moved);
       }, 300);
     });
   }
@@ -849,8 +954,9 @@ export function addReverseGeocoding(
 
   // iOS Safari long-press fallback: contextmenu fires inconsistently on iOS,
   // so we implement our own long-press via touch events. If the touch holds for
-  // 500ms without moving more than ~10px and contextmenu has not already fired
-  // (to avoid double-drop on browsers that do support it), drop a pin.
+  // LONG_PRESS_MS without moving more than ~10px and contextmenu has not already
+  // fired (to avoid double-drop on browsers that do support it), drop a pin.
+  const LONG_PRESS_MS = 250;
   let longPressTimer: ReturnType<typeof setTimeout> | undefined;
   let longPressStartX = 0;
   let longPressStartY = 0;
@@ -884,7 +990,7 @@ export function addReverseGeocoding(
       const point = L.point(longPressStartX - mapRect.left, longPressStartY - mapRect.top);
       const latlng = map.containerPointToLatLng(point);
       dropPin(latlng);
-    }, 500);
+    }, LONG_PRESS_MS);
   }, { passive: true });
 
   function cancelLongPress(): void {

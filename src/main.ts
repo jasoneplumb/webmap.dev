@@ -476,11 +476,14 @@ const overlayDefs: OverlayDef[] = [
 layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'cycle-blend', 'hiking-routes', 'cycling-routes']);
 
 addOfflineDownloadControl(map, showToast);
+// Registered here, not with the other controls below: Leaflet stacks a corner's
+// controls in registration order, so this puts draw-zone directly beneath the
+// download button in the top-right column.
+addDrawZoneControl(map, customZonesOverlay, showToast, () => layersControl?.setOverlayEnabled('custom-squeeze-zones', true));
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state, showToast);
 addGuidanceControl(map, state, activatePolling, deactivatePolling);
 addCompassControl(map, state);
-addDrawZoneControl(map, customZonesOverlay, showToast, () => layersControl?.setOverlayEnabled('custom-squeeze-zones', true));
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');

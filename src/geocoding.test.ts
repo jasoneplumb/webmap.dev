@@ -8,6 +8,8 @@ import {
   DRAG_PAST_BOTTOM_PX,
   MIN_BELOW_PEEK_PX,
   sheetSettleTarget,
+  sheetTransform,
+  isReplyForPin,
 } from './geocoding';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -240,5 +242,39 @@ describe('sheetSettleTarget', () => {
     const dismissThreshold = MIN + DISMISS_BELOW_MIN_PX;
     expect(clampMax - dismissThreshold).toBeGreaterThanOrEqual(30);
     expect(sheetSettleTarget(clampMax, PEEK, MIN)).toBe('dismiss');
+  });
+});
+
+describe('sheetTransform', () => {
+  it('carries only the vertical offset', () => {
+    expect(sheetTransform(0)).toBe('translateY(0px)');
+    expect(sheetTransform(137)).toBe('translateY(137px)');
+    expect(sheetTransform(-20)).toBe('translateY(-20px)');
+  });
+
+  it('never emits a horizontal component', () => {
+    // The sheet is right-anchored in CSS (#253). A translateX here would fight
+    // that anchor and push it off-screen — and because four call sites write
+    // this transform, a stale one is invisible until the user drags.
+    for (const offset of [0, 137, -20, 999]) {
+      expect(sheetTransform(offset)).not.toContain('translateX');
+    }
+  });
+});
+
+describe('isReplyForPin', () => {
+  it('accepts a reply for the pin the sheet points at', () => {
+    expect(isReplyForPin({ lat: 47.6, lng: -122.3 }, { lat: 47.6, lng: -122.3 })).toBe(true);
+  });
+
+  it('drops a reply for a position the pin has moved on from', () => {
+    // A slow reverse-geocode landing after the user dragged the pin elsewhere
+    // must not overwrite the newer address.
+    expect(isReplyForPin({ lat: 47.6, lng: -122.3 }, { lat: 47.7, lng: -122.3 })).toBe(false);
+    expect(isReplyForPin({ lat: 47.6, lng: -122.3 }, { lat: 47.6, lng: -122.4 })).toBe(false);
+  });
+
+  it('drops any reply once the pin is cleared', () => {
+    expect(isReplyForPin(null, { lat: 47.6, lng: -122.3 })).toBe(false);
   });
 });

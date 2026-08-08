@@ -418,13 +418,12 @@ export function addDrawZoneControl(
       const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
       container.title = 'Draw a custom squeeze zone';
 
+      // Icon only — the title attribute carries the description. U+FE0E is the
+      // text-presentation variation selector: without it iOS renders the pencil
+      // as a colour emoji, while desktop already shows the monochrome glyph.
       const icon = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
-      icon.textContent = '✏';
+      icon.textContent = '✏︎';
       container.appendChild(icon);
-
-      const label = L.DomUtil.create('span', 'leaflet-control-toggle__label') as HTMLSpanElement;
-      label.textContent = 'Draw zone';
-      container.appendChild(label);
 
       L.DomEvent.disableClickPropagation(container);
       L.DomEvent.on(container, 'click', (e: Event) => {
@@ -436,5 +435,9 @@ export function addDrawZoneControl(
     },
   });
 
-  new (DrawZoneControl as new (opts: L.ControlOptions) => L.Control)({ position: 'topleft' }).addTo(map);
+  // Top-right, joining the download and layers controls. Top-left is the search
+  // bar's column, where a second button crowded the input on narrow screens.
+  // Leaflet stacks a corner's controls in registration order, so this lands
+  // below both (see the addDrawZoneControl call in main.ts).
+  new (DrawZoneControl as new (opts: L.ControlOptions) => L.Control)({ position: 'topright' }).addTo(map);
 }
