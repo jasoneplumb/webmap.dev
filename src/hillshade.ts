@@ -188,17 +188,23 @@ export class HillshadeLayer extends L.GridLayer {
   }
 
   /**
-   * Decoded elevation for a native-zoom tile, shared by every caller. Not async:
-   * the pending promise must reach the cache before the first await, or two
-   * callers racing the same tile would each start a download.
+   * Decoded elevation for a native-zoom tile, shared by every caller. The
+   * invariant that makes the sharing work: NO await may precede the cache
+   * write below, or two callers racing the same tile would both miss and each
+   * start a download. (Marking this `async` would be harmless on its own — an
+   * async function still runs synchronously up to its first await — but any
+   * await added above the write reopens the race.)
    */
   private getElevation(z: number, x: number, y: number): Promise<Float32Array> {
     const key = `${z}/${x}/${y}`;
     const cached = lruGet(this.elevCache, key);
     if (cached) return cached;
 
-    const entry = this.fetchElevation(z, x, y).catch((err: Error) => {
-      this.elevCache.delete(key); // allow retry after a failed fetch
+    const entry: Promise<Float32Array> = this.fetchElevation(z, x, y).catch((err: Error) => {
+      // Evict by identity, not just key: if this entry was dropped by the LRU
+      // mid-flight and a newer fetch for the same tile replaced it, that one
+      // must survive our failure.
+      if (this.elevCache.get(key) === entry) this.elevCache.delete(key);
       throw err;
     });
     lruSet(this.elevCache, key, entry, ELEV_CACHE_MAX);
@@ -258,8 +264,9 @@ export class HillshadeLayer extends L.GridLayer {
     const cached = lruGet(this.ancestorCache, key);
     if (cached) return cached;
 
-    const entry = this.fetchAndShade(z, x, y).catch((err: Error) => {
-      this.ancestorCache.delete(key); // allow retry after a failed fetch
+    const entry: Promise<HTMLCanvasElement> = this.fetchAndShade(z, x, y).catch((err: Error) => {
+      // Evict by identity so a stale failure can't drop a newer entry (see getElevation)
+      if (this.ancestorCache.get(key) === entry) this.ancestorCache.delete(key);
       throw err;
     });
     lruSet(this.ancestorCache, key, entry, ANCESTOR_CACHE_MAX);
