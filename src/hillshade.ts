@@ -12,10 +12,17 @@
  *          Decoded elevation is cached separately from the shading it feeds —
  *          elevation doesn't depend on the sun, so changing azimuth re-shades
  *          from memory instead of re-downloading (Terrarium isn't SW-cached).
+ *          Both caches hold the pending promise, so concurrent callers for one
+ *          tile share a single download. Downloads are deliberately NOT
+ *          cancelled on pan-away: a shared request can't be attributed to one
+ *          tile, and a completed fetch is kept for the pan back (see below).
  *          Shade is normalized to neutral mid-gray on flat terrain for the
  *          overlay blend: sun-facing slopes LIGHTEN the base, shadowed darken
  * Future: Azimuth is fixed; southern-hemisphere imagery is sunlit from the north,
- *         so a latitude-dependent azimuth flip is a possible refinement
+ *         so a latitude-dependent azimuth flip is a possible refinement.
+ *         Panning fast over new ground queues downloads that are no longer
+ *         wanted; if that shows up on cellular, gate new fetches on the tile
+ *         still being current rather than reinstating per-tile abort.
  */
 import L from 'leaflet';
 
@@ -153,16 +160,10 @@ export class HillshadeLayer extends L.GridLayer {
   private ancestorCache = new Map<string, Promise<HTMLCanvasElement>>();
   // Decoded elevation per native tile. Elevation is sun-independent, so this
   // SURVIVES setAzimuth — that's what keeps re-lighting off the network.
-  private elevCache = new Map<string, Float32Array>();
-  // In-flight fetch per native-zoom tile so panning away cancels the request.
-  private aborts = new WeakMap<HTMLElement, AbortController>();
-
-  constructor(options?: L.GridLayerOptions) {
-    super(options);
-    this.on('tileunload', (e: L.LeafletEvent) => {
-      this.aborts.get((e as L.TileEvent).tile)?.abort();
-    });
-  }
+  // Holds the PENDING promise, inserted before the fetch starts, so every
+  // caller for a tile shares one request: a directly-visible z≤15 tile and an
+  // overzoomed descendant's ancestor lookup can both want the same tile at once.
+  private elevCache = new Map<string, Promise<Float32Array>>();
 
   /**
    * Switch the sun direction and re-render all visible tiles. Only the shaded
@@ -187,16 +188,36 @@ export class HillshadeLayer extends L.GridLayer {
   }
 
   /**
-   * Decoded elevation for a native-zoom tile, from cache when possible. The
-   * scratch canvas used to read the PNG's pixels is dropped once decoded — only
-   * the Float32 grid is retained, and it outlives any sun-direction change.
+   * Decoded elevation for a native-zoom tile, shared by every caller. The
+   * invariant that makes the sharing work: NO await may precede the cache
+   * write below, or two callers racing the same tile would both miss and each
+   * start a download. (Marking this `async` would be harmless on its own — an
+   * async function still runs synchronously up to its first await — but any
+   * await added above the write reopens the race.)
    */
-  private async getElevation(z: number, x: number, y: number, signal?: AbortSignal): Promise<Float32Array> {
+  private getElevation(z: number, x: number, y: number): Promise<Float32Array> {
     const key = `${z}/${x}/${y}`;
     const cached = lruGet(this.elevCache, key);
     if (cached) return cached;
 
-    const resp = await fetch(`${TERRARIUM_URL}/${z}/${x}/${y}.png`, signal ? { signal } : undefined);
+    const entry: Promise<Float32Array> = this.fetchElevation(z, x, y).catch((err: Error) => {
+      // Evict by identity, not just key: if this entry was dropped by the LRU
+      // mid-flight and a newer fetch for the same tile replaced it, that one
+      // must survive our failure.
+      if (this.elevCache.get(key) === entry) this.elevCache.delete(key);
+      throw err;
+    });
+    lruSet(this.elevCache, key, entry, ELEV_CACHE_MAX);
+    return entry;
+  }
+
+  /**
+   * Download and decode one Terrarium tile. The scratch canvas used to read the
+   * PNG's pixels is dropped once decoded — only the Float32 grid is retained,
+   * and it outlives any sun-direction change.
+   */
+  private async fetchElevation(z: number, x: number, y: number): Promise<Float32Array> {
+    const resp = await fetch(`${TERRARIUM_URL}/${z}/${x}/${y}.png`);
     if (!resp.ok) throw new Error(`terrarium tile ${z}/${x}/${y}: HTTP ${resp.status}`);
     const bitmap = await createImageBitmap(await resp.blob());
 
@@ -209,14 +230,12 @@ export class HillshadeLayer extends L.GridLayer {
     bitmap.close();
 
     const rgba = srcCtx.getImageData(0, 0, TILE_PX, TILE_PX).data;
-    const elev = decodeTerrarium(rgba, TILE_PX * TILE_PX);
-    lruSet(this.elevCache, key, elev, ELEV_CACHE_MAX);
-    return elev;
+    return decodeTerrarium(rgba, TILE_PX * TILE_PX);
   }
 
   /** Shade a Terrarium tile under the current sun. */
-  private async fetchAndShade(z: number, x: number, y: number, signal?: AbortSignal): Promise<HTMLCanvasElement> {
-    const elev = await this.getElevation(z, x, y, signal);
+  private async fetchAndShade(z: number, x: number, y: number): Promise<HTMLCanvasElement> {
+    const elev = await this.getElevation(z, x, y);
     const shade = shadeElevationGrid(
       elev, TILE_PX, TILE_PX, metersPerPixel(z, tileCenterLat(y, z)), this.azimuthDeg,
     );
@@ -239,14 +258,15 @@ export class HillshadeLayer extends L.GridLayer {
     return out;
   }
 
-  /** Cached shaded ancestor for overzoomed tiles; not abortable — it's shared. */
+  /** Cached shaded ancestor, shared by every overzoomed subtile that crops it. */
   private getShadedAncestor(z: number, x: number, y: number): Promise<HTMLCanvasElement> {
     const key = `${z}/${x}/${y}`;
     const cached = lruGet(this.ancestorCache, key);
     if (cached) return cached;
 
-    const entry = this.fetchAndShade(z, x, y).catch((err: Error) => {
-      this.ancestorCache.delete(key); // allow retry after a failed fetch
+    const entry: Promise<HTMLCanvasElement> = this.fetchAndShade(z, x, y).catch((err: Error) => {
+      // Evict by identity so a stale failure can't drop a newer entry (see getElevation)
+      if (this.ancestorCache.get(key) === entry) this.ancestorCache.delete(key);
       throw err;
     });
     lruSet(this.ancestorCache, key, entry, ANCESTOR_CACHE_MAX);
@@ -260,9 +280,7 @@ export class HillshadeLayer extends L.GridLayer {
     if (!ctx) throw new Error('no 2d context');
 
     if (dz === 0) {
-      const controller = new AbortController();
-      this.aborts.set(tile, controller);
-      const src = await this.fetchAndShade(coords.z, coords.x, coords.y, controller.signal);
+      const src = await this.fetchAndShade(coords.z, coords.x, coords.y);
       ctx.drawImage(src, 0, 0);
     } else {
       const src = await this.getShadedAncestor(

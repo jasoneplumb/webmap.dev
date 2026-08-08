@@ -155,10 +155,7 @@ describe('HillshadeLayer.setAzimuth', () => {
     const layer = createHillshadeLayer({ tileSize: 256 });
     await paint(layer, 17, 20960, 50664);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/15/5240/12666.png'),
-      undefined,
-    );
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/15/5240/12666.png'));
 
     layer.setAzimuth(HILLSHADE_NW_AZIMUTH_DEG);
     await paint(layer, 17, 20960, 50664);
@@ -199,5 +196,36 @@ describe('HillshadeLayer.setAzimuth', () => {
     // All four crop the same z15 ancestor: one fetch, one Horn pass.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(painted).toHaveLength(1);
+  });
+
+  it('retries after a failed download instead of caching the rejection', async () => {
+    // The cache holds pending promises now, so a rejected entry must be dropped
+    // or the tile would be permanently unshaded until eviction.
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 503, blob: async () => ({}) }));
+    const layer = createHillshadeLayer({ tileSize: 256 });
+
+    await expect(paint(layer, 14, 2620, 6333)).rejects.toThrow('HTTP 503');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await paint(layer, 14, 2620, 6333);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(painted).toHaveLength(1);
+  });
+
+  it('coalesces concurrent requests for the same native tile', async () => {
+    const layer = createHillshadeLayer({ tileSize: 256 });
+    // Both paints start before either fetch resolves — the elevation cache holds
+    // the pending promise, so the second must join the first rather than refetch.
+    await Promise.all([paint(layer, 14, 2620, 6333), paint(layer, 14, 2620, 6333)]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces a native tile with an overzoomed descendant of it', async () => {
+    const layer = createHillshadeLayer({ tileSize: 256 });
+    // z15/5240/12666 is both directly visible and the ancestor z17/20960/50664
+    // crops — the two paths race for one tile, which is why the abortable
+    // per-tile fetch had to go: a shared request belongs to no single tile.
+    await Promise.all([paint(layer, 15, 5240, 12666), paint(layer, 17, 20960, 50664)]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
