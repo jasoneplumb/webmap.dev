@@ -63,7 +63,7 @@ export class LayersControl extends L.Control {
     options?: L.ControlOptions,
     defaultOverlayIds: string[] = [],
   ) {
-    super(options || { position: 'topright' });
+    super(options || { position: 'bottomleft' });
     this.baseMaps = baseMaps;
     this.overlays = overlays;
     this.defaultOverlayIds = defaultOverlayIds;
@@ -72,13 +72,23 @@ export class LayersControl extends L.Control {
   onAdd(map: L.Map): HTMLElement {
     this.map = map;
 
-    const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+    const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-layers') as HTMLDivElement;
     this.containerEl = container;
     container.title = 'Click to choose map layer';
 
-    // Icon: layered squares
-    const icon = L.DomUtil.create('span', 'layers-control__icon') as HTMLSpanElement;
-    icon.innerHTML = '⚙'; // Alternative: could use an SVG or emoji
+    // Stacked-sheets glyph — the conventional map-layers icon. The gear it
+    // replaces read as app settings, which is not what this opens.
+    // Shares .leaflet-control-toggle__icon with the other buttons so it can't
+    // drift out of size with them; the old bespoke class was bumped to 20px
+    // under .leaflet-touch while the rest stayed 16px.
+    const icon = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
+    icon.innerHTML =
+      '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" ' +
+      'stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">' +
+      '<path d="M8 1.75 14.25 5 8 8.25 1.75 5 8 1.75Z"/>' +
+      '<path d="M2.6 7.7 8 10.5l5.4-2.8"/>' +
+      '<path d="M2.6 10.5 8 13.3l5.4-2.8"/>' +
+      '</svg>';
     icon.id = 'layers-control-btn';
 
     container.appendChild(icon);
@@ -515,7 +525,7 @@ export function addLayersControl(
   overlays?: OverlayDef[],
   defaultOverlayIds?: string[],
 ): LayersControl {
-  const control = new LayersControl(baseMaps, overlays, { position: 'topright' }, defaultOverlayIds);
+  const control = new LayersControl(baseMaps, overlays, { position: 'bottomleft' }, defaultOverlayIds);
   control.addTo(map);
   return control;
 }

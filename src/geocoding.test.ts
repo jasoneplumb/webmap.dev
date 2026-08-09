@@ -254,9 +254,9 @@ describe('sheetTransform', () => {
   });
 
   it('never emits a horizontal component', () => {
-    // The sheet is right-anchored in CSS (#253). A translateX here would fight
-    // that anchor and push it off-screen — and because four call sites write
-    // this transform, a stale one is invisible until the user drags.
+    // The sheet is centred by CSS (left/right + margin auto), so a translateX
+    // here would fight that centring and push it off-screen. Four call sites
+    // write this transform, so a stale one is invisible until the user drags.
     for (const offset of [0, 137, -20, 999]) {
       expect(sheetTransform(offset)).not.toContain('translateX');
     }

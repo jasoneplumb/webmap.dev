@@ -186,7 +186,7 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
   const searchControl = geosearch({
     placeholder: SEARCH_PLACEHOLDER,
     title: 'Search for places or addresses',
-    position: 'topleft',
+    position: 'bottomleft',
     expanded: true,
     useMapBounds: 7,
     zoomToResult: false,
@@ -247,13 +247,24 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
 
   function showDropdown(): void {
     const rect = wrapper.getBoundingClientRect();
-    dropdownEl.style.top = `${rect.bottom + 2}px`;
+    const margin = 4;
+    // Display first: offsetHeight/offsetWidth are 0 while hidden, and both the
+    // flip decision and the left clamp depend on measuring real content.
     dropdownEl.style.display = 'block';
+
+    // The search bar lives in the bottom-left cluster, so there is normally no
+    // room beneath it — open upward unless below genuinely fits.
+    const roomBelow = window.innerHeight - rect.bottom - margin;
+    const height = dropdownEl.offsetHeight;
+    const top = height <= roomBelow
+      ? rect.bottom + 2
+      : Math.max(margin, rect.top - height - 2);
+    dropdownEl.style.top = `${top}px`;
+
     // Clamp left so the dropdown never overflows the right viewport edge on
     // narrow phones — otherwise its content (e.g. the "POI" badge) gets clipped.
-    // Width is read after display so the measured value reflects the CSS bounds.
-    const maxLeft = window.innerWidth - dropdownEl.offsetWidth - 4;
-    dropdownEl.style.left = `${Math.max(4, Math.min(rect.left, maxLeft))}px`;
+    const maxLeft = window.innerWidth - dropdownEl.offsetWidth - margin;
+    dropdownEl.style.left = `${Math.max(margin, Math.min(rect.left, maxLeft))}px`;
     syncResultsToggle();
   }
 
@@ -267,7 +278,7 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
   // below the search bar it belongs to.
   const ResultsToggleControl = L.Control.extend({
     onAdd(): HTMLElement {
-      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-results') as HTMLDivElement;
       container.setAttribute('role', 'button');
       container.setAttribute('tabindex', '0');
       const icon = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
@@ -289,7 +300,7 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
       return container;
     },
   });
-  new (ResultsToggleControl as new (opts: L.ControlOptions) => L.Control)({ position: 'topleft' }).addTo(map);
+  new (ResultsToggleControl as new (opts: L.ControlOptions) => L.Control)({ position: 'bottomleft' }).addTo(map);
 
   // Dropdown is dismissed only via the close button inside it.
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
@@ -570,12 +581,12 @@ export const DISMISS_BELOW_MIN_PX = 40;
 export const MIN_BELOW_PEEK_PX = 80;
 
 /**
- * Transform for the geocode-bar at a given vertical offset. The sheet is
- * right-anchored (see .geocode-bar in style.css), so the transform carries ONLY
- * the vertical offset — a horizontal component here would fight the CSS anchor
- * and push the sheet off-screen. Centralized because four call sites write this
- * (snap, open, touch-drag, mouse-drag) and one missed edit is invisible until
- * the user drags.
+ * Transform for the geocode-bar at a given vertical offset. Carries ONLY the
+ * vertical offset: the sheet is centred by CSS (left/right + margin auto, see
+ * .geocode-bar in style.css) precisely so no horizontal component is needed
+ * here. Adding one would fight that centring and push the sheet off-screen.
+ * Centralized because four call sites write this (snap, open, touch-drag,
+ * mouse-drag) and one missed edit is invisible until the user drags.
  */
 export function sheetTransform(offsetPx: number): string {
   return `translateY(${offsetPx}px)`;

@@ -415,7 +415,7 @@ export function addDrawZoneControl(
   // avoids typing L.Control.extend()'s return value in strict TypeScript.
   const DrawZoneControl = L.Control.extend({
     onAdd(): HTMLElement {
-      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-draw-zone') as HTMLDivElement;
       container.title = 'Draw a custom squeeze zone';
 
       // Icon only — the title attribute carries the description. U+FE0E is the
@@ -439,5 +439,5 @@ export function addDrawZoneControl(
   // bar's column, where a second button crowded the input on narrow screens.
   // Leaflet stacks a corner's controls in registration order, so this lands
   // below both (see the addDrawZoneControl call in main.ts).
-  new (DrawZoneControl as new (opts: L.ControlOptions) => L.Control)({ position: 'topright' }).addTo(map);
+  new (DrawZoneControl as new (opts: L.ControlOptions) => L.Control)({ position: 'bottomleft' }).addTo(map);
 }

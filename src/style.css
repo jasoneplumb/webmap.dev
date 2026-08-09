@@ -422,19 +422,23 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* ── Reverse geocode bottom sheet ── */
-/* Right-anchored rather than centred, and capped at 480px so it doesn't balloon
-   on a wide monitor. The sheet must never obscure the bottom-left cluster
-   (zoom, ruler, version, attribution) — in peek every pixel of its visible band
-   belongs to a pointer-events:auto child, so anything underneath is unreachable,
-   not merely hidden (#253). That separation is VERTICAL, not horizontal: the
-   attribution alone runs ~330px, most of a phone's width, so no side-by-side
-   split can clear it. The cluster rides above the sheet via --sheet-h below.
-   The transform carries only translateY — see sheetTransform() in geocoding.ts. */
+/* Centred, capped at 480px so it doesn't balloon on a wide monitor. The sheet
+   must never obscure the bottom-left control cluster — in peek every pixel of
+   its visible band belongs to a pointer-events:auto child, so anything beneath
+   is unreachable, not merely hidden (#253). That separation is VERTICAL: the
+   cluster rides above the sheet via --sheet-h, which is why the sheet can be
+   centred and full-width here without covering anything.
+
+   Centred with left/right + margin auto rather than left:50% + translateX(-50%)
+   on purpose: the transform must stay purely vertical, because four call sites
+   write it and sheetTransform() is what keeps them from drifting. Folding a
+   horizontal component back in would reintroduce exactly that hazard. */
 .geocode-bar {
   position: fixed;
   bottom: 0;
+  left: env(safe-area-inset-left, 0px);
   right: env(safe-area-inset-right, 0px);
-  left: auto;
+  margin-inline: auto;
   transform: translateY(0);
   width: min(480px, 100vw);
   height: 30vh;
@@ -669,6 +673,14 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   color: #333;
 }
 
+/* Inline SVG icons (layers) fill the same box as the glyph ones, and inherit
+   the colour above via stroke="currentColor". */
+.leaflet-control-toggle__icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .leaflet-control-toggle__label {
   font-size: 12px;
   font-weight: 500;
@@ -840,6 +852,13 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
      (zoom, version-badge) from stretching to match wider siblings like
      the attribution. */
   align-items: flex-start;
+  /* Eleven controls stack here now. On a short viewport (landscape especially)
+     that can exceed the height available, and a control pushed off-screen is
+     unreachable — the same failure #253 was about. Bound the column to the
+     space between the top edge and the sheet, and scroll inside it if needed. */
+  max-height: calc(100vh - var(--sheet-h, 0px) - 20px - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   /* Rides with the sheet rather than snapping after it lands. Duration comes
      from SHEET_ANIM_MS via --sheet-anim (set in geocoding.ts), so the two can't
      drift; the fallback only applies before the first snap publishes it. */
@@ -854,13 +873,30 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* Bottom-left cluster reading order (top → bottom):
-   locate → recording → zoom → scale → version-badge → attribution.
-   Registration order doesn't match this so we use explicit `order`. */
-.leaflet-bottom.leaflet-left .leaflet-control-toggle { order: 1; }
-.leaflet-bottom.leaflet-left .leaflet-control-zoom   { order: 3; }
-.leaflet-bottom.leaflet-left .leaflet-control-scale  { order: 4; }
-.leaflet-bottom.leaflet-left #version-badge          { order: 5; }
-.leaflet-bottom.leaflet-left .leaflet-control-attribution { order: 6; }
+   the full stack is listed below. Registration order doesn't match it, so the
+   ordering is explicit. */
+/* Every control now lives in this one column, so order is explicit rather than
+   registration-dependent. Search sits just above the scale bar, within thumb
+   reach; the results toggle stays directly beneath it since the two are a pair.
+   Attribution stays last — it's the least interactive thing here. */
+.leaflet-bottom.leaflet-left .ctrl-layers            { order: 0; }
+.leaflet-bottom.leaflet-left .ctrl-download          { order: 1; }
+.leaflet-bottom.leaflet-left .ctrl-draw-zone         { order: 2; }
+.leaflet-bottom.leaflet-left .compass-rose           { order: 3; }
+.leaflet-bottom.leaflet-left .ctrl-locate            { order: 4; }
+.leaflet-bottom.leaflet-left .leaflet-control-zoom   { order: 5; }
+.leaflet-bottom.leaflet-left .geocoder-control       { order: 6; }
+.leaflet-bottom.leaflet-left .ctrl-results           { order: 7; }
+.leaflet-bottom.leaflet-left .leaflet-control-scale  { order: 8; }
+.leaflet-bottom.leaflet-left #version-badge          { order: 9; }
+.leaflet-bottom.leaflet-left .leaflet-control-attribution { order: 10; }
+
+/* Breathing room between the search pair and the readouts below it, separating
+   the things you act on from the things you only read. Applied to the scale's
+   top rather than the search's bottom so the gap survives the results toggle
+   being hidden. !important is needed to beat the .leaflet-control margin reset
+   in the mobile block above. */
+.leaflet-bottom.leaflet-left .leaflet-control-scale { margin-top: 10px !important; }
 
 /* Unify the bottom-left cluster visually with the zoom + version-badge,
    but keep the U-shaped left/right/bottom border that visualizes the
@@ -1313,22 +1349,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* ── Custom Layers Control ──────────────────────────────────────────── */
 
-.layers-control__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
-  line-height: 1;
-}
-
-.leaflet-touch .layers-control__icon {
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
-}
-
 /* Layers Popover ─────────────────────────────────────────────────── */
 
 .layers-popover {
@@ -1704,7 +1724,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   transition: transform 0.12s linear;
 }
 .compass-rose--active { opacity: 1; cursor: default; }
-.compass-rose--unavailable { display: none; }
+/* Keeps its 36px slot rather than display:none. The compass appears only after
+   a permission grant, and collapsing the row would shift every control above it
+   the moment it resolves — the stack has to be stable to be usable. */
+.compass-rose--unavailable { visibility: hidden; pointer-events: none; }
 
 /* Rider-placed "unsafe here" marker in the cue-events overlay — a neutral triangle
    glyph, deliberately distinct from the outcome-colored circular cue points.
