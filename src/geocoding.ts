@@ -335,15 +335,26 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
   const results = L.featureGroup().addTo(map);
   const markerRefs: L.Marker[] = [];
 
+  /**
+   * Drop the result list and its markers together. They have to stay in
+   * lockstep: the toggle's visibility is derived from the list, so a list that
+   * outlives its markers can be revealed to offer rows that fly the map to
+   * coordinates nothing is pinned at any more.
+   */
+  function clearResults(): void {
+    results.clearLayers();
+    markerRefs.length = 0;
+    dropdownEl.innerHTML = '';
+    hideDropdown(); // also re-syncs the toggle, which is now empty
+  }
+
   // When the search icon is clicked to expand the control, dismiss the old
   // dropdown and clear previous result pins so the user starts fresh.
   let _wasExpanded = false;
   new MutationObserver(() => {
     const isExpanded = wrapper.classList.contains('geocoder-control-expanded');
     if (isExpanded && !_wasExpanded) {
-      hideDropdown();
-      results.clearLayers();
-      markerRefs.length = 0;
+      clearResults();
     }
     _wasExpanded = isExpanded;
   }).observe(wrapper, { attributes: true, attributeFilter: ['class'] });
@@ -425,8 +436,9 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
     pendingSearch = false;
     L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
-    results.clearLayers();
-    markerRefs.length = 0;
+    // Clears the previous list too, so a zero-result search can't leave the
+    // toggle offering the last search's rows with no markers behind them.
+    clearResults();
     if (data.results.length) {
       // Add numbered markers in reverse order so marker #1 renders on top.
       for (let i = data.results.length - 1; i >= 0; i--) {
