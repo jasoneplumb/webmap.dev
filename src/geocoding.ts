@@ -120,23 +120,31 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
   // Most recent provider failure, or null after any success. The results handler
   // reads this to tell an outage apart from a genuine zero-match search — the
   // two need opposite advice, and previously both rendered as "no results".
-  let lastProviderError: SearchProviderError | null = null;
+  // Written only by results(), never by suggest(). The two are unserialised, so
+  // a shared field would let a slow autocomplete reply land after a submitted
+  // search and flip what the results handler reads — reporting an outage for a
+  // search that succeeded, or blaming the query for a submit that failed.
+  let lastResultsError: SearchProviderError | null = null;
+
   // suggest() runs per keystroke, so an outage would otherwise toast on every
   // letter typed. One notice per window is enough to explain what's happening.
+  // This throttle covers autocomplete ONLY — a submitted search is reported by
+  // the results handler, which knows whether anything actually matched.
   const FAILURE_NOTICE_INTERVAL_MS = 15000;
   let lastNoticeAt = 0;
 
-  function noticeSearchFailure(): void {
+  function failureMessage(error: SearchProviderError | null): string {
+    return describeSearchFailure(error, {
+      hasApiKey: Boolean(apikey),
+      online: navigator.onLine,
+    });
+  }
+
+  function noticeSuggestFailure(error: SearchProviderError | null): void {
     const now = Date.now();
     if (now - lastNoticeAt < FAILURE_NOTICE_INTERVAL_MS) return;
     lastNoticeAt = now;
-    showMessage(
-      describeSearchFailure(lastProviderError, {
-        hasApiKey: Boolean(apikey),
-        online: navigator.onLine,
-      }),
-      6000,
-    );
+    showMessage(failureMessage(error), 6000);
   }
 
   // Wrap a provider so that errors in results() and suggest() are logged and
@@ -161,12 +169,16 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
           // Keep converting errors to empty results so the widget stays happy,
           // but remember the failure — discarding it here is what made outages
           // indistinguishable from a search that simply matched nothing.
-          lastProviderError = error ? (error as SearchProviderError) : null;
+          const failure = error ? (error as SearchProviderError) : null;
+          if (method === 'results') lastResultsError = failure;
           if (error) {
             // Logged unconditionally: a keyless build is exactly when every
             // request fails, and the old gate stayed silent in that case.
             console.warn('Search provider error:', error);
-            noticeSearchFailure();
+            // Only autocomplete notifies here. Notifying for 'results' too would
+            // double-toast every failed submit, since the results handler
+            // reports that case itself.
+            if (method === 'suggest') noticeSuggestFailure(failure);
           }
           cb(null, error ? [] : results);
         });
@@ -274,8 +286,8 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
     else showDropdown();
   }
 
-  // topleft, registered after the search control, so Leaflet stacks it directly
-  // below the search bar it belongs to.
+  // Position is bottomleft like everything else; its place in the column comes
+  // from the explicit CSS `order`, not from registration order.
   const ResultsToggleControl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-results') as HTMLDivElement;
@@ -536,14 +548,8 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
     } else {
       // Only blame the query when the service actually answered. Telling someone
       // to reword their search during an outage is worse than saying nothing.
-      if (lastProviderError !== null) {
-        showMessage(
-          describeSearchFailure(lastProviderError, {
-            hasApiKey: Boolean(apikey),
-            online: navigator.onLine,
-          }),
-          6000,
-        );
+      if (lastResultsError !== null) {
+        showMessage(failureMessage(lastResultsError), 6000);
       } else {
         showMessage('No results found. Try zooming out or rewording your search.');
       }
