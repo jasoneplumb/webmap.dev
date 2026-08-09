@@ -552,7 +552,7 @@ document.addEventListener('keydown', (e) => {
 
 // The map is deliberately NOT focused here any more. This ran after
 // addSearchControl, so it stole focus from the search box the instant it was
-// given (#263), and the empty-input blur handler then collapsed the control
+// given (#265), and the empty-input blur handler then collapsed the control
 // 150ms later — the search looked like it opened and shut itself.
 //
 // Nothing is lost: Leaflet's keyboard handler focuses the map container on the
