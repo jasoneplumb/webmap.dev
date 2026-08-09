@@ -144,6 +144,9 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
     const now = Date.now();
     if (now - lastNoticeAt < FAILURE_NOTICE_INTERVAL_MS) return;
     lastNoticeAt = now;
+    // Console and toast share the window. suggest() fires per keystroke, so an
+    // outage would otherwise flood the console even while the toast stayed quiet.
+    console.warn('Search provider error (autocomplete):', error);
     showMessage(failureMessage(error), 6000);
   }
 
@@ -172,13 +175,16 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
           const failure = error ? (error as SearchProviderError) : null;
           if (method === 'results') lastResultsError = failure;
           if (error) {
-            // Logged unconditionally: a keyless build is exactly when every
-            // request fails, and the old gate stayed silent in that case.
-            console.warn('Search provider error:', error);
-            // Only autocomplete notifies here. Notifying for 'results' too would
-            // double-toast every failed submit, since the results handler
-            // reports that case itself.
-            if (method === 'suggest') noticeSuggestFailure(failure);
+            if (method === 'suggest') {
+              // Throttled (console included) — see noticeSuggestFailure.
+              noticeSuggestFailure(failure);
+            } else {
+              // Submits are user-initiated and rare, so every one is logged.
+              // Unconditionally, unlike before: a keyless build is exactly when
+              // every request fails, and the old gate stayed silent for it.
+              // The toast for this case comes from the results handler.
+              console.warn('Search provider error:', error);
+            }
           }
           cb(null, error ? [] : results);
         });

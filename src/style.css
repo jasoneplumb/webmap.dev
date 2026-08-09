@@ -856,7 +856,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
      that can exceed the height available, and a control pushed off-screen is
      unreachable — the same failure #253 was about. Bound the column to the
      space between the top edge and the sheet, and scroll inside it if needed. */
-  max-height: calc(100vh - var(--sheet-h, 0px) - 20px - env(safe-area-inset-top, 0px));
+  max-height: calc(
+    100vh - var(--sheet-h, 0px)
+    - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px
+  );
   overflow-y: auto;
   overscroll-behavior: contain;
   /* Rides with the sheet rather than snapping after it lands. Duration comes
