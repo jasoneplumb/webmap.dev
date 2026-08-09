@@ -87,6 +87,33 @@ export function describeSearchFailure(
   return `Address search failed \u2014 ArcGIS returned ${code}.`;
 }
 
+/**
+ * Media query deciding whether the search box takes focus on load. Hover and
+ * pointer precision, deliberately not viewport width: a narrow laptop window is
+ * still a keyboard device, and a large tablet still isn't.
+ */
+export const AUTOFOCUS_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
+
+/**
+ * Whether to focus the search box on load. True only for mouse/trackpad
+ * devices: focusing an input on touch raises the on-screen keyboard over the
+ * map on every load, which is the opposite of useful for an app opened to see
+ * where you are.
+ *
+ * Note this moves focus without user action, which usually warrants care
+ * (WCAG 3.2.1-adjacent) — a desktop screen-reader user lands in the search box
+ * before hearing the map's context. Kept deliberately: this is a search-first
+ * entry point and the behaviour was asked for explicitly. Recorded here so it
+ * reads as a decision rather than an oversight.
+ *
+ * Takes matchMedia as an argument so the decision is testable without a browser.
+ */
+export function shouldAutofocusSearch(
+  matchMediaFn: (query: string) => { matches: boolean },
+): boolean {
+  return matchMediaFn(AUTOFOCUS_POINTER_QUERY).matches;
+}
+
 function zoomForAddrType(addrType: string): number {
   switch (addrType) {
     case 'PointAddress': case 'StreetAddress': case 'SubAddress': case 'StreetInt': return 17;
@@ -561,6 +588,12 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
       }
     }
   });
+
+  // Land with the caret in the search box, so a keyboard user can type a place
+  // and press Enter without reaching for the pointer.
+  if (shouldAutofocusSearch((q) => window.matchMedia(q))) {
+    input.focus({ preventScroll: true });
+  }
 }
 
 // ── Bottom-sheet drag-settle thresholds (module scope, unit-tested) ──────────
