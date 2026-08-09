@@ -561,6 +561,17 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
       }
     }
   });
+
+  // Land with the caret in the search box, so a keyboard user can type a place
+  // and press Enter without reaching for the pointer.
+  //
+  // Deliberately not on touch: focusing an input there raises the on-screen
+  // keyboard over the map on every load, which is the opposite of useful for an
+  // app you open to look at where you are. The query matches devices with a
+  // precise pointer and real hover, i.e. mouse/trackpad rather than a finger.
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    input.focus({ preventScroll: true });
+  }
 }
 
 // ── Bottom-sheet drag-settle thresholds (module scope, unit-tested) ──────────
