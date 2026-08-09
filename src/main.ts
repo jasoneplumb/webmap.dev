@@ -550,8 +550,15 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && changelogPanel.classList.contains('visible')) closeChangelog();
 });
 
-// Focus map for keyboard zoom shortcuts
-document.getElementById('map')?.focus();
+// The map is deliberately NOT focused here any more. This ran after
+// addSearchControl, so it stole focus from the search box the instant it was
+// given (#265), and the empty-input blur handler then collapsed the control
+// 150ms later — the search looked like it opened and shut itself.
+//
+// Nothing is lost: Leaflet's keyboard handler focuses the map container on the
+// first mousedown over it (Keyboard._onMouseDown), so zoom and pan shortcuts
+// start working as soon as the map is touched. Focus on load belongs to the
+// thing you can type into.
 document.body.style.zoom = '100%';
 
 // ── Offline detection ─────────────────────────────────────────────────────────
