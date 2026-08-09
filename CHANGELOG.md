@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.46.0-beta (2026-08-08)
+
+### Changed
+
+- **Every map control now lives in a single column at the bottom left** — search, layers, download, draw-zone, compass, locate, zoom, scale, version and attribution were previously split across three corners; both top corners are now empty. Order, top to bottom: layers, download, draw-zone, compass, locate, zoom, search, results toggle, scale, version, attribution. The column is bounded to the space above the navigation sheet and scrolls internally, so a short or landscape viewport can never push a control off-screen (#262)
+- **The compass keeps its place in the stack even when unavailable** — it previously collapsed entirely, which shifted every control above it the moment a permission prompt resolved (#262)
+- **The navigation sheet is centred again** — it was anchored to the right edge to stay clear of the bottom-left controls, which is no longer needed now that the controls sit above it (#262)
+- **The layers button uses a stacked-sheets icon** instead of a gear, which read as app settings rather than map layers, and now matches the other buttons' size on touch devices — it was 20px there while everything else was 16px (#262)
+
+### Added
+
+- **The search results list can be hidden and revealed** — a toggle beneath the search box brings the last set of results back without re-running the search. Result markers already stayed on the map; the list itself could previously only be recovered by tapping one of them (#261, #262)
+
+### Fixed
+
+- **Search failures explain themselves instead of failing silently** — a failed lookup was reported as *"No results found. Try zooming out or rewording your search."*, advice that cannot help when the service is unreachable, and autocomplete failures produced no feedback at all. The message now names the cause: offline, no API key in the build, a key that doesn't authorise this site, rate limiting, or a service outage. A genuine zero-match search keeps the original wording, which is only correct there (#260, #262)
+- **Turn-by-turn directions no longer repeat themselves to screen readers** — the banner announced the full instruction, distance and ETA on every GPS fix, roughly once a second. Only the maneuver and status changes are announced now; the visible banner still updates continuously (#258, #259)
+
 ## v0.45.0-beta (2026-08-08)
 
 ### Changed
