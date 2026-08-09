@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.47.0-beta (2026-08-08)
+
+### Added
+
+- **The search box takes focus when the app loads**, so you can type a place and press Enter without reaching for the mouse. Not on phones and tablets: focusing an input there raises the on-screen keyboard over the map on every load, which is the opposite of useful for an app you open to see where you are (#263, #264)
+
+### Fixed
+
+- **The search box no longer collapses immediately after loading** — the map grabbed focus for its keyboard zoom shortcuts a moment after the search box received it, and the now-empty box closed itself 150 ms later. Keyboard zoom and pan shortcuts still work; they start as soon as you click the map (#265, #266)
+
 ## v0.46.0-beta (2026-08-08)
 
 ### Changed
