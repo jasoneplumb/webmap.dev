@@ -55,7 +55,9 @@ export function setupCollapsibleLabel(
 export function makeToggleControl(config: ToggleControlConfig): L.Control {
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
-      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      // ctrl-<id> gives the bottom-left cluster a stable hook to order this
+      // control by; every toggle otherwise shares the same class.
+      const container = L.DomUtil.create('div', `leaflet-control-toggle ctrl-${config.id}`) as HTMLDivElement;
       container.title = config.disabledTitle;
 
       const img = L.DomUtil.create('img') as HTMLImageElement;

@@ -42,6 +42,51 @@ function applyMapZoomClass(map: L.Map): void {
   el.classList.toggle('map-zoom-close', z >= 12);
 }
 
+/** Shape of the error esri-leaflet hands back; every field is best-effort. */
+export interface SearchProviderError {
+  code?: number;
+  message?: string;
+}
+
+/**
+ * Explain a search failure in terms the user can act on. The causes need
+ * genuinely different responses — an unauthorised key is a config problem
+ * nobody browsing can fix, while a 429 just needs a moment — so a single
+ * "search failed" string would be worse than useless.
+ *
+ * Pure so it can be unit-tested: the widget itself is not reachable under jsdom.
+ */
+export function describeSearchFailure(
+  error: SearchProviderError | null,
+  opts: { hasApiKey: boolean; online: boolean },
+): string {
+  if (!opts.online) {
+    return 'Address search needs a connection — you appear to be offline.';
+  }
+  if (!opts.hasApiKey) {
+    return 'Address search isn\u2019t available: this build has no ArcGIS API key configured.';
+  }
+
+  const code = error?.code;
+  // ArcGIS returns 403 for a referrer/origin the key doesn't allow, and
+  // 498/499 for an invalid or missing token. All three are key configuration,
+  // not anything the person searching did.
+  if (code === 403 || code === 498 || code === 499) {
+    return 'Address search was refused by ArcGIS \u2014 the API key doesn\u2019t allow this site.';
+  }
+  if (code === 429) {
+    return 'Address search is rate-limited right now \u2014 try again in a moment.';
+  }
+  if (typeof code === 'number' && code >= 500) {
+    return `Address search is temporarily down \u2014 ArcGIS returned ${code}.`;
+  }
+  // A rejected fetch (DNS, CORS, blocked request) arrives with no status code.
+  if (code === undefined) {
+    return 'Address search couldn\u2019t reach ArcGIS \u2014 the request was blocked or timed out.';
+  }
+  return `Address search failed \u2014 ArcGIS returned ${code}.`;
+}
+
 function zoomForAddrType(addrType: string): number {
   switch (addrType) {
     case 'PointAddress': case 'StreetAddress': case 'SubAddress': case 'StreetInt': return 17;
@@ -59,7 +104,7 @@ let _clearSearchSelection: (() => void) | null = null;
 let _showGeocodeBar: ((label: string, copyText: string, latlng: L.LatLng) => void) | null = null;
 const SEARCH_PLACEHOLDER = '';
 
-export function addSearchControl(map: L.Map, state: AppState, onNoResults: (message: string) => void): void {
+export function addSearchControl(map: L.Map, state: AppState, showMessage: (message: string, durationMs?: number) => void): void {
   // state is read in the results callback (for future extensibility)
   void state;
 
@@ -72,7 +117,38 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
       'Set VITE_ESRI_API_KEY in your .env file.'
     );
   }
-  const logProviderErrors = Boolean(apikey);
+  // Most recent provider failure, or null after any success. The results handler
+  // reads this to tell an outage apart from a genuine zero-match search — the
+  // two need opposite advice, and previously both rendered as "no results".
+  // Written only by results(), never by suggest(). The two are unserialised, so
+  // a shared field would let a slow autocomplete reply land after a submitted
+  // search and flip what the results handler reads — reporting an outage for a
+  // search that succeeded, or blaming the query for a submit that failed.
+  let lastResultsError: SearchProviderError | null = null;
+
+  // suggest() runs per keystroke, so an outage would otherwise toast on every
+  // letter typed. One notice per window is enough to explain what's happening.
+  // This throttle covers autocomplete ONLY — a submitted search is reported by
+  // the results handler, which knows whether anything actually matched.
+  const FAILURE_NOTICE_INTERVAL_MS = 15000;
+  let lastNoticeAt = 0;
+
+  function failureMessage(error: SearchProviderError | null): string {
+    return describeSearchFailure(error, {
+      hasApiKey: Boolean(apikey),
+      online: navigator.onLine,
+    });
+  }
+
+  function noticeSuggestFailure(error: SearchProviderError | null): void {
+    const now = Date.now();
+    if (now - lastNoticeAt < FAILURE_NOTICE_INTERVAL_MS) return;
+    lastNoticeAt = now;
+    // Console and toast share the window. suggest() fires per keystroke, so an
+    // outage would otherwise flood the console even while the toast stayed quiet.
+    console.warn('Search provider error (autocomplete):', error);
+    showMessage(failureMessage(error), 6000);
+  }
 
   // Wrap a provider so that errors in results() and suggest() are logged and
   // silenced rather than propagated. Wrapping before construction avoids
@@ -93,7 +169,23 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
         cb: (err: null, results: unknown[]) => void,
       ): unknown {
         return orig(text, key, bounds, (error: unknown, results: unknown[]) => {
-          if (error && logProviderErrors) console.warn('Search provider error:', error);
+          // Keep converting errors to empty results so the widget stays happy,
+          // but remember the failure — discarding it here is what made outages
+          // indistinguishable from a search that simply matched nothing.
+          const failure = error ? (error as SearchProviderError) : null;
+          if (method === 'results') lastResultsError = failure;
+          if (error) {
+            if (method === 'suggest') {
+              // Throttled (console included) — see noticeSuggestFailure.
+              noticeSuggestFailure(failure);
+            } else {
+              // Submits are user-initiated and rare, so every one is logged.
+              // Unconditionally, unlike before: a keyless build is exactly when
+              // every request fails, and the old gate stayed silent for it.
+              // The toast for this case comes from the results handler.
+              console.warn('Search provider error:', error);
+            }
+          }
           cb(null, error ? [] : results);
         });
       };
@@ -112,7 +204,7 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   const searchControl = geosearch({
     placeholder: SEARCH_PLACEHOLDER,
     title: 'Search for places or addresses',
-    position: 'topleft',
+    position: 'bottomleft',
     expanded: true,
     useMapBounds: 7,
     zoomToResult: false,
@@ -144,21 +236,89 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   dropdownEl.style.display = 'none';
   document.body.appendChild(dropdownEl);
 
+  // Toggle button for the results list, mounted below the search bar. Only
+  // meaningful once a search has produced results, so it stays hidden until then.
+  let resultsToggleEl: HTMLElement | null = null;
+
+  /** Results survive hiding — innerHTML is preserved — so they can be revealed. */
+  function hasResults(): boolean {
+    return dropdownEl.innerHTML !== '';
+  }
+
+  function isDropdownOpen(): boolean {
+    return dropdownEl.style.display === 'block';
+  }
+
+  function syncResultsToggle(): void {
+    if (resultsToggleEl === null) return;
+    resultsToggleEl.style.display = hasResults() ? '' : 'none';
+    const open = isDropdownOpen();
+    resultsToggleEl.setAttribute('aria-pressed', open ? 'true' : 'false');
+    resultsToggleEl.title = open ? 'Hide search results' : 'Show search results';
+  }
+
   function hideDropdown(): void {
     dropdownEl.style.display = 'none';
     // Preserve innerHTML so it can be restored when clicking a marker.
+    syncResultsToggle();
   }
 
   function showDropdown(): void {
     const rect = wrapper.getBoundingClientRect();
-    dropdownEl.style.top = `${rect.bottom + 2}px`;
+    const margin = 4;
+    // Display first: offsetHeight/offsetWidth are 0 while hidden, and both the
+    // flip decision and the left clamp depend on measuring real content.
     dropdownEl.style.display = 'block';
+
+    // The search bar lives in the bottom-left cluster, so there is normally no
+    // room beneath it — open upward unless below genuinely fits.
+    const roomBelow = window.innerHeight - rect.bottom - margin;
+    const height = dropdownEl.offsetHeight;
+    const top = height <= roomBelow
+      ? rect.bottom + 2
+      : Math.max(margin, rect.top - height - 2);
+    dropdownEl.style.top = `${top}px`;
+
     // Clamp left so the dropdown never overflows the right viewport edge on
     // narrow phones — otherwise its content (e.g. the "POI" badge) gets clipped.
-    // Width is read after display so the measured value reflects the CSS bounds.
-    const maxLeft = window.innerWidth - dropdownEl.offsetWidth - 4;
-    dropdownEl.style.left = `${Math.max(4, Math.min(rect.left, maxLeft))}px`;
+    const maxLeft = window.innerWidth - dropdownEl.offsetWidth - margin;
+    dropdownEl.style.left = `${Math.max(margin, Math.min(rect.left, maxLeft))}px`;
+    syncResultsToggle();
   }
+
+  function toggleDropdown(): void {
+    if (!hasResults()) return;
+    if (isDropdownOpen()) hideDropdown();
+    else showDropdown();
+  }
+
+  // Position is bottomleft like everything else; its place in the column comes
+  // from the explicit CSS `order`, not from registration order.
+  const ResultsToggleControl = L.Control.extend({
+    onAdd(): HTMLElement {
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-results') as HTMLDivElement;
+      container.setAttribute('role', 'button');
+      container.setAttribute('tabindex', '0');
+      const icon = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
+      icon.textContent = '\u2630'; // ☰ — plain text glyph, no emoji presentation
+      container.appendChild(icon);
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.on(container, 'click', (e: Event) => {
+        toggleDropdown();
+        e.stopImmediatePropagation();
+      });
+      L.DomEvent.on(container, 'keydown', (e: Event) => {
+        const key = (e as KeyboardEvent).key;
+        if (key !== 'Enter' && key !== ' ') return;
+        e.preventDefault();
+        toggleDropdown();
+      });
+      resultsToggleEl = container;
+      syncResultsToggle(); // starts hidden: no results yet
+      return container;
+    },
+  });
+  new (ResultsToggleControl as new (opts: L.ControlOptions) => L.Control)({ position: 'bottomleft' }).addTo(map);
 
   // Dropdown is dismissed only via the close button inside it.
   dropdownEl.addEventListener('click', (e: MouseEvent) => {
@@ -204,15 +364,26 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
   const results = L.featureGroup().addTo(map);
   const markerRefs: L.Marker[] = [];
 
+  /**
+   * Drop the result list and its markers together. They have to stay in
+   * lockstep: the toggle's visibility is derived from the list, so a list that
+   * outlives its markers can be revealed to offer rows that fly the map to
+   * coordinates nothing is pinned at any more.
+   */
+  function clearResults(): void {
+    results.clearLayers();
+    markerRefs.length = 0;
+    dropdownEl.innerHTML = '';
+    hideDropdown(); // also re-syncs the toggle, which is now empty
+  }
+
   // When the search icon is clicked to expand the control, dismiss the old
   // dropdown and clear previous result pins so the user starts fresh.
   let _wasExpanded = false;
   new MutationObserver(() => {
     const isExpanded = wrapper.classList.contains('geocoder-control-expanded');
     if (isExpanded && !_wasExpanded) {
-      hideDropdown();
-      results.clearLayers();
-      markerRefs.length = 0;
+      clearResults();
     }
     _wasExpanded = isExpanded;
   }).observe(wrapper, { attributes: true, attributeFilter: ['class'] });
@@ -294,8 +465,9 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
     pendingSearch = false;
     L.DomUtil.removeClass(wrapper, 'geocoder-control-loading');
     collapseSearch();
-    results.clearLayers();
-    markerRefs.length = 0;
+    // Clears the previous list too, so a zero-result search can't leave the
+    // toggle offering the last search's rows with no markers behind them.
+    clearResults();
     if (data.results.length) {
       // Add numbered markers in reverse order so marker #1 renders on top.
       for (let i = data.results.length - 1; i >= 0; i--) {
@@ -380,7 +552,13 @@ export function addSearchControl(map: L.Map, state: AppState, onNoResults: (mess
         easeLinearity: 0.25,
       });
     } else {
-      onNoResults('No results found. Try zooming out or rewording your search.');
+      // Only blame the query when the service actually answered. Telling someone
+      // to reword their search during an outage is worse than saying nothing.
+      if (lastResultsError !== null) {
+        showMessage(failureMessage(lastResultsError), 6000);
+      } else {
+        showMessage('No results found. Try zooming out or rewording your search.');
+      }
     }
   });
 }
@@ -415,12 +593,12 @@ export const DISMISS_BELOW_MIN_PX = 40;
 export const MIN_BELOW_PEEK_PX = 80;
 
 /**
- * Transform for the geocode-bar at a given vertical offset. The sheet is
- * right-anchored (see .geocode-bar in style.css), so the transform carries ONLY
- * the vertical offset — a horizontal component here would fight the CSS anchor
- * and push the sheet off-screen. Centralized because four call sites write this
- * (snap, open, touch-drag, mouse-drag) and one missed edit is invisible until
- * the user drags.
+ * Transform for the geocode-bar at a given vertical offset. Carries ONLY the
+ * vertical offset: the sheet is centred by CSS (left/right + margin auto, see
+ * .geocode-bar in style.css) precisely so no horizontal component is needed
+ * here. Adding one would fight that centring and push the sheet off-screen.
+ * Centralized because four call sites write this (snap, open, touch-drag,
+ * mouse-drag) and one missed edit is invisible until the user drags.
  */
 export function sheetTransform(offsetPx: number): string {
   return `translateY(${offsetPx}px)`;

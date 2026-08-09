@@ -60,5 +60,5 @@ export function addCompassControl(map: L.Map, state: AppState): void {
     },
   });
 
-  new Control({ position: 'topright' }).addTo(map);
+  new Control({ position: 'bottomleft' }).addTo(map);
 }

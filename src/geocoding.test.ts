@@ -10,6 +10,7 @@ import {
   sheetSettleTarget,
   sheetTransform,
   isReplyForPin,
+  describeSearchFailure,
 } from './geocoding';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -253,9 +254,9 @@ describe('sheetTransform', () => {
   });
 
   it('never emits a horizontal component', () => {
-    // The sheet is right-anchored in CSS (#253). A translateX here would fight
-    // that anchor and push it off-screen — and because four call sites write
-    // this transform, a stale one is invisible until the user drags.
+    // The sheet is centred by CSS (left/right + margin auto), so a translateX
+    // here would fight that centring and push it off-screen. Four call sites
+    // write this transform, so a stale one is invisible until the user drags.
     for (const offset of [0, 137, -20, 999]) {
       expect(sheetTransform(offset)).not.toContain('translateX');
     }
@@ -278,3 +279,62 @@ describe('isReplyForPin', () => {
     expect(isReplyForPin(null, { lat: 47.6, lng: -122.3 })).toBe(false);
   });
 });
+
+describe('describeSearchFailure', () => {
+  const online = { hasApiKey: true, online: true };
+
+  it('blames the connection first, before anything else', () => {
+    // Offline outranks every other cause: nothing else is actionable until the
+    // connection is back, whatever status the last attempt happened to return.
+    const msg = describeSearchFailure({ code: 500 }, { hasApiKey: false, online: false });
+    expect(msg).toMatch(/offline/i);
+  });
+
+  it('names a missing API key as a build configuration problem', () => {
+    const msg = describeSearchFailure(null, { hasApiKey: false, online: true });
+    expect(msg).toMatch(/no ArcGIS API key/i);
+  });
+
+  it('explains an unauthorised origin rather than blaming the query', () => {
+    // The local-dev case: a referrer-restricted key on an origin that isn't
+    // allowlisted. Must read as configuration, not as a bad search.
+    for (const code of [403, 498, 499]) {
+      const msg = describeSearchFailure({ code }, online);
+      expect(msg).toMatch(/doesn’t allow this site/i);
+      expect(msg).not.toMatch(/reword|zoom/i);
+    }
+  });
+
+  it('distinguishes rate limiting from an outage', () => {
+    expect(describeSearchFailure({ code: 429 }, online)).toMatch(/rate-limited/i);
+    expect(describeSearchFailure({ code: 503 }, online)).toMatch(/temporarily down/i);
+    expect(describeSearchFailure({ code: 503 }, online)).toContain('503');
+  });
+
+  it('covers a rejected request that carries no status code', () => {
+    // DNS failure, CORS rejection, blocked request: fetch rejects with no code.
+    expect(describeSearchFailure({ message: 'Failed to fetch' }, online))
+      .toMatch(/blocked or timed out/i);
+    expect(describeSearchFailure(null, online)).toMatch(/blocked or timed out/i);
+  });
+
+  it('falls back to reporting an unexpected status verbatim', () => {
+    expect(describeSearchFailure({ code: 418 }, online)).toContain('418');
+  });
+
+  it('never tells the user to reword their search', () => {
+    // That advice belongs only to a genuine zero-match result; suggesting it
+    // during an outage is what #260 was filed for.
+    const cases: Array<[SearchFailureArgs[0], SearchFailureArgs[1]]> = [
+      [{ code: 403 }, online],
+      [{ code: 500 }, online],
+      [null, { hasApiKey: false, online: true }],
+      [null, { hasApiKey: true, online: false }],
+    ];
+    for (const [err, opts] of cases) {
+      expect(describeSearchFailure(err, opts)).not.toMatch(/reword|zooming out/i);
+    }
+  });
+});
+
+type SearchFailureArgs = Parameters<typeof describeSearchFailure>;

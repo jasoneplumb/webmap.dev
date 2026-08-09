@@ -547,7 +547,7 @@ export function addOfflineDownloadControl(
   let containerEl: HTMLElement | null = null;
   const Ctrl = L.Control.extend({
     onAdd(): HTMLElement {
-      const container = L.DomUtil.create('div', 'leaflet-control-toggle') as HTMLDivElement;
+      const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-download') as HTMLDivElement;
       containerEl = container;
       container.title = 'Download: Select a region and zoom range to cache for offline use';
 
@@ -595,6 +595,6 @@ export function addOfflineDownloadControl(
   });
 
   new (Ctrl as new (opts: L.ControlOptions) => L.Control)({
-    position: 'topright',
+    position: 'bottomleft',
   }).addTo(map);
 }
