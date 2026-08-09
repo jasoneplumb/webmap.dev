@@ -11,6 +11,7 @@ import {
   sheetTransform,
   isReplyForPin,
   describeSearchFailure,
+  shouldAutofocusSearch,
 } from './geocoding';
 
 // ── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -338,3 +339,21 @@ describe('describeSearchFailure', () => {
 });
 
 type SearchFailureArgs = Parameters<typeof describeSearchFailure>;
+
+describe('shouldAutofocusSearch', () => {
+  it('focuses only on devices with a precise pointer', () => {
+    expect(shouldAutofocusSearch(() => ({ matches: true }))).toBe(true);
+    expect(shouldAutofocusSearch(() => ({ matches: false }))).toBe(false);
+  });
+
+  it('asks about pointer and hover, never viewport width', () => {
+    // The guard exists to keep the on-screen keyboard from covering the map on
+    // load. Width would be the wrong proxy in both directions: a narrow laptop
+    // window is still a keyboard device, and a large tablet still isn't.
+    let asked = '';
+    shouldAutofocusSearch((query) => { asked = query; return { matches: false }; });
+    expect(asked).toContain('pointer: fine');
+    expect(asked).toContain('hover: hover');
+    expect(asked).not.toMatch(/width/);
+  });
+});
