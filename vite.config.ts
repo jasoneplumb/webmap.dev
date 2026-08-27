@@ -34,7 +34,7 @@ export default defineConfig({
       manifest: {
         name: 'webmap.dev',
         short_name: 'webmap',
-        description: 'GPS mapping and trail recording with offline support',
+        description: 'GPS mapping with turn-by-turn navigation and offline support',
         theme_color: '#4CAF50',
         background_color: '#ffffff',
         display: 'standalone',

@@ -22,7 +22,7 @@
 
   <text x="80" y="270" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="108" font-weight="800" fill="#ffffff" letter-spacing="-2">webmap.dev</text>
 
-  <text x="80" y="335" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="34" font-weight="400" fill="#94a3b8">Record GPS trails. Offline maps. No account.</text>
+  <text x="80" y="335" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="34" font-weight="400" fill="#94a3b8">GPS navigation. Offline maps. No account.</text>
 
   <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="18" font-weight="600">
     <g transform="translate(80, 420)">
@@ -30,10 +30,10 @@
       <text x="100" y="33" text-anchor="middle" fill="#bfdbfe">Real-time GPS</text>
     </g>
     <g transform="translate(296, 420)">
-      <rect width="180" height="52" rx="26" fill="#14532d" opacity="0.5"/>
-      <text x="90" y="33" text-anchor="middle" fill="#bbf7d0">GPX export</text>
+      <rect width="200" height="52" rx="26" fill="#14532d" opacity="0.5"/>
+      <text x="100" y="33" text-anchor="middle" fill="#bbf7d0">Turn-by-turn</text>
     </g>
-    <g transform="translate(492, 420)">
+    <g transform="translate(512, 420)">
       <rect width="220" height="52" rx="26" fill="#7c2d12" opacity="0.5"/>
       <text x="110" y="33" text-anchor="middle" fill="#fed7aa">Works offline</text>
     </g>

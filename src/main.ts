@@ -1,7 +1,7 @@
 /**
  * Intent: Application entry point — wires all modules together and owns the GPS watch refcount
  * Context: Browser entry point; imports all feature modules and passes AppState + map by reference; no framework
- * Pattern: Single AppState object threaded through all modules; updateCallback refcount lets locate and recording independently request/release GPS watching without stepping on each other
+ * Pattern: Single AppState object threaded through all modules; updateCallback refcount lets locate and guidance independently request/release GPS watching without stepping on each other
  * Future: Refcount pattern breaks silently if any module activates without a matching deactivate (e.g., on error path) — no guard or assertion currently exists
  */
 import L from 'leaflet';
@@ -192,7 +192,7 @@ map.on('locationerror', (e: L.ErrorEvent) => {
   }
 });
 
-// Polling refcount helpers — shared by locate and recording
+// Polling refcount helpers — shared by locate and guidance
 function activatePolling(): void {
   state.updateCallback += 1;
   if (import.meta.env.DEV && state.updateCallback > 2) {
@@ -576,7 +576,7 @@ function updateOfflineBanner(): void {
     banner = document.createElement('div');
     banner.id = 'offline-banner';
     banner.className = 'offline-banner';
-    banner.innerHTML = '<span>You are offline — cached tiles and GPS recording still work</span>';
+    banner.innerHTML = '<span>You are offline — cached tiles and GPS location still work</span>';
     document.body.appendChild(banner);
     // Mount hidden, then reveal next frame so the slide-in transition plays.
     requestAnimationFrame(() => banner!.classList.add('visible'));
@@ -592,8 +592,8 @@ updateOfflineBanner();
 initOfflineTileFallback(showToast);
 
 // ── Screen-off optimization ───────────────────────────────────────────────────
-// Suppress map rendering and UI updates when screen is off during recording
-// to reduce CPU/GPU work. GPS data is still processed for trail recording.
+// Suppress map rendering and UI updates when the screen is off to reduce
+// CPU/GPU work. GPS fixes are still processed (guidance keeps advancing).
 document.addEventListener('visibilitychange', () => {
   state.screenOff = document.hidden;
   // When screen comes back on, re-render latest state to catch up
