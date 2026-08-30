@@ -1487,22 +1487,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   cursor: default;
 }
 
-/* Secondary mode checkbox on an overlay row (e.g. Hillshade sun direction) */
-.layers-option__subtoggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  align-self: center;
-  margin-left: 4px;
-  font-size: 11px;
-  color: #555;
-  white-space: nowrap;
-}
-
-.layers-option__subtoggle:has(.layers-option__subtoggle-box:disabled) {
-  color: #bbb;
-}
-
 
 
 /* Mobile layers popover ──────────────────────────────────────────── */

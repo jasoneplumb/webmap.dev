@@ -40,7 +40,6 @@ export interface OverlayDef {
   // Optional secondary checkbox on the overlay's row for a binary mode of the
   // overlay itself — e.g. Hillshade's sun direction. Enabled only while the
   // overlay is checked; the caller owns persistence of the choice.
-  subToggle?: { label: string; title?: string; initial: boolean; onChange: (checked: boolean) => void };
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
@@ -52,6 +51,8 @@ export class LayersControl extends L.Control {
   private currentBase: LayerDef | null = null;
   private activeOverlays: Set<string> = new Set();
   private defaultOverlayIds: string[];
+  private defaultBaseId: string | undefined;
+  private onBaseChange: ((baseId: string) => void) | undefined;
   private popoverEl: HTMLElement | null = null;
   private popoverOpen = false;
   private map: L.Map | null = null;
@@ -62,11 +63,20 @@ export class LayersControl extends L.Control {
     overlays: OverlayDef[] = [],
     options?: L.ControlOptions,
     defaultOverlayIds: string[] = [],
+    defaultBaseId?: string,
+    onBaseChange?: (baseId: string) => void,
   ) {
     super(options || { position: 'bottomleft' });
     this.baseMaps = baseMaps;
     this.overlays = overlays;
     this.defaultOverlayIds = defaultOverlayIds;
+    this.defaultBaseId = defaultBaseId;
+    this.onBaseChange = onBaseChange;
+  }
+
+  /** Id of the base map currently shown, or null before the control is added. */
+  get activeBaseId(): string | null {
+    return this.currentBase?.id ?? null;
   }
 
   onAdd(map: L.Map): HTMLElement {
@@ -138,9 +148,15 @@ export class LayersControl extends L.Control {
       }
     }
 
-    // Use first base map if none persisted
-    if (!this.currentBase && this.baseMaps.length > 0) {
-      this.currentBase = this.baseMaps[0]!;
+    // Nothing persisted: the caller's declared default, else the first base
+    // map. The positional fallback is kept only for callers that declare no
+    // default — picking the default by list ORDER would otherwise tie the
+    // first-run base map to the picker's presentation order, so reordering
+    // the popover for readability would silently change what new users see.
+    if (!this.currentBase) {
+      this.currentBase = this.baseMaps.find((b) => b.id === this.defaultBaseId)
+        ?? this.baseMaps[0]
+        ?? null;
     }
 
     // Load overlay selection (fall back to defaults if nothing persisted)
@@ -354,42 +370,6 @@ export class LayersControl extends L.Control {
           label.appendChild(changeBtn);
         }
 
-        const subToggle = overlay.subToggle;
-        if (subToggle) {
-          // A nested <label> would be invalid inside the row's wrapping label,
-          // so the sub-checkbox and its text live in a span with manual toggling.
-          const wrap = document.createElement('span');
-          wrap.className = 'layers-option__subtoggle';
-          if (subToggle.title) wrap.title = subToggle.title;
-
-          const sub = document.createElement('input');
-          sub.type = 'checkbox';
-          sub.className = 'layers-option__subtoggle-box';
-          sub.dataset['overlayId'] = overlay.id;
-          sub.checked = subToggle.initial;
-          sub.disabled = !checkbox.checked;
-          L.DomEvent.on(sub, 'change', () => subToggle.onChange(sub.checked));
-          wrap.appendChild(sub);
-
-          const subText = document.createElement('span');
-          subText.textContent = subToggle.label;
-          wrap.appendChild(subText);
-
-          // Keep clicks from reaching the wrapping label (which would toggle
-          // the overlay itself); clicks on the text toggle the sub-checkbox.
-          L.DomEvent.on(wrap, 'click', (e: Event) => {
-            e.stopPropagation();
-            if (e.target !== sub) {
-              e.preventDefault();
-              if (!sub.disabled) {
-                sub.checked = !sub.checked;
-                subToggle.onChange(sub.checked);
-              }
-            }
-          });
-          label.appendChild(wrap);
-        }
-
         const rowAction = overlay.rowAction;
         if (rowAction) {
           const actionBtn = document.createElement('button');
@@ -446,6 +426,10 @@ export class LayersControl extends L.Control {
     radios.forEach((r) => {
       (r as HTMLInputElement).checked = (r as HTMLInputElement).value === layer.id;
     });
+
+    // Last: let a caller re-tune an overlay to the new base (the Hillshade sun
+    // follows the imagery underneath it) once the map is in its final state.
+    this.onBaseChange?.(layer.id);
   }
 
   /**
@@ -462,16 +446,12 @@ export class LayersControl extends L.Control {
     this.syncRowActionButtons(id, enabled);
   }
 
-  // Change-file buttons, rowAction buttons, and sub-toggles all follow the checkbox.
+  // Change-file buttons and rowAction buttons follow the checkbox.
   private syncRowActionButtons(id: string, enabled: boolean): void {
     const buttons = this.popoverEl?.querySelectorAll<HTMLButtonElement>(
       `button.layers-option__action[data-overlay-id="${id}"]`,
     );
     buttons?.forEach((btn) => { btn.disabled = !enabled; });
-    const subToggles = this.popoverEl?.querySelectorAll<HTMLInputElement>(
-      `input.layers-option__subtoggle-box[data-overlay-id="${id}"]`,
-    );
-    subToggles?.forEach((box) => { box.disabled = !enabled; });
   }
 
   private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {
@@ -524,8 +504,11 @@ export function addLayersControl(
   baseMaps: LayerDef[],
   overlays?: OverlayDef[],
   defaultOverlayIds?: string[],
+  defaultBaseId?: string,
+  onBaseChange?: (baseId: string) => void,
 ): LayersControl {
-  const control = new LayersControl(baseMaps, overlays, { position: 'bottomleft' }, defaultOverlayIds);
+  const control = new LayersControl(
+    baseMaps, overlays, { position: 'bottomleft' }, defaultOverlayIds, defaultBaseId, onBaseChange);
   control.addTo(map);
   return control;
 }
