@@ -1853,7 +1853,17 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 160px;
+  min-width: 190px;
+}
+
+/* Directional toggle — the whole row is the <label>, so the caption is a tap target too. */
+.custom-zone-popup__direction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 12px system-ui, sans-serif;
+  color: #333;
+  cursor: pointer;
 }
 
 .custom-zone-popup__label {
@@ -1883,9 +1893,40 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: #f0f0f0;
 }
 
+.custom-zone-popup__actions button:disabled {
+  color: #999;
+  border-color: #ddd;
+  cursor: default;
+}
+
+.custom-zone-popup__actions button:disabled:hover {
+  background: #fff;
+}
+
 .custom-zone-popup__delete {
   color: #d63131;
   border-color: #d63131;
+}
+
+/* Direction arrowhead on a directional custom zone — one per polyline edge, rotated to that edge's
+   bearing via the --heading-deg custom-property convention (as .cue-heading-arrow and
+   .blue-dot__heading). Non-interactive: the zone line beneath owns hover, tap, and the popup. */
+.custom-zone-arrow {
+  pointer-events: none;
+}
+
+.custom-zone-arrow__glyph {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: #1e88e5; /* CUSTOM_ZONE_COLOR in custom-zones.ts — change both together */
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff;
+  /* Rotate in place — unlike .cue-heading-arrow's tick, which also offsets outward from a dot,
+     this glyph sits ON the line it describes. */
+  transform: rotate(var(--heading-deg, 0deg));
 }
 
 /* Draw-mode toolbar — bottom center, interactive (unlike .cue-grade-progress), visible only while

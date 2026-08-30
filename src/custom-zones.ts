@@ -11,10 +11,13 @@
  *          state machine drives the map interaction (click to add a vertex, Finish/Cancel or Enter/Esc).
  *          Kept separate from file-overlay.ts's createFileBackedOverlay since drawing has no
  *          file-picker-on-toggle step — toggling this overlay only shows/hides what's already drawn.
- * Future: No edit-existing-zone-geometry — delete and redraw is the only path today.
+ * Future: No edit-existing-zone-geometry — delete and redraw is the only path today, with the one
+ *         exception of Reverse (below), which exists because a directional zone drawn the wrong way
+ *         round is otherwise unfixable without redrawing it.
  */
 import L from 'leaflet';
 import { downloadJson } from './file-overlay';
+import { bearingDeg } from './geo';
 import { escapeHtml } from './html';
 
 export interface CustomZoneProps {
@@ -22,6 +25,13 @@ export interface CustomZoneProps {
   id: string;
   created_at: string;
   label?: string;
+  /**
+   * Directional zone: it applies only while travelling start → end (the LineString's own vertex
+   * order). Absent means bidirectional — the original contract, so every file exported before this
+   * property existed keeps its exact meaning (cue#30 D1). The direction lives in the geometry
+   * alone; a separate bearing property could disagree with the vertex order it duplicates.
+   */
+  directional?: boolean;
 }
 
 export interface CustomZoneFeature {
@@ -97,9 +107,22 @@ export function parseCustomZones(text: string): CustomZoneFeature[] {
     if (label !== undefined && typeof label !== 'string') {
       throw new Error(`feature ${i}: property label must be a string`);
     }
+    const directional = p['directional'];
+    if (directional !== undefined && typeof directional !== 'boolean') {
+      throw new Error(`feature ${i}: property directional must be a boolean`);
+    }
     features.push({
       coordinates,
-      properties: { kind: 'custom_zone', id: p['id'], created_at: p['created_at'], label },
+      properties: {
+        kind: 'custom_zone',
+        id: p['id'],
+        created_at: p['created_at'],
+        label,
+        // Normalized to undefined when false: absent and false mean the same thing, and keeping one
+        // representation of "bidirectional" stops localStorage and an exported file from disagreeing
+        // over a zone nothing has changed.
+        directional: directional === true ? true : undefined,
+      },
     });
   }
   return features;
@@ -174,6 +197,25 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
     input.value = zone.properties.label ?? '';
     root.appendChild(input);
 
+    const directionRow = document.createElement('label');
+    directionRow.className = 'custom-zone-popup__direction';
+    const directionBox = document.createElement('input');
+    directionBox.type = 'checkbox';
+    directionBox.checked = zone.properties.directional === true;
+    const directionCaption = document.createElement('span');
+    directionCaption.textContent = 'Directional — applies one way only';
+    directionRow.append(directionBox, directionCaption);
+    root.appendChild(directionRow);
+
+    // Label and the directional flag are draft state until a button commits them. Reverse commits
+    // them too, so toggling Directional and immediately reversing a zone drawn the wrong way round
+    // — the obvious two-step — cannot silently discard the toggle.
+    function commitDraft(): void {
+      const label = input.value.trim();
+      zone.properties.label = label === '' ? undefined : label;
+      zone.properties.directional = directionBox.checked ? true : undefined;
+    }
+
     const actions = document.createElement('div');
     actions.className = 'custom-zone-popup__actions';
 
@@ -181,14 +223,41 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
     saveBtn.type = 'button';
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', () => {
-      const label = input.value.trim();
-      zone.properties.label = label === '' ? undefined : label;
+      commitDraft();
       persist();
       renderAll();
       showToast('Custom zone updated');
     });
     actions.appendChild(saveBtn);
 
+    const reverseBtn = document.createElement('button');
+    reverseBtn.type = 'button';
+    reverseBtn.textContent = 'Reverse';
+    // Reversing a bidirectional zone changes nothing anyone can observe, so the button is inert
+    // until the zone is directional rather than offering a no-op that looks like it did something.
+    function syncReverseEnabled(): void {
+      reverseBtn.disabled = !directionBox.checked;
+      reverseBtn.title = directionBox.checked
+        ? 'Flip the direction this zone applies in'
+        : 'Only directional zones have a direction to flip';
+    }
+    syncReverseEnabled();
+    directionBox.addEventListener('change', syncReverseEnabled);
+    reverseBtn.addEventListener('click', () => {
+      commitDraft();
+      zone.coordinates = [...zone.coordinates].reverse();
+      persist();
+      renderAll();
+      showToast('Custom zone reversed');
+    });
+    actions.appendChild(reverseBtn);
+
+    root.appendChild(actions);
+
+    // Delete sits in its own row rather than beside two benign actions — a mis-tap on a cramped
+    // phone popup destroys a zone that can only be recovered by redrawing it.
+    const destructiveActions = document.createElement('div');
+    destructiveActions.className = 'custom-zone-popup__actions';
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'custom-zone-popup__delete';
@@ -199,9 +268,8 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
       renderAll();
       showToast('Custom zone deleted');
     });
-    actions.appendChild(deleteBtn);
-
-    root.appendChild(actions);
+    destructiveActions.appendChild(deleteBtn);
+    root.appendChild(destructiveActions);
     return root;
   }
 
@@ -224,6 +292,35 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
       line.bindTooltip(escapeHtml(zoneDisplayLabel(zone.properties)), { sticky: true });
       line.bindPopup(buildZonePopup(zone)); // tap on touch devices; hosts the label/delete controls
       group.addLayer(line);
+      if (zone.properties.directional === true) addDirectionArrows(latlngs);
+    }
+  }
+
+  /**
+   * One arrowhead per polyline edge, at its midpoint, rotated to that edge's bearing — per-edge
+   * rather than one arrow for the whole zone so a zone that bends still reads correctly. Arrows are
+   * non-interactive: hover, tap, and the popup all belong to the line beneath them, and an
+   * interactive marker here would also swallow map clicks while another zone is being drawn.
+   */
+  function addDirectionArrows(latlngs: L.LatLng[]): void {
+    for (let i = 0; i + 1 < latlngs.length; i++) {
+      const a = latlngs[i]!;
+      const b = latlngs[i + 1]!;
+      if (a.equals(b)) continue; // a zero-length edge (double-tapped vertex) has no bearing
+      const midpoint = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+      // bearingDeg is finite by construction from parse-validated finite coordinates — safe to
+      // interpolate into the style attribute (same convention as cue-events.ts's heading tick).
+      const deg = bearingDeg(a, b);
+      group.addLayer(L.marker(midpoint, {
+        icon: L.divIcon({
+          className: 'custom-zone-arrow',
+          html: `<span class="custom-zone-arrow__glyph" aria-hidden="true" style="--heading-deg: ${deg}deg">▲</span>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        }),
+        interactive: false,
+        keyboard: false,
+      }));
     }
   }
   renderAll();
