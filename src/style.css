@@ -20,6 +20,30 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .multiply-blend { mix-blend-mode: multiply; }
 .overlay-blend { mix-blend-mode: overlay; }
 
+/* Zoom wireframe (see tile-grid.ts). The raster layers hold their current level for
+   the whole gesture and load the new one only once it settles, so this draws the
+   target zoom's tile seams immediately — crisp structure over the stretched level.
+   Hidden at rest: it's a loading affordance, not a feature of the map. */
+.tile-grid {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  pointer-events: none;
+}
+.map-zooming .tile-grid { opacity: 1; }
+
+/* Top and right edges only — each cell draws two of its four sides, so shared seams
+   are painted once rather than doubled up into a 2px line.
+   Light border with a dark hairline just inside it: the pair stays legible over both
+   the dark satellite imagery and the near-white drawn bases without a filter, which
+   would cost a compositing pass on exactly the frames we're trying to keep cheap. */
+.tile-grid-cell {
+  border-top: 1px solid rgba(255, 255, 255, 0.45);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.22),
+    inset -1px 0 0 rgba(0, 0, 0, 0.22);
+}
+
 /* Icon state classes for GPS accuracy filter visual feedback */
 #disabled {
   -webkit-filter: grayscale(1);

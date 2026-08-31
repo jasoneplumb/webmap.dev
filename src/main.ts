@@ -20,7 +20,7 @@ import changelogRaw from '../CHANGELOG.md?raw';
 import { hasConsent, showConsentModal } from './consent';
 import { createInitialState } from './types';
 import { HILLSHADE_AZIMUTH_DEG, HILLSHADE_NW_AZIMUTH_DEG } from './hillshade';
-import { createMap, initOfflineTileFallback, getTileLayers } from './map';
+import { createMap, initOfflineTileFallback, getTileLayers, syncTileGridToBase } from './map';
 import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
 import { createSqueezeZonesOverlay } from './squeeze-zones';
 import { createCueEventsOverlay } from './cue-events';
@@ -362,6 +362,28 @@ function syncHillshadeSun(baseId: string | null): void {
     baseId === SATELLITE_BASE_ID ? HILLSHADE_AZIMUTH_DEG : HILLSHADE_NW_AZIMUTH_DEG);
 }
 
+/** A base def may be a composite LayerGroup (Trails = OSM base + Waymarked overlays);
+ *  the first tile layer in it is the one whose seams the user actually sees. */
+function baseTileLayerOf(layer: L.Layer): L.TileLayer | null {
+  if (layer instanceof L.TileLayer) return layer;
+  if (layer instanceof L.LayerGroup) {
+    for (const child of layer.getLayers()) {
+      if (child instanceof L.TileLayer) return child;
+    }
+  }
+  return null;
+}
+
+/** Everything that has to follow the active base map. Tile seams move when the base
+ *  does — tileSize and the native-zoom clamp differ across bases — so the zoom
+ *  wireframe is re-pointed here alongside the hillshade sun. */
+function syncToBase(baseId: string | null): void {
+  syncHillshadeSun(baseId);
+  const def = layerDefs.find((d) => d.id === baseId);
+  const base = def ? baseTileLayerOf(def.tileLayer) : null;
+  if (base) syncTileGridToBase(base);
+}
+
 const layerDefs: LayerDef[] = [
   {
     id: 'cycle',
@@ -473,10 +495,10 @@ const overlayDefs: OverlayDef[] = [
 
 layersControl = addLayersControl(
   map, layerDefs, overlayDefs,
-  ['hillshade', 'cycle-blend'], SATELLITE_BASE_ID, syncHillshadeSun);
-// selectBaseMap fires syncHillshadeSun on every later switch, but the FIRST base
+  ['hillshade', 'cycle-blend'], SATELLITE_BASE_ID, syncToBase);
+// selectBaseMap fires syncToBase on every later switch, but the FIRST base
 // comes from persisted state (or the default above) without going through it.
-syncHillshadeSun(layersControl.activeBaseId);
+syncToBase(layersControl.activeBaseId);
 
 addOfflineDownloadControl(map, showToast);
 // Registered here, not with the other controls below: Leaflet stacks a corner's

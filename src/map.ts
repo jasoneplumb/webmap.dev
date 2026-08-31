@@ -6,7 +6,43 @@
  */
 import L from 'leaflet';
 import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
+import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
+
+/** Leaflet grid-layer internals that @types/leaflet doesn't declare. */
+interface GridLayerZoomInternals {
+  _setView(center: L.LatLng, zoom: number, noPrune: boolean, noUpdate: boolean): void;
+  _animateZoom(e: L.ZoomAnimEvent): void;
+}
+
+/**
+ * Hold a grid layer on its current tile level for the whole zoom gesture, and load
+ * the new level only once the gesture settles.
+ *
+ * GridLayer._animateZoom hands the zoomanim event's `noUpdate` straight to _setView,
+ * and _setView skips its ENTIRE update block — new level, _abortLoading, _resetGrid,
+ * _update, _pruneTiles — when `noUpdate` is truthy and `updateWhenZooming` is false
+ * (see tilePerf). Only _setZoomTransforms still runs, so the level already on screen
+ * scales smoothly to the target instead of a second level fading in over it.
+ *
+ * Pinch and flyTo already pass noUpdate truthy — that's the only reason
+ * updateWhenZooming bought us anything. Wheel and button zoom pass undefined, which
+ * is why they alone fetch mid-animation; forcing it true covers every zoom path.
+ * Loading resumes by itself at Map._onZoomTransitionEnd, which fires `zoom` ->
+ * _resetView -> a full _setView with noUpdate false.
+ *
+ * Trade-off: nothing refines mid-gesture, so a fast multi-step zoom shows one
+ * increasingly upscaled level until it settles. See #287.
+ *
+ * MUST run before the layer is added to a map — GridLayer.getEvents() captures
+ * `this._animateZoom` by reference when Leaflet wires the layer up in onAdd.
+ */
+function deferTileLoadsUntilZoomEnds(layer: L.GridLayer): void {
+  const internals = layer as unknown as GridLayerZoomInternals;
+  internals._animateZoom = (e: L.ZoomAnimEvent): void => {
+    internals._setView(e.center, e.zoom, true, true);
+  };
+}
 
 // Module-level tile layer refs — set during createMap(), read by initOfflineTileFallback()
 let osmStreetsLayer: L.TileLayer | null = null;
@@ -17,6 +53,7 @@ let outdoorsLayer: L.TileLayer | null = null;
 let humanitarianLayer: L.TileLayer | null = null;
 let satelliteLayer: L.TileLayer | null = null;
 let hillshadeLayer: HillshadeLayer | null = null;
+let tileGridLayer: TileGridLayer | null = null;
 let hikingLayer: L.TileLayer | null = null;
 let cyclingLayer: L.TileLayer | null = null;
 // Tile error event shape (Leaflet fires this on tileerror but @types/leaflet may not expose it fully)
@@ -149,6 +186,13 @@ export function createMap(): L.Map {
     // Past each layer's maxNativeZoom Leaflet scales the native tiles, so the
     // last levels render progressively blurrier rather than fetching new tiles.
     maxZoom: 19,
+    // Leaflet's tile fade ramps each tile's opacity 0→1 over 200ms on its own
+    // load timestamp, and leaflet.css composites tiles with mix-blend-mode:
+    // plus-lighter — so a half-faded tile is *additively* blended over the
+    // retained old-zoom tile beneath it. Disabling the fade makes each tile a
+    // hard swap at full opacity and prunes on arrival instead of 250ms later,
+    // so the user never sees two zoom levels superimposed. See #287.
+    fadeAnimation: false,
   }).fitWorld();
 
   // Tile loading indicator — shows spinner while tiles are fetching
@@ -323,8 +367,37 @@ export function createMap(): L.Map {
     ...tilePerf,
   });
 
+  // Applied here — after construction, before main.ts hands these to the layers
+  // control — because the override has to be in place the first time Leaflet reads
+  // getEvents() on add. The wireframe grid deliberately does NOT get this: it costs
+  // no network, so it stays eager and snaps to the target zoom immediately.
+  for (const layer of [
+    osmStreetsLayer, cycleLayer, bikeInfraLayer, cycleBlendLayer, outdoorsLayer,
+    humanitarianLayer, satelliteLayer, hikingLayer, cyclingLayer, hillshadeLayer,
+  ].filter((l): l is L.TileLayer | HillshadeLayer => l !== null)) {
+    deferTileLoadsUntilZoomEnds(layer);
+  }
+
+  // Always on the map; CSS alone decides whether it's visible, so there is no
+  // add/remove churn on a gesture that is already the latency-sensitive one.
+  tileGridLayer = createTileGridLayer();
+  tileGridLayer.addTo(map);
+
+  const container = map.getContainer();
+  map.on('zoomstart', () => container.classList.add('map-zooming'));
+  map.on('zoomend', () => container.classList.remove('map-zooming'));
 
   return map;
+}
+
+/**
+ * Point the zoom wireframe at the newly selected base map's tile geometry.
+ * Called from main.ts on every base change — the seams move when the base does,
+ * because tileSize and the native-zoom clamp differ across bases (256px cells on
+ * Satellite and hillshade, 512px on the drawn bases).
+ */
+export function syncTileGridToBase(base: L.TileLayer): void {
+  tileGridLayer?.setGeometry(geometryOf(base));
 }
 
 export function getTileLayers(): {
