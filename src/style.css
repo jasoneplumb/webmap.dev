@@ -31,16 +31,6 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 .map-zooming .tile-grid { opacity: 1; }
 
-/* Drop the hillshade for the duration of a zoom. It is the layer with the least to
-   contribute mid-gesture and the most to get wrong: its own tile level is pinned at
-   Terrarium's z15 while the base sits at z18, so the two scale by different factors
-   and their independently-rounded transforms can disagree — and mix-blend-mode turns
-   that disagreement into wrong COLOUR rather than a soft double image.
-   display:none rather than opacity:0 on purpose: an opacity-0 blend layer is still
-   composited, and it is the backdrop readback that costs on iOS. Terrain shading is
-   the thing a reader least needs while the map is moving. */
-.map-zooming .overlay-blend { display: none; }
-
 /* Top and right edges only — each cell draws two of its four sides, so shared seams
    are painted once rather than doubled up into a 2px line.
    Light border with a dark hairline just inside it: the pair stays legible over both
