@@ -28,6 +28,17 @@ export interface OverlayDef {
   // L.Layer (not L.TileLayer) so an overlay can be a composite L.LayerGroup —
   // e.g. the 'Routes' overlay (Waymarked hiking + cycling route tiles).
   tileLayer: L.Layer;
+  // Paint order within the tile pane, for grid-based overlays.
+  //
+  // Every Leaflet tile layer defaults to zIndex 1, so without this the stack is
+  // whichever order the containers happen to sit in the DOM — and the two code paths
+  // that add overlays disagree: selectBaseMap and applyCurrentLayers re-add in defs
+  // order, while toggleOverlay appends, putting whatever you just ticked on top. That
+  // made the mix-blend-mode overlays composite differently depending on which action
+  // you took last: after a base switch the Cycle blend's multiply sat over the
+  // Hillshade and muted it, and toggling Hillshade off and on "fixed" it by moving it
+  // back to the top. Declaring the order makes insertion order stop mattering. (#287)
+  zIndex?: number;
   // File-backed overlays supply this to get a "Change…" button on their row —
   // it reopens the file picker so a different file can replace the loaded one.
   // Enabled only while the overlay is checked (the picker needs the overlay's
@@ -407,12 +418,17 @@ export class LayersControl extends L.Control {
     this.currentBase = layer;
     this.currentBase.tileLayer.addTo(this.map);
 
-    // Re-add active overlays so they render above the new base map
+    // Re-add active overlays so they render above the new base map. Grid overlays
+    // that declare a zIndex don't need it — their paint order is pinned, and skipping
+    // the remove/add spares them a full tile teardown and refetch on every base switch.
     for (const overlay of this.overlays) {
-      if (this.activeOverlays.has(overlay.id) && this.map.hasLayer(overlay.tileLayer)) {
-        overlay.tileLayer.remove();
-        overlay.tileLayer.addTo(this.map);
+      if (!this.activeOverlays.has(overlay.id) || !this.map.hasLayer(overlay.tileLayer)) continue;
+      if (overlay.zIndex !== undefined) {
+        this.applyOverlayZIndex(overlay);
+        continue;
       }
+      overlay.tileLayer.remove();
+      overlay.tileLayer.addTo(this.map);
     }
 
     // Persist selection
@@ -451,12 +467,21 @@ export class LayersControl extends L.Control {
     buttons?.forEach((btn) => { btn.disabled = !enabled; });
   }
 
+  /** Pin a grid overlay's paint order. No-op for vector/LayerGroup overlays, which
+   *  live in overlayPane above the tile pane and are unaffected by this stack. */
+  private applyOverlayZIndex(overlay: OverlayDef): void {
+    if (overlay.zIndex === undefined) return;
+    const layer = overlay.tileLayer as unknown as { setZIndex?: (z: number) => void };
+    layer.setZIndex?.(overlay.zIndex);
+  }
+
   private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {
     if (!this.map) return;
 
     if (enabled) {
       this.activeOverlays.add(overlay.id);
       overlay.tileLayer.addTo(this.map);
+      this.applyOverlayZIndex(overlay);
     } else {
       this.activeOverlays.delete(overlay.id);
       this.map.removeLayer(overlay.tileLayer);
@@ -478,6 +503,7 @@ export class LayersControl extends L.Control {
     for (const overlay of this.overlays) {
       if (this.activeOverlays.has(overlay.id)) {
         overlay.tileLayer.addTo(this.map);
+        this.applyOverlayZIndex(overlay);
       }
     }
   }

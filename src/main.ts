@@ -434,28 +434,33 @@ const customZonesOverlay = createCustomZonesOverlay(showToast);
 const overlayDefs: OverlayDef[] = [
   {
     id: 'hillshade',
+    zIndex: 20,
     name: 'Hillshade',
     description: 'Terrain shading over any base map',
     tileLayer: tileLayers.hillshadeLayer,
   },
   {
     id: 'cycle-blend',
+    zIndex: 10,
     name: 'Cycle blend',
     description: 'The Cycle base map composited over any base — lighter colors turn transparent',
     tileLayer: tileLayers.cycleBlendLayer,
   },
   {
     id: 'hiking-routes',
+    zIndex: 30,
     name: 'Hiking routes',
     tileLayer: tileLayers.hikingLayer,
   },
   {
     id: 'cycling-routes',
+    zIndex: 30,
     name: 'Cycling routes',
     tileLayer: tileLayers.cyclingLayer,
   },
   {
     id: 'bike-infra',
+    zIndex: 30,
     name: 'Bike infrastructure',
     description: 'Bike lanes & paths (CyclOSM-lite) — composes over any base, no baked-in hillshade',
     tileLayer: tileLayers.bikeInfraLayer,
