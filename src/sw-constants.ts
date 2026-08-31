@@ -35,7 +35,18 @@ export function isBasemapTileUrl(url: URL): boolean {
   if (url.hostname === 's3.amazonaws.com') {
     return url.pathname.startsWith('/elevation-tiles-prod/');
   }
-  return BASEMAP_TILE_HOSTS.some(
-    (host) => url.hostname === host || url.hostname.endsWith(`.${host}`),
+  const host = BASEMAP_TILE_HOSTS.find(
+    (h) => url.hostname === h || url.hostname.endsWith(`.${h}`),
   );
+  if (host === undefined) return false;
+
+  // Thunderforest answers a request with NO usable key with HTTP 200 and a
+  // different image — a placeholder, not the map — rather than a 4xx (verified
+  // 2026-08-31; an *invalid* key is a clean 401, which onlyReadable already
+  // rejects). CacheFirst would pin that placeholder for 30 days, so a build that
+  // shipped without VITE_THUNDERFOREST_KEY would keep serving it from cache long
+  // after the key was restored. Decline to cache what we can't tell is real.
+  if (host === 'tile.thunderforest.com' && !url.searchParams.get('apikey')) return false;
+
+  return true;
 }

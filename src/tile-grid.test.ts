@@ -67,6 +67,17 @@ describe('isBasemapTileUrl', () => {
     expect(matches('https://nottile.thunderforest.com.example/1/2/3.png')).toBe(false);
   });
 
+  it('declines Thunderforest tiles with no usable key', () => {
+    // A keyless request returns HTTP 200 with a placeholder image rather than a 4xx,
+    // so onlyReadable can't catch it and CacheFirst would pin it for 30 days.
+    expect(matches('https://a.tile.thunderforest.com/cycle/12/1/2.png')).toBe(false);
+    expect(matches('https://a.tile.thunderforest.com/cycle/12/1/2.png?apikey=')).toBe(false);
+  });
+
+  it('still caches Thunderforest tiles that carry a key', () => {
+    expect(matches('https://a.tile.thunderforest.com/outdoors/12/1/2.png?apikey=abc123')).toBe(true);
+  });
+
   it('leaves openstreetmap.org to the OSM route', () => {
     // .org, not .fr — these belong to the separate osm-tiles cache that the region
     // pre-download writes into, and must not be pulled into the basemap cache.
