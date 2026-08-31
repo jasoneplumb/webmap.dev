@@ -53,6 +53,26 @@ describe('parseCustomZones', () => {
     expect(features[0]!.properties.label).toBeUndefined();
   });
 
+  it('parses directional: true', () => {
+    const features = parseCustomZones(collection(syntheticFeature({ directional: true })));
+    expect(features[0]!.properties.directional).toBe(true);
+  });
+
+  it('treats an absent directional as bidirectional (the pre-property file contract)', () => {
+    const features = parseCustomZones(collection(syntheticFeature()));
+    expect(features[0]!.properties.directional).toBeUndefined();
+  });
+
+  it('normalizes directional: false to undefined — one representation of bidirectional', () => {
+    const features = parseCustomZones(collection(syntheticFeature({ directional: false })));
+    expect(features[0]!.properties.directional).toBeUndefined();
+  });
+
+  it('throws when directional is present but not a boolean', () => {
+    expect(() => parseCustomZones(collection(syntheticFeature({ directional: 'yes' }))))
+      .toThrow('directional must be a boolean');
+  });
+
   it('accepts an empty FeatureCollection', () => {
     expect(parseCustomZones(collection())).toEqual([]);
   });
@@ -116,6 +136,31 @@ describe('encodeCustomZones', () => {
       },
     ];
     expect(parseCustomZones(encodeCustomZones(zones))).toEqual(zones);
+  });
+
+  it('round-trips a directional zone with its vertex order intact', () => {
+    const zones: CustomZoneFeature[] = [
+      {
+        coordinates: [[0, 0], [0.001, 0.0005], [0.002, 0.0005]],
+        properties: {
+          kind: 'custom_zone',
+          id: 'zone-1',
+          created_at: '2026-07-21T00:00:00.000Z',
+          directional: true,
+        },
+      },
+    ];
+    expect(parseCustomZones(encodeCustomZones(zones))).toEqual(zones);
+  });
+
+  it('omits directional entirely for a bidirectional zone', () => {
+    const encoded = JSON.parse(encodeCustomZones([
+      {
+        coordinates: [[0, 0], [0.001, 0.0005]],
+        properties: { kind: 'custom_zone', id: 'zone-1', created_at: '2026-07-21T00:00:00.000Z' },
+      },
+    ])) as { features: { properties: Record<string, unknown> }[] };
+    expect('directional' in encoded.features[0]!.properties).toBe(false);
   });
 
   it('encodes an empty list as an empty FeatureCollection', () => {
