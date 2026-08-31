@@ -16,6 +16,8 @@
 
 - **Every map layer is now kept offline once you've looked at it.** Only the Structures base was cached before, so the default Satellite and Hillshade view re-downloaded on every zoom step, even on ground you'd already browsed. Tiles you've viewed are now kept for 30 days, in storage separate from any region you deliberately pre-downloaded, so ordinary panning can't evict a saved area (#287)
 - **Offline coverage now works for the layers that were silently failing.** Tiles cached by the app itself were stored in a form that nothing could read back, so the lower-zoom fallback that fills in missing tiles offline never had anything to draw (#287)
+- **The draw-zone and offline-download panels now open at the top of the screen.** They sat at the bottom, which is where every control now lives and where the navigation sheet sits; both top corners were empty. The offline panel previously dropped to the bottom on phones specifically — it no longer does, and its collapse control still gets it out of the way on a short screen (#289)
+- **The control that put the map into a mode now turns blue while that mode is active** — the pencil while you're drawing a zone, the download arrow while its panel is open. Previously the floating panel was the only sign anything had changed (#289)
 
 ## v0.47.0-beta (2026-08-08)
 

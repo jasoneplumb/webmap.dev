@@ -712,6 +712,18 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   letter-spacing: -0.3px;
 }
 
+/* In-use state — the control that put the map into a mode (draw a zone, select a
+   region to download) turns blue for as long as that mode is active, so the mode has
+   a visible owner rather than only the floating panel to explain itself.
+   Colour only, on the icon and label: the pill keeps its size and background, so
+   nothing in the control column shifts when a mode starts. #1e88e5 is the same blue
+   as the toolbar's primary button. Glyph icons take `color` directly and the inline
+   SVG ones inherit it through stroke="currentColor". (#289) */
+.leaflet-control-toggle--active .leaflet-control-toggle__icon,
+.leaflet-control-toggle--active .leaflet-control-toggle__label {
+  color: #1e88e5;
+}
+
 /* Size the layers control toggle button to match locate/track/zoom controls */
 .leaflet-control-layers-toggle {
   width: 26px !important;
@@ -1176,14 +1188,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   overflow: hidden;
 }
 
-/* Mobile: anchor to bottom so the map + selection handles stay visible */
+/* Mobile keeps the desktop top anchor. It was bottom-anchored to keep the map and the
+   selection handles visible, but #262 has since filled the bottom-left with the control
+   column and the bottom centre with the navigation sheet, so the bottom is now the
+   crowded edge and the top is empty. The collapse affordance below still does the real
+   work of getting the panel out of the way on a short viewport. (#289) */
 @media (max-width: 768px) {
-  .offline-dl-panel {
-    top: auto;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    border-radius: 12px;
-  }
-
   /* Collapsed state — hide body, keep header as a thin bar */
   .offline-dl-panel--collapsed .offline-dl-panel__body {
     display: none;
@@ -1937,12 +1947,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   transform: rotate(var(--heading-deg, 0deg));
 }
 
-/* Draw-mode toolbar — bottom center, interactive (unlike .cue-grade-progress), visible only while
-   the "Draw zone" control is actively collecting vertices. */
+/* Draw-mode toolbar — top center, interactive (unlike .cue-grade-progress), visible only while
+   the "Draw zone" control is actively collecting vertices.
+   Top, not bottom: #262 moved every persistent control into the bottom-left column and the
+   navigation sheet owns the bottom centre, so a transient panel down there competes with both.
+   Both top corners are empty. */
 .draw-zone-toolbar {
   display: none;
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
