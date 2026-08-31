@@ -349,8 +349,6 @@ map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passi
 // Initialize custom layers control with free OSM tile sources
 const tileLayers = getTileLayers();
 
-// Hillshade sun direction — persisted independently of the overlay on/off state.
-// Default 'satellite' (SE sun); anything else stored means the NW convention.
 const SATELLITE_BASE_ID = 'satellite';
 
 // The Hillshade sun follows the base map rather than a rider setting: south-east

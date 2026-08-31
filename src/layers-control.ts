@@ -37,9 +37,6 @@ export interface OverlayDef {
   // e.g. "Export reviews" on cue events. Enabled only while the overlay is
   // checked, same as the change-file button.
   rowAction?: { label: string; title: string; onClick: () => void };
-  // Optional secondary checkbox on the overlay's row for a binary mode of the
-  // overlay itself — e.g. Hillshade's sun direction. Enabled only while the
-  // overlay is checked; the caller owns persistence of the choice.
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
