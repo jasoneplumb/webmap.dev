@@ -349,11 +349,18 @@ map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passi
 // Initialize custom layers control with free OSM tile sources
 const tileLayers = getTileLayers();
 
-// Hillshade sun direction — persisted independently of the overlay on/off state.
-// Default 'satellite' (SE sun); anything else stored means the NW convention.
-const HILLSHADE_DIRECTION_KEY = 'webmap-hillshade-direction';
-const hillshadeSatelliteSun = localStorage.getItem(HILLSHADE_DIRECTION_KEY) !== 'nw';
-if (!hillshadeSatelliteSun) tileLayers.hillshadeLayer.setAzimuth(HILLSHADE_NW_AZIMUTH_DEG);
+const SATELLITE_BASE_ID = 'satellite';
+
+// The Hillshade sun follows the base map rather than a rider setting: south-east
+// over Satellite, so the shading agrees with the real shadows baked into the
+// imagery, and the classic north-west cartographic light over every drawn base.
+// There is one right answer per base, so a checkbox only offered a way to get it
+// wrong. Cheap to switch — setAzimuth re-lights from the elevation cache without
+// refetching a tile (#249).
+function syncHillshadeSun(baseId: string | null): void {
+  tileLayers.hillshadeLayer.setAzimuth(
+    baseId === SATELLITE_BASE_ID ? HILLSHADE_AZIMUTH_DEG : HILLSHADE_NW_AZIMUTH_DEG);
+}
 
 const layerDefs: LayerDef[] = [
   {
@@ -381,7 +388,7 @@ const layerDefs: LayerDef[] = [
     tileLayer: tileLayers.humanitarianLayer,
   },
   {
-    id: 'satellite',
+    id: SATELLITE_BASE_ID,
     name: 'Satellite',
     description: 'Aerial imagery (Esri World Imagery)',
     tileLayer: tileLayers.satelliteLayer,
@@ -408,15 +415,6 @@ const overlayDefs: OverlayDef[] = [
     name: 'Hillshade',
     description: 'Terrain shading over any base map',
     tileLayer: tileLayers.hillshadeLayer,
-    subToggle: {
-      label: 'Satellite sun',
-      title: 'Checked: south-east sun matching Satellite imagery shadows. Unchecked: classic north-west cartographic light.',
-      initial: hillshadeSatelliteSun,
-      onChange: (checked) => {
-        localStorage.setItem(HILLSHADE_DIRECTION_KEY, checked ? 'satellite' : 'nw');
-        tileLayers.hillshadeLayer.setAzimuth(checked ? HILLSHADE_AZIMUTH_DEG : HILLSHADE_NW_AZIMUTH_DEG);
-      },
-    },
   },
   {
     id: 'cycle-blend',
@@ -473,7 +471,12 @@ const overlayDefs: OverlayDef[] = [
   },
 ];
 
-layersControl = addLayersControl(map, layerDefs, overlayDefs, ['hillshade', 'cycle-blend', 'hiking-routes', 'cycling-routes']);
+layersControl = addLayersControl(
+  map, layerDefs, overlayDefs,
+  ['hillshade', 'cycle-blend'], SATELLITE_BASE_ID, syncHillshadeSun);
+// selectBaseMap fires syncHillshadeSun on every later switch, but the FIRST base
+// comes from persisted state (or the default above) without going through it.
+syncHillshadeSun(layersControl.activeBaseId);
 
 addOfflineDownloadControl(map, showToast);
 // Registered here, not with the other controls below: Leaflet stacks a corner's
