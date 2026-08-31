@@ -22,8 +22,12 @@ jobs:
     #
     # NOTE: PRs that modify .github/workflows/claude-code-review.yml will always fail
     # with a 401 "Workflow validation failed" error — this is an intentional security
-    # check in the action (prevents self-modifying PRs from bypassing review). Add the
-    # 'no-review' label to such PRs and merge directly.
+    # check in the action (prevents self-modifying PRs from bypassing review), because
+    # the action requires the workflow file on the PR branch to match the default-branch
+    # version exactly. Such a PR cannot pass its own review check. Once `ci` is green,
+    # admin-merge it: `gh pr merge <N> --squash --delete-branch --admin`. Do NOT reach
+    # for the 'no-review' label here — that label is reserved for docs/skill/config-only
+    # changes, and using it to bypass review on a workflow edit hides a real gap.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event.action == 'labeled' && github.event.label.name == 'review-requested') ||
@@ -47,6 +51,26 @@ jobs:
         uses: anthropics/claude-code-action@459ad358ae43fea66bfefd0a1f8d840b4b9791fb # v1.0.194
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Without this, every Dependabot-pushed rebase fails the run outright with
+          # "Workflow initiated by non-human actor: dependabot" — the synchronize arm
+          # fires with github.actor == dependabot[bot], and the action rejects non-human
+          # actors unless allow-listed. The check went red on the actor policy, not on
+          # the diff, and the only workaround was manually cycling review-requested so
+          # the label-add made a human the actor (see #284).
+          #
+          # Scoped to Dependabot, NOT '*': this repo is public, and the action's own
+          # input docs warn that '*' on a public repo may let external Apps invoke it
+          # with prompts they control. Note that Dependabot PR bodies embed upstream
+          # release notes, which a malicious package could craft — the allowed-tools
+          # list below is read-only plus `gh pr comment`, so the blast radius of an
+          # injected prompt is a misleading comment, not a write.
+          #
+          # This alone is not sufficient: Dependabot-triggered runs read secrets from
+          # the Dependabot store, not Actions ("Secret source: Dependabot" in the job
+          # log), so CLAUDE_CODE_OAUTH_TOKEN must also be set there via
+          #   gh secret set CLAUDE_CODE_OAUTH_TOKEN --app dependabot
+          # or the actor gate passes and the run fails on auth instead.
+          allowed_bots: 'dependabot[bot]'
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
