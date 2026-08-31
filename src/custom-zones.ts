@@ -399,6 +399,8 @@ export function addDrawZoneControl(
   let points: L.LatLng[] = [];
   let draftLine: L.Polyline | null = null;
   let vertexMarkers: L.CircleMarker[] = [];
+  // Set in onAdd; used to mark the control blue while draw mode is active (#289).
+  let controlEl: HTMLElement | null = null;
 
   const toolbar = document.createElement('div');
   toolbar.className = 'draw-zone-toolbar';
@@ -464,6 +466,7 @@ export function addDrawZoneControl(
     map.off('click', onMapClick);
     document.removeEventListener('keydown', onKeyDown);
     toolbar.classList.remove('visible');
+    controlEl?.classList.remove('leaflet-control-toggle--active');
   }
 
   function onFinish(): void {
@@ -506,6 +509,7 @@ export function addDrawZoneControl(
     map.on('click', onMapClick);
     document.addEventListener('keydown', onKeyDown);
     toolbar.classList.add('visible');
+    controlEl?.classList.add('leaflet-control-toggle--active');
   }
 
   // tradeoff: factory function rather than a class, matching makeToggleControl in controls.ts —
@@ -513,6 +517,7 @@ export function addDrawZoneControl(
   const DrawZoneControl = L.Control.extend({
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-draw-zone') as HTMLDivElement;
+      controlEl = container;
       container.title = 'Draw a custom squeeze zone';
 
       // Icon only — the title attribute carries the description. U+FE0E is the

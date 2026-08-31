@@ -289,6 +289,12 @@ function createSelectionRect(
 type DownloadState = 'selecting' | 'downloading' | 'done';
 
 let _panelEl: HTMLElement | null = null;
+// The control that opens the panel. Module-level rather than closure-held because
+// openOfflineDownloadPanel/closePanel are module functions and also reachable from
+// other entry points — they mark the control blue for as long as the panel is up (#289).
+let _controlEl: HTMLElement | null = null;
+
+const CONTROL_ACTIVE_CLASS = 'leaflet-control-toggle--active';
 let _selection: SelectionRect | null = null;
 let _downloadState: DownloadState = 'selecting';
 let _selectedBounds: L.LatLngBounds | null = null;
@@ -521,6 +527,7 @@ export function openOfflineDownloadPanel(
   _downloadState = 'selecting';
   _panelEl = buildPanel(map, showToast);
   document.getElementById('map')?.appendChild(_panelEl);
+  _controlEl?.classList.add(CONTROL_ACTIVE_CLASS);
 }
 
 function closePanel(map: L.Map): void {
@@ -533,6 +540,7 @@ function closePanel(map: L.Map): void {
     _panelEl.remove();
     _panelEl = null;
   }
+  _controlEl?.classList.remove(CONTROL_ACTIVE_CLASS);
   _selectedBounds = null;
   _downloadState = 'selecting';
   // Keep cached overlay visible after close — intentional so user can see what's cached
@@ -549,6 +557,7 @@ export function addOfflineDownloadControl(
     onAdd(): HTMLElement {
       const container = L.DomUtil.create('div', 'leaflet-control-toggle ctrl-download') as HTMLDivElement;
       containerEl = container;
+      _controlEl = container;
       container.title = 'Download: Select a region and zoom range to cache for offline use';
 
       const iconSpan = L.DomUtil.create('span', 'leaflet-control-toggle__icon') as HTMLSpanElement;
@@ -589,6 +598,7 @@ export function addOfflineDownloadControl(
       // L.DomEvent.off without a handler arg removes all Leaflet-managed listeners.
       if (containerEl) {
         L.DomEvent.off(containerEl);
+        if (_controlEl === containerEl) _controlEl = null;
         containerEl = null;
       }
     },

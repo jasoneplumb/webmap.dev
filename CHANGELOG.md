@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The draw-zone and offline-download panels now open at the top of the screen.** They sat at the bottom, which is where every control now lives and where the navigation sheet sits; both top corners were empty. The offline panel previously dropped to the bottom on phones specifically — it no longer does, and its collapse control still gets it out of the way on a short screen (#289)
+- **The control that put the map into a mode now turns blue while that mode is active** — the pencil while you're drawing a zone, the download arrow while its panel is open. Previously the floating panel was the only sign anything had changed (#289)
+
 ## v0.47.0-beta (2026-08-08)
 
 ### Added
