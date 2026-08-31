@@ -73,10 +73,11 @@ let osmCachePromise: Promise<Cache> | null = null;
 
 /** Wire up offline tile warnings and canvas-based lower-zoom fallback.
  *  Must be called after createMap(). Attaches tileerror handlers to the base/overlay
- *  tile layers; the Routes overlay (a LayerGroup) is intentionally excluded — its
- *  Waymarked tiles aren't SW-cached, so a fallback/warning would be moot.
- *  Only the OSM layer (cached by the service worker) attempts canvas fallback;
- *  Non-OSM layers (Thunderforest, Esri) show the warning but serve no fallback (not SW-cached).
+ *  tile layers; the Routes overlay (a LayerGroup) is intentionally excluded — a
+ *  missing route overlay degrades gracefully on its own.
+ *  Every provider is SW-cached now (see sw.ts), but only the OSM layer attempts the
+ *  lower-zoom canvas fallback: reviving a tile means constructing its ANCESTOR's URL,
+ *  and that construction is per-provider. Non-OSM layers show the warning only.
  */
 export function initOfflineTileFallback(
   showToast: (msg: string, durationMs?: number) => void,
@@ -237,9 +238,18 @@ export function createMap(): L.Map {
   map.setZoom(2);
 
   // All layers are now free, community-maintained OSM sources
-  // keepBuffer: extra tiles to cache beyond the viewport (smoother panning)
+  // keepBuffer: how far outside the viewport already-loaded tiles are kept rather
+  // than pruned (smoother panning). It does NOT prefetch — _update's load queue is
+  // the viewport range alone; keepBuffer only widens the range that stays retained.
   // updateWhenZooming: false defers tile loads during pinch-zoom animation
-  const tilePerf = { keepBuffer: 3, updateWhenZooming: false } as const;
+  // crossOrigin: an <img> with no crossorigin attribute makes a no-cors request, and
+  // the service worker sees an OPAQUE response — a body no reader can touch, padded by
+  // megabytes against the storage quota. That is why the canvas tile fallback could
+  // only ever revive tiles written by offline-download.ts via fetch(): response.blob()
+  // on an SW-cached tile returned 0 bytes. Every provider this app uses answers with
+  // Access-Control-Allow-Origin: *, so requesting anonymously costs nothing and makes
+  // the cached bodies real. Load-bearing for the non-OSM tile route in sw.ts. (#287)
+  const tilePerf = { keepBuffer: 3, updateWhenZooming: false, crossOrigin: true } as const;
   const stdConfig = {
     tileSize: 512,
     zoomOffset: -1,
@@ -355,11 +365,21 @@ export function createMap(): L.Map {
 
   // Client-side SE-lit hillshade (see hillshade.ts) — replaces Esri's NW-lit
   // World Hillshade so terrain shading agrees with the Satellite base's real
-  // shadows. Overzoom past Terrarium's z15 is handled inside the layer.
+  // shadows.
   // overlay: flat terrain (mid-gray) passes through; sun-facing slopes lighten
   // the base, shadowed slopes darken it. See .overlay-blend in style.css.
+  //
+  // maxNativeZoom pins the grid to Terrarium's z15 ceiling so Leaflet scales ONE
+  // level instead of building a full native grid at every zoom above it — at map
+  // zoom 19 that is ~2 tiles for a phone viewport rather than ~15, each of which
+  // was a canvas element, a DOM node and a promise the layer's `load` had to wait
+  // on. The layer can still overzoom on its own (paintTile crops the z15 ancestor,
+  // and hillshade.test.ts covers that path), so this is a clamp on what Leaflet
+  // asks for, not a change to what the layer can do. Same pixels either way: both
+  // routes bilinear-upsample the same z15 data at the same density. (#287)
   hillshadeLayer = createHillshadeLayer({
     attribution: 'Terrain: Mapzen, AWS Open Data',
+    maxNativeZoom: 15,
     className: 'overlay-blend',
     tileSize: 256,
     maxZoom: 19,

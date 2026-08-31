@@ -584,7 +584,6 @@ document.addEventListener('keydown', (e) => {
 // first mousedown over it (Keyboard._onMouseDown), so zoom and pan shortcuts
 // start working as soon as the map is touched. Focus on load belongs to the
 // thing you can type into.
-document.body.style.zoom = '100%';
 
 // ── Offline detection ─────────────────────────────────────────────────────────
 // The banner is created lazily (not in static HTML) so it isn't a position:fixed +
