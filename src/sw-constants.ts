@@ -12,3 +12,30 @@ export const OSM_TILE_CACHE_NAME = 'osm-tiles' as const;
  *  by the canvas tile fallback, so letting incidental browsing share its LRU would
  *  let a pan over new ground silently evict a region the user deliberately saved. */
 export const BASEMAP_TILE_CACHE_NAME = 'basemap-tiles' as const;
+
+/** Tile hosts served into BASEMAP_TILE_CACHE_NAME — everything the app draws that
+ *  isn't openstreetmap.org. Keep in step with the URL templates in map.ts. */
+export const BASEMAP_TILE_HOSTS = [
+  'tile.thunderforest.com',
+  'tile-cyclosm.openstreetmap.fr',
+  'tile.openstreetmap.fr',
+  'tile.waymarkedtrails.org',
+  'server.arcgisonline.com',
+] as const;
+
+/**
+ * Does this URL belong to the non-OSM tile cache?
+ *
+ * Lives here rather than inline in sw.ts so it can be unit-tested — the service
+ * worker around it can't be. Matches the exact host or a subdomain of it, never a
+ * suffix: `evil-tile.thunderforest.com.example.com` must not match, which is why this
+ * tests `endsWith('.' + host)` rather than `includes(host)`.
+ */
+export function isBasemapTileUrl(url: URL): boolean {
+  if (url.hostname === 's3.amazonaws.com') {
+    return url.pathname.startsWith('/elevation-tiles-prod/');
+  }
+  return BASEMAP_TILE_HOSTS.some(
+    (host) => url.hostname === host || url.hostname.endsWith(`.${host}`),
+  );
+}

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Zooming no longer shows two zoom levels blended together.** Tiles from the level you were leaving and the level you were arriving at were composited over one another — brighter where they overlapped, and offset by a pixel — until the new level finished loading. The map now holds one level for the whole gesture and swaps once, so every frame you see is a single, aligned image (#287)
+- **The hillshade no longer changes strength depending on what you did last.** Switching base maps left the Cycle blend stacked over the terrain shading and muted it, and toggling Hillshade off and on was the only way to get it back. Layer order is now fixed rather than depending on the order you happened to turn things on (#287)
+- **Terrain shading loads far less at high zoom.** The hillshade fetched a full grid of tiles above the elevation data's own ceiling, where a handful of scaled tiles carry exactly the same detail (#287)
+
+### Added
+
+- **A faint tile grid appears while you zoom**, marking where the map's tiles will land. It costs nothing to draw, so it shows the zoom you're heading to immediately, and it disappears the moment the map settles (#287)
+
+### Changed
+
+- **Every map layer is now kept offline once you've looked at it.** Only the Structures base was cached before, so the default Satellite and Hillshade view re-downloaded on every zoom step, even on ground you'd already browsed. Tiles you've viewed are now kept for 30 days, in storage separate from any region you deliberately pre-downloaded, so ordinary panning can't evict a saved area (#287)
+- **Offline coverage now works for the layers that were silently failing.** Tiles cached by the app itself were stored in a form that nothing could read back, so the lower-zoom fallback that fills in missing tiles offline never had anything to draw (#287)
+
 ## v0.47.0-beta (2026-08-08)
 
 ### Added

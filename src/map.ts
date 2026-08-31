@@ -9,7 +9,12 @@ import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid';
 import { OSM_TILE_CACHE_NAME } from './sw-constants';
 
-/** Leaflet grid-layer internals that @types/leaflet doesn't declare. */
+/** Leaflet grid-layer internals that @types/leaflet doesn't declare.
+ *
+ *  Verified against Leaflet 1.9.4. These are private and the casts below hide any
+ *  signature change from tsc, so package.json pins leaflet to an exact version —
+ *  a bump has to be a deliberate, reviewed act, not a transparent `npm update`. If
+ *  you raise it, re-read GridLayer._setView and Map._onZoomTransitionEnd first. */
 interface GridLayerZoomInternals {
   _setView(center: L.LatLng, zoom: number, noPrune: boolean, noUpdate: boolean): void;
   _animateZoom(e: L.ZoomAnimEvent): void;
@@ -248,7 +253,10 @@ export function createMap(): L.Map {
   // only ever revive tiles written by offline-download.ts via fetch(): response.blob()
   // on an SW-cached tile returned 0 bytes. Every provider this app uses answers with
   // Access-Control-Allow-Origin: *, so requesting anonymously costs nothing and makes
-  // the cached bodies real. Load-bearing for the non-OSM tile route in sw.ts. (#287)
+  // the cached bodies real. Load-bearing for the non-OSM tile route in sw.ts.
+  // No-op for the hillshade specifically — it builds canvases and calls fetch()
+  // directly rather than going through TileLayer's <img>, and fetch defaults to cors
+  // mode, so its Terrarium responses were already readable. (#287)
   const tilePerf = { keepBuffer: 3, updateWhenZooming: false, crossOrigin: true } as const;
   const stdConfig = {
     tileSize: 512,

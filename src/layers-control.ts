@@ -471,8 +471,7 @@ export class LayersControl extends L.Control {
    *  live in overlayPane above the tile pane and are unaffected by this stack. */
   private applyOverlayZIndex(overlay: OverlayDef): void {
     if (overlay.zIndex === undefined) return;
-    const layer = overlay.tileLayer as unknown as { setZIndex?: (z: number) => void };
-    layer.setZIndex?.(overlay.zIndex);
+    if (overlay.tileLayer instanceof L.GridLayer) overlay.tileLayer.setZIndex(overlay.zIndex);
   }
 
   private toggleOverlay(overlay: OverlayDef, enabled: boolean): void {

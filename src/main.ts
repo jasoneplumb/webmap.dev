@@ -362,8 +362,11 @@ function syncHillshadeSun(baseId: string | null): void {
     baseId === SATELLITE_BASE_ID ? HILLSHADE_AZIMUTH_DEG : HILLSHADE_NW_AZIMUTH_DEG);
 }
 
-/** A base def may be a composite LayerGroup (Trails = OSM base + Waymarked overlays);
- *  the first tile layer in it is the one whose seams the user actually sees. */
+/** Every base in layerDefs is a plain TileLayer today. LayerDef.tileLayer is typed
+ *  L.Layer so a base CAN be a composite LayerGroup, so this handles that shape rather
+ *  than assuming it away — the LayerGroup branch is defensive, not describing a base
+ *  that currently exists. Where it applies, the first tile layer in the group is the
+ *  one whose seams the user actually sees. */
 function baseTileLayerOf(layer: L.Layer): L.TileLayer | null {
   if (layer instanceof L.TileLayer) return layer;
   if (layer instanceof L.LayerGroup) {

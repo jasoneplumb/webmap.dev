@@ -12,7 +12,7 @@ import { registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate, CacheFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim, type WorkboxPlugin } from 'workbox-core';
-import { OSM_TILE_CACHE_NAME, BASEMAP_TILE_CACHE_NAME } from './sw-constants';
+import { OSM_TILE_CACHE_NAME, BASEMAP_TILE_CACHE_NAME, isBasemapTileUrl } from './sw-constants';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -74,18 +74,8 @@ const onlyReadable: WorkboxPlugin = {
     response.status === 200 && response.type !== 'opaque' ? response : null,
 };
 
-const TILE_HOSTS = [
-  'tile.thunderforest.com',
-  'tile-cyclosm.openstreetmap.fr',
-  'tile.openstreetmap.fr',
-  'tile.waymarkedtrails.org',
-  'server.arcgisonline.com',
-];
-
 registerRoute(
-  ({ url }) =>
-    TILE_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`)) ||
-    (url.hostname === 's3.amazonaws.com' && url.pathname.startsWith('/elevation-tiles-prod/')),
+  ({ url }) => isBasemapTileUrl(url),
   // CacheFirst, not StaleWhileRevalidate: a revalidation round-trip on every tile
   // spends cellular data and provider quota to refresh imagery that changes on a
   // scale of months. Passive caching of tiles the user actually viewed is what the
