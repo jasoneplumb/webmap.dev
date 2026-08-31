@@ -20,7 +20,7 @@ import changelogRaw from '../CHANGELOG.md?raw';
 import { hasConsent, showConsentModal } from './consent';
 import { createInitialState } from './types';
 import { HILLSHADE_AZIMUTH_DEG, HILLSHADE_NW_AZIMUTH_DEG } from './hillshade';
-import { createMap, initOfflineTileFallback, getTileLayers } from './map';
+import { createMap, initOfflineTileFallback, getTileLayers, syncTileGridToBase } from './map';
 import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
 import { createSqueezeZonesOverlay } from './squeeze-zones';
 import { createCueEventsOverlay } from './cue-events';
@@ -362,6 +362,31 @@ function syncHillshadeSun(baseId: string | null): void {
     baseId === SATELLITE_BASE_ID ? HILLSHADE_AZIMUTH_DEG : HILLSHADE_NW_AZIMUTH_DEG);
 }
 
+/** Every base in layerDefs is a plain TileLayer today. LayerDef.tileLayer is typed
+ *  L.Layer so a base CAN be a composite LayerGroup, so this handles that shape rather
+ *  than assuming it away — the LayerGroup branch is defensive, not describing a base
+ *  that currently exists. Where it applies, the first tile layer in the group is the
+ *  one whose seams the user actually sees. */
+function baseTileLayerOf(layer: L.Layer): L.TileLayer | null {
+  if (layer instanceof L.TileLayer) return layer;
+  if (layer instanceof L.LayerGroup) {
+    for (const child of layer.getLayers()) {
+      if (child instanceof L.TileLayer) return child;
+    }
+  }
+  return null;
+}
+
+/** Everything that has to follow the active base map. Tile seams move when the base
+ *  does — tileSize and the native-zoom clamp differ across bases — so the zoom
+ *  wireframe is re-pointed here alongside the hillshade sun. */
+function syncToBase(baseId: string | null): void {
+  syncHillshadeSun(baseId);
+  const def = layerDefs.find((d) => d.id === baseId);
+  const base = def ? baseTileLayerOf(def.tileLayer) : null;
+  if (base) syncTileGridToBase(base);
+}
+
 const layerDefs: LayerDef[] = [
   {
     id: 'cycle',
@@ -412,28 +437,33 @@ const customZonesOverlay = createCustomZonesOverlay(showToast);
 const overlayDefs: OverlayDef[] = [
   {
     id: 'hillshade',
+    zIndex: 20,
     name: 'Hillshade',
     description: 'Terrain shading over any base map',
     tileLayer: tileLayers.hillshadeLayer,
   },
   {
     id: 'cycle-blend',
+    zIndex: 10,
     name: 'Cycle blend',
     description: 'The Cycle base map composited over any base — lighter colors turn transparent',
     tileLayer: tileLayers.cycleBlendLayer,
   },
   {
     id: 'hiking-routes',
+    zIndex: 30,
     name: 'Hiking routes',
     tileLayer: tileLayers.hikingLayer,
   },
   {
     id: 'cycling-routes',
+    zIndex: 30,
     name: 'Cycling routes',
     tileLayer: tileLayers.cyclingLayer,
   },
   {
     id: 'bike-infra',
+    zIndex: 30,
     name: 'Bike infrastructure',
     description: 'Bike lanes & paths (CyclOSM-lite) — composes over any base, no baked-in hillshade',
     tileLayer: tileLayers.bikeInfraLayer,
@@ -473,10 +503,10 @@ const overlayDefs: OverlayDef[] = [
 
 layersControl = addLayersControl(
   map, layerDefs, overlayDefs,
-  ['hillshade', 'cycle-blend'], SATELLITE_BASE_ID, syncHillshadeSun);
-// selectBaseMap fires syncHillshadeSun on every later switch, but the FIRST base
+  ['hillshade', 'cycle-blend'], SATELLITE_BASE_ID, syncToBase);
+// selectBaseMap fires syncToBase on every later switch, but the FIRST base
 // comes from persisted state (or the default above) without going through it.
-syncHillshadeSun(layersControl.activeBaseId);
+syncToBase(layersControl.activeBaseId);
 
 addOfflineDownloadControl(map, showToast);
 // Registered here, not with the other controls below: Leaflet stacks a corner's
@@ -562,7 +592,6 @@ document.addEventListener('keydown', (e) => {
 // first mousedown over it (Keyboard._onMouseDown), so zoom and pan shortcuts
 // start working as soon as the map is touched. Focus on load belongs to the
 // thing you can type into.
-document.body.style.zoom = '100%';
 
 // ── Offline detection ─────────────────────────────────────────────────────────
 // The banner is created lazily (not in static HTML) so it isn't a position:fixed +

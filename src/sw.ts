@@ -9,10 +9,10 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { StaleWhileRevalidate, NetworkOnly } from 'workbox-strategies';
+import { StaleWhileRevalidate, CacheFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
-import { clientsClaim } from 'workbox-core';
-import { OSM_TILE_CACHE_NAME } from './sw-constants';
+import { clientsClaim, type WorkboxPlugin } from 'workbox-core';
+import { OSM_TILE_CACHE_NAME, BASEMAP_TILE_CACHE_NAME, isBasemapTileUrl } from './sw-constants';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -51,6 +51,44 @@ registerRoute(
     plugins: [
       new ExpirationPlugin({
         maxEntries: 300,
+        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        purgeOnQuotaError: true,
+      }),
+    ],
+  }),
+);
+
+// ── Non-OSM tiles ──────────────────────────────────────────────────────────────
+// Everything the app draws that ISN'T openstreetmap.org — including the DEFAULT
+// stack (Esri satellite base + Terrarium hillshade), which until now matched no
+// route at all and so re-fetched on every zoom step even on a repeat visit.
+//
+// Refuse anything opaque. Tile <img>s carry crossOrigin (see tilePerf in map.ts), so
+// these arrive as real CORS responses with readable bodies and honest sizes; an
+// opaque response would be a 0-byte body to any reader and is padded by megabytes
+// against the storage quota, so caching one is worse than not caching at all. If the
+// crossOrigin option is ever dropped, this fails closed instead of silently filling
+// the quota with unusable entries.
+const onlyReadable: WorkboxPlugin = {
+  cacheWillUpdate: async ({ response }) =>
+    response.status === 200 && response.type !== 'opaque' ? response : null,
+};
+
+registerRoute(
+  ({ url }) => isBasemapTileUrl(url),
+  // CacheFirst, not StaleWhileRevalidate: a revalidation round-trip on every tile
+  // spends cellular data and provider quota to refresh imagery that changes on a
+  // scale of months. Passive caching of tiles the user actually viewed is what the
+  // OSM and Thunderforest policies permit; nothing here fetches ahead of the view.
+  new CacheFirst({
+    cacheName: BASEMAP_TILE_CACHE_NAME,
+    plugins: [
+      onlyReadable,
+      // ~500 entries at a ~25 KB blended average (Esri JPEG ~20-40 KB, Terrarium PNG
+      // ~40-60 KB, Thunderforest PNG ~15-30 KB) is ~12 MB, alongside osm-tiles' ~4.5 MB,
+      // inside the ~50 MB Safari budget with room left for pre-downloaded regions.
+      new ExpirationPlugin({
+        maxEntries: 500,
         maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
         purgeOnQuotaError: true,
       }),
