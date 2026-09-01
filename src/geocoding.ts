@@ -534,12 +534,17 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
             .filter(Boolean)
             .map(escapeHtml)
             .join(', ');
-          const tooltipParts = [name, subtitle, addrType, `${lat}, ${lng}`].filter(Boolean);
+          // The list rows and the map markers are one numbering: row N carries the
+          // same disc as marker N, so a result can be found in either direction.
+          // Both are built from this same index — nothing to keep in sync by hand.
+          const number = i + 1;
+          const tooltipParts = [`#${number}`, name, subtitle, addrType, `${lat}, ${lng}`].filter(Boolean);
           const tooltip = escapeHtml(tooltipParts.join(' · '));
           return (
             `<li class="sheet-result" data-index="${i}" data-lat="${lat}" data-lng="${lng}"` +
             ` data-name="${escapeHtml(name)}" data-bounds="${escapeHtml(boundsJson)}" data-addr-type="${addrType}" title="${tooltip}">` +
             `  <div class="sheet-result__summary">` +
+            `    <span class="sheet-result__index">${number}</span>` +
             `    <div class="sheet-result__main">` +
             `      <span class="sheet-result__name">${name}</span>` +
             (subtitle ? `      <span class="sheet-result__subtitle">${subtitle}</span>` : '') +

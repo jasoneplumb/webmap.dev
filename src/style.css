@@ -388,6 +388,31 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   background: #f5f5f5;
 }
 
+/* The numbered disc that pairs a row with its map marker. Deliberately the same
+   fill, weight, and shape as .numbered-marker so the two read as one numbering
+   rather than two coincidental lists; the active row follows the marker to red.
+   Sized in ch-independent px with tabular figures so 1 and 15 keep the same
+   circle. */
+.sheet-result__index {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #4a90d9;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+}
+
+.sheet-result--active .sheet-result__index {
+  background: #d94a4a;
+}
+
 .sheet-result__main {
   flex: 1;
   min-width: 0;
@@ -973,7 +998,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .search-dropdown {
   position: fixed;
   min-width: 280px;
-  max-width: 420px;
+  /* Never wider than the viewport, less the 4px margin showDropdown() clamps to
+     on each side. A flat 420px cap exceeds a 393px phone, and since the left
+     clamp can only pin the box to the left margin, the surplus ran off the right
+     edge — taking the close button and the row chevrons with it. */
+  max-width: min(420px, calc(100vw - 8px));
   max-height: 360px;
   overflow-y: auto;
   background: #fff;
