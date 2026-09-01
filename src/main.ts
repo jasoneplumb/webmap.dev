@@ -101,6 +101,13 @@ try {
 const state = createInitialState();
 const map = createMap();
 
+// Dev-only handle on the map, used by scripts/capture-screenshots.mjs to frame
+// each README shot (and handy in the console). `import.meta.env.DEV` is a
+// compile-time constant, so Rollup drops this block from production builds.
+if (import.meta.env.DEV) {
+  (window as unknown as { __webmapMap?: L.Map }).__webmapMap = map;
+}
+
 // Wire GPS location callbacks
 // iOS Safari sometimes fires a transient PERMISSION_DENIED (code 1) when
 // watchPosition is first called, even when permission is already granted,

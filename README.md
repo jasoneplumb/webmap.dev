@@ -10,10 +10,15 @@
 ## Preview
 
 <p align="center">
-  <img src="docs/images/nav-map-view.png" alt="Turn-by-turn GPS navigation on the Streets basemap" width="140" />
-  <img src="docs/images/trail-map-view.png" alt="Hiking trails on the Outdoors basemap with hillshade" width="140" />
-  <img src="docs/images/topo-map-view.png" alt="Topographic basemap" width="140" />
-  <img src="docs/images/parks-map-view.png" alt="Parks &amp; POIs basemap" width="140" />
+  <img src="docs/images/nav-guidance-view.png" alt="Turn-by-turn guidance to Fenway Park on the Streets base map, with the maneuver pill, route line, and blue GPS dot" width="150" />
+  <img src="docs/images/search-results-view.png" alt="A search for coffee in Melbourne on the Parks &amp; POIs base map, with fifteen numbered result markers and the results sheet" width="150" />
+  <img src="docs/images/layers-panel-view.png" alt="The Map Layers popover over the Golden Gate Bridge, listing every base map and overlay" width="150" />
+</p>
+
+<p align="center">
+  <img src="docs/images/satellite-hillshade-view.png" alt="Esri World Imagery with the hillshade overlay over the Grand Canyon" width="150" />
+  <img src="docs/images/outdoors-trails-view.png" alt="Yosemite Valley on the Outdoors base map with hillshade and Waymarked hiking routes" width="150" />
+  <img src="docs/images/cycle-routes-view.png" alt="Amsterdam on the OpenCycleMap base with the Waymarked cycling-routes overlay" width="150" />
 </p>
 
 <p align="center">
@@ -27,7 +32,7 @@
 - **Device-Orientation Compass** — Top-right compass rose that rotates so true north stays up while the device is moved (iOS-13+ permission gate handled)
 - **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete, numbered result markers, and a "Navigate here" action
 - **Reverse Geocoding** — Double-click or long-press to drop a pin and look up the address; bottom geocode bar exposes Copy and Navigate actions
-- **Layer Switching** — Custom popover for base maps (CyclOSM Trails, OSM Streets, OpenTopo, Humanitarian) and a multiplied-blend Esri hillshade overlay
+- **Layer Switching** — Custom popover for base maps (Cycle, Outdoors, Streets, Parks &amp; POIs, Satellite) and independent overlays: client-side hillshade, Cycle blend, Waymarked hiking and cycling routes, CyclOSM bike infrastructure, and GeoJSON files from your own device
 - **Offline Support** — OSM tiles cached via service worker (StaleWhileRevalidate, 30 days, 500 entries) plus proactive region pre-download into the Cache API
 - **Background-GPS Keepalive** — Wake Lock + silent-audio loop while navigating so iOS Safari keeps GPS fixes flowing with the screen off
 - **Adaptive GPS Accuracy** — Automatically downgrades to coarse fixes after 5 stationary samples and restores high-accuracy on movement to save battery
@@ -96,6 +101,7 @@ npm test             # Run unit tests
 npm run size         # size-limit check (≤103 kB gzipped)
 npm run og           # Regenerate the social-preview OG image
 npm run icons        # Regenerate maskable PWA icons
+npm run screenshots  # Regenerate the preview screenshots in docs/images/
 ```
 
 ## Architecture
@@ -156,7 +162,7 @@ docs/
   adr/                 # Architecture Decision Records (ADR-001 … ADR-006)
   images/              # Screenshots used in this README
 
-scripts/                # generate-og-image.mjs, generate-maskable-icons.mjs
+scripts/                # generate-og-image.mjs, generate-maskable-icons.mjs, capture-screenshots.mjs
 vite.config.ts          # PWA manifest + Workbox runtime caching
 package.json            # Dependencies, scripts, version, size-limit budget
 CLAUDE.md               # Project conventions for AI-assisted development
