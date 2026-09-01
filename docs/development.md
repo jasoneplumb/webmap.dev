@@ -42,7 +42,30 @@ npm test             # Run unit tests (vitest)
 npm run size         # size-limit check (≤103 kB gzipped)
 npm run og           # Regenerate the social-preview OG image (uses sharp)
 npm run icons        # Regenerate the maskable PWA icons
+npm run screenshots  # Regenerate the README preview screenshots (see below)
 ```
+
+### Regenerating the README screenshots
+
+`npm run screenshots` rewrites every PNG in `docs/images/` from the live app —
+`scripts/capture-screenshots.mjs` boots its own Vite dev server, drives headless Google
+Chrome over the DevTools protocol, and captures one 393×852 shot per scene (the scenes,
+with their base map, overlays, and map centre, are declared at the top of that file).
+
+- **`.env` must be populated.** The Thunderforest key backs the Cycle and Outdoors bases;
+  the ESRI key backs search and reverse geocoding. Without them those scenes capture
+  error tiles or time out.
+- **The ESRI key is referrer-restricted to `www.webmap.dev`,** so Chrome is launched with
+  `--host-resolver-rules` pointing that hostname at the loopback dev server. The page is
+  genuinely served from the origin the key expects; nothing outside the browser process
+  is changed, and no `/etc/hosts` edit is needed.
+- Pass substrings to capture a subset: `npm run screenshots -- nav layers`.
+- `DEBUG=1 npm run screenshots` forwards the page's console and uncaught exceptions,
+  which is the fastest way to see why a scene stalled.
+- Chrome is found at the standard macOS path; override with `CHROME_PATH`.
+
+Framing depends on the DEV-only `window.__webmapMap` handle set in `main.ts`
+(`import.meta.env.DEV`, so it is dropped from production builds).
 
 ### Development Workflow
 
