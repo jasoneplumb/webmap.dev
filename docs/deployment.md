@@ -6,7 +6,7 @@ Three workflows live in `.github/workflows/`:
 
 - `ci.yml` — runs the test suite on every push and PR
 - `claude-code-review.yml` — automated PR review when the `review-requested` label is added
-- `deploy.yml` — production deploy on push to `mainline`
+- `deploy.yml` — production deploy on a version-tag (`v*`) push or manual release dispatch
 
 ### CI Workflow (`ci.yml`)
 
@@ -37,24 +37,24 @@ PRs that modify the `claude-code-review.yml` file itself fail with a 401 "Workfl
 
 ### Deploy Workflow (`deploy.yml`)
 
-Runs on every successful push to `mainline`.
+Runs **only for releases** — never on plain pushes to `mainline`.
 
 **Trigger conditions:**
 
-- Push to `mainline` (automatic)
-- Manual dispatch from the Actions tab
+- A version-tag (`v*`) push (automatic — deploys exactly that tag)
+- Manual dispatch from the Actions tab or the `/deploy` skill (deploys the latest version tag)
 
-**Concurrency.** `group: deploy-production` with `cancel-in-progress: false` — only one deploy at a time; subsequent pushes queue rather than cancel.
+**Concurrency.** `group: deploy-production` with `cancel-in-progress: false` — only one deploy at a time; subsequent triggers queue rather than cancel.
 
 **Environment.** `environment: production` — the GitHub Actions runner pulls secrets from the production environment.
 
 **Deploy steps:**
 
-1. Checkout
+1. Checkout (full history + tags), then resolve and check out the release tag; the tag must match `package.json`'s version
 2. Setup Node.js 22 + npm cache
 3. `npm ci`
-4. Build the production bundle
-5. Push `dist/` to the production server
+4. Full CI quality gate against the release tag's code: `npm test`, type-check, lint, build, build-output verification, bundle-size check — deploy proceeds only if every gate passes
+5. Push `dist/` to the production server over SSH with **strict host-key checking** — the server's identity is verified against the pinned `DEPLOY_KNOWN_HOSTS` secret (no `ssh-keyscan` / trust-on-first-use at deploy time)
 6. nginx serves the new code on the next request (no reload required because all paths are `try_files` against `dist/`)
 
 **Server.** `www.webmap.dev` — nginx reverse proxy serving from `/var/www/webmap/web/dist/`.
@@ -70,6 +70,17 @@ VITE_ESRI_API_KEY=AAPKd...     # ESRI ArcGIS API key for forward + reverse geoco
 ```
 
 These are configured on the GitHub Actions runner: **Settings → Environments → production → Secrets and variables**.
+
+The SSH deploy steps additionally use these repository Actions secrets (**Settings → Secrets and variables → Actions**):
+
+```
+DEPLOY_HOST         # server hostname or IP
+DEPLOY_USER         # SSH user
+DEPLOY_KEY          # SSH private key for the deploy user
+DEPLOY_KNOWN_HOSTS  # verified known_hosts entry pinning the server's host key
+```
+
+`DEPLOY_KNOWN_HOSTS` must contain a `known_hosts` line for `DEPLOY_HOST`, verified **out-of-band** against the server's real key (e.g., compare `ssh-keyscan` output against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the server console, or against the entry your own `~/.ssh/known_hosts` recorded when you first verified the host). The deploy fails on host-key mismatch or when this secret is unset — no key is ever fetched at deploy time. If the server's host key is ever rotated, update this secret with a freshly verified entry.
 
 The four base maps (CyclOSM, OSM Streets, OpenTopo, Humanitarian) and the Esri hillshade overlay are served from free, public endpoints with no token required. The FOSSGIS Valhalla routing endpoint also requires no key.
 
@@ -234,7 +245,7 @@ The other base maps (CyclOSM, OpenTopo, Humanitarian) and the Esri hillshade ove
 
 ## Deployment Checklist
 
-Before pushing to `mainline` (which auto-deploys):
+Before releasing (`/release` tags a version, and the tag push deploys):
 
 - [ ] Local quality gate passes: `npm run type-check && npm run lint && npm test && npm run build`
 - [ ] Bundle size within budget: `npm run size` (≤ 103 kB gzipped)
@@ -278,7 +289,7 @@ If a deploy ships a critical bug:
 1. Identify the bad commit: `git log mainline`.
 2. Revert: `git revert <commit-hash>`.
 3. Push: `git push origin mainline`.
-4. The deploy workflow auto-redeploys the reverted code. No SSH needed.
+4. Cut a new release (`/release`) — the new version tag triggers the deploy of the reverted code. No SSH needed.
 
 ## Common Deployment Issues
 
@@ -287,7 +298,7 @@ If a deploy ships a critical bug:
 ESRI API key missing or invalid.
 
 1. Verify `VITE_ESRI_API_KEY` is set in **Settings → Environments → production → Secrets**.
-2. Trigger a redeploy (`git commit --allow-empty -m "redeploy" && git push`).
+2. Trigger a redeploy of the latest release: run `/deploy` (or manually dispatch the deploy workflow from the Actions tab).
 3. DevTools console will log "VITE_ESRI_API_KEY is not configured" on the live site if the key didn't reach the build.
 
 ### Tiles not loading after deploy

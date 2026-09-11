@@ -98,17 +98,32 @@ jobs:
       - name: Create deployment package
         run: tar -czf webmap-deploy.tar.gz -C dist .
 
-      - name: Setup SSH key
+      - name: Setup SSH key and verified host key
+        # DEPLOY_KNOWN_HOSTS is a known_hosts entry verified out-of-band
+        # against the server's real host key — never fetched at deploy time
+        # (no ssh-keyscan / trust-on-first-use), so a MITM'd or replaced
+        # server fails host-key verification instead of receiving the build.
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
+          if [ -z "$DEPLOY_KNOWN_HOSTS" ]; then
+            echo "::error::DEPLOY_KNOWN_HOSTS secret is not set — refusing to deploy without a verified host key"
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
-          SSH_OPTS="-i ~/.ssh/deploy_key -o ConnectTimeout=60 -o ServerAliveInterval=30"
-          SSH_TARGET="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=60 -o ServerAliveInterval=30"
+          SSH_TARGET="$DEPLOY_USER@$DEPLOY_HOST"
           VERSION=$(node -p "require('./package.json').version")
           DEPLOY_SHA=$(git rev-parse HEAD)
 
