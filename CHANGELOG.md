@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- **Deploys now verify the server's SSH identity against a pinned host key.** The deploy workflow used to trust whatever key the server presented at deploy time, so a machine-in-the-middle or replaced server could silently receive the build. The known-hosts entry is now stored as a verified secret with strict host-key checking, and the deploy fails closed on any mismatch (#299)
+
 ## v0.49.0-beta (2026-08-31)
 
 ### Added

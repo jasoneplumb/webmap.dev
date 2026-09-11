@@ -62,7 +62,7 @@
 | **PWA** | vite-plugin-pwa (manifest, install prompts, maskable icons) |
 | **Tests** | vitest (pure-function unit tests for `geo`, `routing`, `guidance`, `geocoding`, `location`, `orientation`, `bottom-sheet`) |
 | **Server** | nginx (HSTS, SPA fallback, 1-year asset cache, never-cache HTML) |
-| **CI/CD** | GitHub Actions — `npm test` on every push / PR; deploy on push to `mainline` |
+| **CI/CD** | GitHub Actions — `npm test` on every push / PR; deploy on version-tag (`v*`) push or manual release dispatch |
 
 ## Getting Started
 
