@@ -107,6 +107,10 @@ jobs:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::DEPLOY_KEY secret is not set"
+            exit 1
+          fi
           if [ -z "$DEPLOY_KNOWN_HOSTS" ]; then
             echo "::error::DEPLOY_KNOWN_HOSTS secret is not set — refusing to deploy without a verified host key"
             exit 1
