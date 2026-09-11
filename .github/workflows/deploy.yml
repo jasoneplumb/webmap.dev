@@ -112,6 +112,7 @@ jobs:
             exit 1
           fi
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
@@ -122,7 +123,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=60 -o ServerAliveInterval=30"
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -o HostKeyAlgorithms=ssh-ed25519 -o ConnectTimeout=60 -o ServerAliveInterval=30"
           SSH_TARGET="$DEPLOY_USER@$DEPLOY_HOST"
           VERSION=$(node -p "require('./package.json').version")
           DEPLOY_SHA=$(git rev-parse HEAD)
