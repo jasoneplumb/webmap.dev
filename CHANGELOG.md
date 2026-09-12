@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.50.0 (2026-09-12)
+
+First stable release — the `-beta` postfix is retired. The app has been serving production traffic at [webmap.dev](https://www.webmap.dev) through 49 minor releases; the version now says so.
 
 ### Security
 
