@@ -40,10 +40,12 @@ src/
   ├── layers-control.ts     # Base-map / overlay popover control
   ├── controls.ts           # Bottom-left thumb cluster (locate, version, attribution)
   ├── geocoding.ts          # Address search + reverse geocoding + Navigate-here
-  ├── location.ts           # GPS locationfound handler + heading-cone wedge
+  ├── location.ts           # GPS locationfound handler + heading ring
+  ├── heading.ts            # Pure heading-source selection + shortest-arc smoothing
+  ├── heading-indicator.ts  # Writes the chosen heading onto the position marker
   ├── guidance.ts           # Turn-by-turn navigation state machine + pill UI
   ├── routing.ts            # Valhalla client + polyline6 decoder
-  ├── geo.ts                # haversineDistance, bearingDeg, pointToSegmentMeters
+  ├── geo.ts                # haversineDistance, bearingDeg, normalizeDeg, shortestArcDeg, pointToSegmentMeters
   ├── timer.ts              # GPS polling refcount loop
   ├── consent.ts            # First-run privacy consent modal
   ├── keepalive.ts          # Wake Lock + silent-audio loop for background GPS
@@ -56,6 +58,8 @@ docs/adr/                    # Architecture Decision Records
 **Single AppState object** (`types.ts`) threaded by reference through all modules — no event bus or state management library. Modules mutate state directly. See [ADR-001](docs/adr/ADR-001-single-mutable-state.md).
 
 **GPS polling uses a refcount** (`updateCallback: number`) so locate, guidance, and other consumers can independently request/release the watch without stepping on each other. See [ADR-002](docs/adr/ADR-002-refcount-gps-polling.md).
+
+**One heading indicator, two sources.** `selectHeading()` in `heading.ts` picks GPS course above 0.5 m/s and the device compass below it; `heading-indicator.ts` draws it. The compass grant rides on the first-run consent tap because iOS will not grant orientation without a user gesture. See [ADR-007](docs/adr/ADR-007-heading-source-selection.md).
 
 ## Notes
 

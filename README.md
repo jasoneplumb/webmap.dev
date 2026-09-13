@@ -37,7 +37,7 @@
 
 ## Features
 
-- **Live GPS Tracking** — Blue dot with accuracy circle and translucent heading-cone wedge that points in the GPS course; three-state locate button (off / active-following / passive)
+- **Live GPS Tracking** — Blue dot with accuracy circle and a heading ring that follows GPS course while moving and the device compass while stopped; three-state locate button (off / active-following / passive)
 - **Turn-by-Turn Navigation** — Tap "Navigate here" on any search result or dropped pin to fetch a route from FOSSGIS Valhalla (driving / cycling / walking) with maneuver pill, ETA, off-route recalculation, and arrival detection
 - **Device-Orientation Compass** — Top-right compass rose that rotates so true north stays up while the device is moved (iOS-13+ permission gate handled)
 - **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete, numbered result markers, and a "Navigate here" action
@@ -123,7 +123,7 @@ See **[docs/architecture.md](docs/architecture.md)** for a deep-dive on:
 1. Single Shared State (`types.ts`)
 2. GPS Polling Refcount (`timer.ts` + `main.ts`)
 3. Three-State Locate Button
-4. Haversine Jitter Filter + Heading-Cone Wedge
+4. Haversine Jitter Filter + Heading Ring
 5. Routed-Guidance State Machine (`guidance.ts` + `routing.ts`)
 6. Device-Orientation Compass (`compass.ts` + `orientation.ts`)
 7. Background-GPS Keepalive (`keepalive.ts`)
@@ -142,7 +142,7 @@ src/
   map.ts               # Leaflet init; OSM/CyclOSM/OpenTopo/Humanitarian + Esri hillshade; offline tile fallback
   controls.ts          # Toggle button factory; three-state locate icon; setupCollapsibleLabel helper
   geocoding.ts         # ESRI search dropdown + reverse-geocode bar; "Navigate here" entry to guidance
-  location.ts          # GPS handler — haversine filter, blue-dot, heading wedge, weak-signal hysteresis, adaptive accuracy
+  location.ts          # GPS handler — haversine filter, blue-dot, heading ring, weak-signal hysteresis, adaptive accuracy
   timer.ts             # map.locate({ watch }) wrapper with high/low-accuracy switching
   guidance.ts          # Routed-guidance state machine + bottom-left pill UI (idle → routing → guiding ↔ off-route → arrived)
   routing.ts           # FOSSGIS Valhalla client + polyline6 decoder; Costing/Route/RouteStep types

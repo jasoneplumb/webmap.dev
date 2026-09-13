@@ -85,7 +85,7 @@ Framing depends on the DEV-only `window.__webmapMap` handle set in `main.ts`
    map.ts               # Leaflet init; tile layers; offline tile fallback
    controls.ts          # Toggle button factory; locate-icon updater; setupCollapsibleLabel
    geocoding.ts         # ESRI search dropdown + reverse-geocode bar
-   location.ts          # GPS handler — haversine filter, blue dot, heading wedge
+   location.ts          # GPS handler — haversine filter, blue dot, heading ring
    timer.ts             # map.locate({ watch }) wrapper with adaptive accuracy
    guidance.ts          # Routed-guidance state machine + bottom-left pill UI
    routing.ts           # FOSSGIS Valhalla client + polyline6 decoder
@@ -137,8 +137,8 @@ Runs on every Leaflet `locationfound` event:
 
 - Tracks raw accuracy on `state.lastGpsAccuracy` for the weak-signal badge hysteresis (2-streak debounce, 25–30 m deadband).
 - Applies the **haversine jitter filter**: accept the fix if accuracy improved or distance moved > accuracy/2.
-- Updates the blue dot, accuracy circle, and the heading-cone wedge via the `--heading-deg` CSS custom property.
-- Holds the last valid bearing for 10 seconds when `e.heading` is `NaN`.
+- Updates the blue dot and accuracy circle, records the course when the fix carries one, then hands the direction decision to `heading-indicator.ts`.
+- The 10-second hold on the last valid bearing now applies only where no compass is available; otherwise the compass takes over below 0.5 m/s. See `heading.ts`.
 - Calls `updateGuidance()` to advance the navigation state machine.
 - Switches between high and low GPS accuracy via `setWatchAccuracy()` after 5 stationary samples.
 - Pans the map when `locateState === 'active'`.
@@ -183,7 +183,7 @@ All three are unit-tested in `geo.test.ts`.
 
 ### `src/compass.ts` — Device-Orientation Compass
 
-Top-right SVG rose that rotates by `-deviceHeading` so true north stays at the top. Tap to enable; on iOS 13+ this triggers `requestOrientationPermission()`. Subscribes to `deviceorientationabsolute` (preferred) or `deviceorientation` and updates the `--heading-deg` CSS custom property on every event.
+Bottom-left SVG rose that rotates by `-deviceHeading` so true north stays at the top. Normally enabled by the preselected option in the first-run consent modal, which fires `requestOrientationPermission()` from its accept handler — iOS needs a user gesture, and that tap is one. Tapping the rose still works as a fallback. Subscribes to `deviceorientationabsolute` (preferred) or `deviceorientation`, low-passes each reading into `state.compassHeadingDeg`, rotates itself from the filtered value, and nudges the heading ring. Returns a `CompassControl` handle so `main.ts` can apply a permission granted before the control existed.
 
 ### `src/orientation.ts` — Permission Gate
 
@@ -256,7 +256,7 @@ All app styles live here:
 - Map container, responsive layout, safe-area insets
 - Bottom-left thumb cluster (locate, zoom, scale, version badge, attribution)
 - Top-right column (compass, layers, download)
-- Blue dot, accuracy circle, heading-cone wedge (`conic-gradient` + `radial-gradient` mask)
+- Blue dot, accuracy circle, heading ring (`conic-gradient` masked into an annulus, plus a rotated arrowhead)
 - Numbered search markers
 - Bottom sheet / side panel
 - Geocode bar (peek / half / full states)
@@ -265,7 +265,7 @@ All app styles live here:
 - Offline banner, toast notifications, version badge + changelog panel
 - Consent modal
 
-Key classes: `.blue-dot`, `.blue-dot--has-heading`, `.blue-dot--gray`, `.guidance-panel`, `.guidance-pill--*`, `.geocode-bar--peek`, `.compass-rose--active`, `.numbered-marker`, `.search-dropdown`, `.locate-passive-pulse`.
+Key classes: `.blue-dot`, `.blue-dot--has-heading`, `.blue-dot--heading-facing`, `.blue-dot--gray`, `.guidance-panel`, `.guidance-pill--*`, `.geocode-bar--peek`, `.compass-rose--active`, `.numbered-marker`, `.search-dropdown`, `.locate-passive-pulse`.
 
 ## Adding a New Feature
 
