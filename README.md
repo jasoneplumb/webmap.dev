@@ -39,7 +39,7 @@
 
 - **Live GPS Tracking** — Blue dot with accuracy circle and a heading ring that follows GPS course while moving and the device compass while stopped; three-state locate button (off / active-following / passive)
 - **Turn-by-Turn Navigation** — Tap "Navigate here" on any search result or dropped pin to fetch a route from FOSSGIS Valhalla (driving / cycling / walking) with maneuver pill, ETA, off-route recalculation, and arrival detection
-- **Device-Orientation Compass** — Top-right compass rose that rotates so true north stays up while the device is moved (iOS-13+ permission gate handled)
+- **Device-Orientation Compass** — Compass rose that rotates so true north stays up while the device is moved, and feeds the heading ring so a stationary user still sees a direction; enabled by default on mobile from the first-run consent tap (iOS-13+ permission gate handled)
 - **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete, numbered result markers, and a "Navigate here" action
 - **Reverse Geocoding** — Double-click or long-press to drop a pin and look up the address; bottom geocode bar exposes Copy and Navigate actions
 - **Layer Switching** — Custom popover for base maps (Cycle, Outdoors, Streets, Parks &amp; POIs, Satellite) and independent overlays: client-side hillshade, Cycle blend, Waymarked hiking and cycling routes, CyclOSM bike infrastructure, and GeoJSON files from your own device
@@ -147,7 +147,7 @@ src/
   guidance.ts          # Routed-guidance state machine + bottom-left pill UI (idle → routing → guiding ↔ off-route → arrived)
   routing.ts           # FOSSGIS Valhalla client + polyline6 decoder; Costing/Route/RouteStep types
   geo.ts               # Pure helpers: haversineDistance, bearingDeg, pointToSegmentMeters
-  compass.ts           # Top-right compass rose driven by --heading-deg CSS custom property
+  compass.ts           # Compass rose + device-heading source for the heading ring
   orientation.ts       # DeviceOrientationEvent wrapper + iOS-13+ permission gate
   keepalive.ts         # Wake Lock + silent-audio loop for background GPS during navigation
   layers-control.ts    # Custom base-map / overlay popover with localStorage persistence

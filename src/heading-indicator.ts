@@ -40,8 +40,9 @@ export function updateHeadingIndicator(state: AppState, nowMs: number = performa
   const courseAgeMs = state.lastValidHeadingDeg === null
     ? Number.POSITIVE_INFINITY
     : nowMs - state.lastValidHeadingMs;
-  // A fix can report speed as NaN; treat unknown as stationary rather than as motion.
-  const speedMs = Number.isFinite(state.lastSpeedMs) ? Math.max(0, state.lastSpeedMs) : 0;
+  // location.ts is the only writer and already maps NaN to 0, so this only has to floor a
+  // negative reading rather than re-validate what cannot arrive.
+  const speedMs = Math.max(0, state.lastSpeedMs);
 
   // Staleness is not applied here on purpose: selectHeading gets the raw course and its age
   // and owns every decision about what is still usable, so the two cannot disagree about

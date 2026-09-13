@@ -90,7 +90,7 @@ Framing depends on the DEV-only `window.__webmapMap` handle set in `main.ts`
    guidance.ts          # Routed-guidance state machine + bottom-left pill UI
    routing.ts           # FOSSGIS Valhalla client + polyline6 decoder
    geo.ts               # Pure helpers: haversineDistance, bearingDeg, pointToSegmentMeters
-   compass.ts           # Top-right compass rose
+   compass.ts           # Bottom-left compass rose + device-heading source
    orientation.ts       # DeviceOrientationEvent wrapper + iOS-13+ permission gate
    keepalive.ts         # Wake Lock + silent-audio loop for background GPS
    layers-control.ts    # Custom layers popover
@@ -254,8 +254,8 @@ Subscribes to `navigator.getBattery()` events and populates `state.batteryLevel`
 All app styles live here:
 
 - Map container, responsive layout, safe-area insets
-- Bottom-left thumb cluster (locate, zoom, scale, version badge, attribution)
-- Top-right column (compass, layers, download)
+- Bottom-left cluster — every control lives here: locate, zoom, scale, version badge,
+  attribution, compass, layers, offline download, draw-zone, geocode results toggle
 - Blue dot, accuracy circle, heading ring (`conic-gradient` masked into an annulus, plus a rotated arrowhead)
 - Numbered search markers
 - Bottom sheet / side panel

@@ -457,7 +457,7 @@ export function createCueEventsOverlay(
         group.addLayer(layer);
         if (props.heading_deg !== undefined) {
           // Direction-of-travel tick just outside the dot, rotated via the
-          // --heading-deg custom-property convention (see .blue-dot__heading).
+          // --heading-deg custom-property convention (see .blue-dot__arc).
           // heading_deg is parse-validated finite, safe to interpolate.
           group.addLayer(L.marker(latlng, {
             icon: L.divIcon({
