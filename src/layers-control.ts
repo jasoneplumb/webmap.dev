@@ -390,6 +390,10 @@ export class LayersControl extends L.Control {
           const note = document.createElement('span');
           note.className = 'layers-option__note';
           note.dataset['overlayId'] = overlay.id;
+          // Addressable so the disabled checkbox can point at it with aria-describedby:
+          // without that, a screen reader announces the row as merely "dimmed, disabled"
+          // and the explanation sitting right next to it never reaches the user.
+          note.id = `overlay-note-${overlay.id}`;
           note.hidden = true;
           label.appendChild(note);
         }
@@ -469,6 +473,11 @@ export class LayersControl extends L.Control {
     // skipping the remove/add spares them a teardown and refetch on every base switch.
     for (const overlay of this.overlays) {
       if (overlay.zIndex !== undefined) continue;
+      // Vector overlays (the GeoJSON LayerGroups) live in overlayPane, which sits above
+      // the whole tile pane — a base tile layer can never paint over them, so the
+      // remove/add bought nothing and cost a full re-render of every feature on every
+      // base switch. Same reasoning as applyOverlayZIndex being a no-op for them.
+      if (!(overlay.tileLayer instanceof L.GridLayer)) continue;
       if (!wasOnMap.has(overlay.id)) continue;
       if (!map.hasLayer(overlay.tileLayer)) continue;
       overlay.tileLayer.remove();
@@ -531,6 +540,14 @@ export class LayersControl extends L.Control {
       if (note) {
         note.textContent = redundant ? 'Already in this base' : '';
         note.hidden = !redundant;
+        // Point the checkbox at the note only while it says something. A description
+        // referencing an empty or hidden element is worse than none: some screen readers
+        // announce the relationship and then have nothing to read out.
+        if (redundant) {
+          checkbox?.setAttribute('aria-describedby', note.id);
+        } else {
+          checkbox?.removeAttribute('aria-describedby');
+        }
       }
     }
   }
