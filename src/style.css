@@ -1734,6 +1734,35 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   line-height: 1.6;
 }
 
+/* Compass opt-in, inserted by consent.ts above the actions and only where orientation
+   exists. Sits outside the scrollable terms and above the buttons deliberately: it is a
+   choice the user is making, not clause text, and it has to be visible without scrolling
+   for a preselected box to be honest. */
+#consent-compass {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 24px 0;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #444;
+  cursor: pointer;
+  border-top: 1px solid #eee;
+}
+
+#consent-compass input {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin: 1px 0 0;
+  cursor: pointer;
+}
+
+#consent-compass strong {
+  color: #222;
+}
+
 #consent-actions {
   display: flex;
   flex-direction: column;
@@ -1741,6 +1770,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding: 16px 24px 20px;
   flex-shrink: 0;
   border-top: 1px solid #eee;
+}
+
+/* The opt-in belongs with the buttons, so the rule that separates actions from terms moves
+   up to sit above it when it is present — one divider, not two. */
+#consent-compass + #consent-actions {
+  border-top: 0;
 }
 
 #consent-accept {

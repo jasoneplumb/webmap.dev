@@ -17,7 +17,8 @@ import 'esri-leaflet-geocoder/dist/esri-leaflet-geocoder.css';
 import './style.css';
 import changelogRaw from '../CHANGELOG.md?raw';
 
-import { hasConsent, showConsentModal } from './consent';
+import { hasCompassOptIn, hasConsent, showConsentModal } from './consent';
+import { requestOrientationPermission, type OrientationPermission } from './orientation';
 import { createInitialState } from './types';
 import { HILLSHADE_AZIMUTH_DEG, HILLSHADE_NW_AZIMUTH_DEG } from './hillshade';
 import { createMap, initOfflineTileFallback, getTileLayers, syncTileGridToBase } from './map';
@@ -42,13 +43,20 @@ import { scheduleSwUpdate } from './sw-update';
 // watchdog reloads once to recover.
 window.__webmapBootOk?.();
 
+// The orientation grant from the consent modal, if the user accepted with the compass option
+// checked. Held here rather than awaited on the boot path: the OS prompt can sit unanswered
+// indefinitely, and the app must not wait on it. Consumed once the compass control exists.
+let pendingCompassRequest: Promise<OrientationPermission> | null = null;
+
 // ── Consent gate — block all interaction until terms are accepted ─────────────
 if (!hasConsent()) {
   // Show modal immediately; re-show on decline (user cannot bypass)
   const waitForConsent = async (): Promise<void> => {
     let accepted = false;
     while (!accepted) {
-      accepted = await showConsentModal();
+      const result = await showConsentModal();
+      accepted = result.accepted;
+      if (accepted) pendingCompassRequest = result.compassRequest;
     }
   };
   // The top-level await alternative requires ESM module output; use an async
@@ -531,7 +539,19 @@ addDrawZoneControl(map, customZonesOverlay, showToast, () => layersControl?.setO
 addSearchControl(map, state, showToast);
 addReverseGeocoding(map, state, showToast);
 addGuidanceControl(map, state, activatePolling, deactivatePolling);
-addCompassControl(map, state);
+const compassControl = addCompassControl(map, state);
+if (pendingCompassRequest !== null) {
+  // Fresh install: the grant was requested from the consent tap and may still be pending.
+  void pendingCompassRequest.then((permission) => { compassControl.applyPermission(permission); });
+} else if (hasCompassOptIn()) {
+  // Returning visitor who opted in previously. There is no gesture on this path, so the
+  // request may be refused outright — on a platform that already remembers the grant it
+  // resolves straight to 'granted', and where it does not, the rose stays tappable and
+  // nothing is worse than before.
+  void requestOrientationPermission().then((permission) => {
+    if (permission === 'granted') compassControl.applyPermission(permission);
+  });
+}
 
 // ── Version badge + changelog panel ───────────────────────────────────────────
 const versionBadge = document.createElement('button');
