@@ -1568,7 +1568,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin-left: 4px;
   padding: 2px 8px;
   font-size: 11px;
-  color: #777;
+  /* #6e6e6e, not a lighter gray: this badge carries the explanation for why the row is
+     inert, and it renders on the 5%-black fill (#f2f2f2 over the white popover), where
+     #777 measures ~4.0:1 — under AA for text this size. #6e6e6e clears it at ~4.55:1. */
+  color: #6e6e6e;
   background-color: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
   white-space: nowrap;
