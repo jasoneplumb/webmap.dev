@@ -27,6 +27,25 @@ export function bearingDeg(a: L.LatLng, b: L.LatLng): number {
   return ((Math.atan2(y, x) * RAD2DEG) + 360) % 360;
 }
 
+/** Wrap any angle into 0–360. Negative and >360 inputs both land in range. */
+export function normalizeDeg(deg: number): number {
+  return ((deg % 360) + 360) % 360;
+}
+
+/**
+ * Signed shortest rotation from `from` to `to`, in -180..180.
+ *
+ * The reason every heading animation needs this: interpolating 350° → 10° on the raw
+ * numbers sweeps 340° backwards, so a compass crossing north visibly spins the long way
+ * round. Rotating by this delta instead turns 20° forward.
+ */
+export function shortestArcDeg(from: number, to: number): number {
+  let d = (to - from) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
 /**
  * Closest distance in meters from point `p` to the segment a→b.
  * Equirectangular projection with cos(lat) correction so longitude/latitude

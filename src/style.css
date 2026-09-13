@@ -87,31 +87,98 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   position: relative;
 }
 
-/* Heading wedge — Google/Apple Maps "direction cone" pattern. Centered on the
-   dot; rotated by --heading-deg set in location.ts on each fix; fades to
-   transparent at the cone edges. Hidden until .blue-dot--has-heading is set. */
-.blue-dot__heading {
+/* ── Heading indicator ─────────────────────────────────────────────────────────
+   A ring AROUND the dot, not a cone behind it. The bezel is always drawn once a
+   heading exists, so the indicator reads as part of the marker rather than as
+   something that comes and goes; only the bright arc and the arrowhead move.
+   Rotated by --heading-deg, which heading-indicator.ts writes on every GPS fix
+   and every orientation event. All three parts are gated on
+   .blue-dot--has-heading, which is absent when no source is trustworthy — an
+   absent indicator is correct, a stale one is a lie.
+   --heading-arc carries the source's colour so facing and travelling are not
+   claimed in the same voice; see .blue-dot--heading-facing below. */
+.blue-dot {
+  --heading-arc: rgba(66, 133, 244, 0.85);
+  --heading-bezel: rgba(66, 133, 244, 0.22);
+}
+
+.blue-dot__bezel,
+.blue-dot__arc,
+.blue-dot__tipwrap {
   position: absolute;
-  width: 60px;
-  height: 60px;
-  top: -22px;
-  left: -22px;
-  border-radius: 50%;
-  background: conic-gradient(
-    from calc(var(--heading-deg, 0deg) - 30deg),
-    rgba(66, 133, 244, 0.55) 0deg,
-    rgba(66, 133, 244, 0)   60deg,
-    rgba(66, 133, 244, 0)   360deg
-  );
-  -webkit-mask-image: radial-gradient(circle at center, black 0, black 30%, transparent 100%);
-  mask-image: radial-gradient(circle at center, black 0, black 30%, transparent 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
 }
 
-.blue-dot--has-heading .blue-dot__heading {
+.blue-dot__bezel {
+  width: 46px;
+  height: 46px;
+  top: -17px;
+  left: -17px;
+  border: 1.5px solid var(--heading-bezel);
+  border-radius: 50%;
+}
+
+/* Annulus rather than a filled wedge: the conic gradient paints a ~58° arc and the
+   radial mask cuts the middle out, leaving the dot and its pulse unobscured. */
+.blue-dot__arc {
+  width: 46px;
+  height: 46px;
+  top: -17px;
+  left: -17px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from calc(var(--heading-deg, 0deg) - 29deg),
+    var(--heading-arc) 0deg,
+    var(--heading-arc) 26deg,
+    transparent 58deg,
+    transparent 360deg
+  );
+  -webkit-mask-image: radial-gradient(circle at center, transparent 0 62%, black 70%, black 100%);
+  mask-image: radial-gradient(circle at center, transparent 0 62%, black 70%, black 100%);
+}
+
+/* Rotating the wrapper and offsetting the tip inside it puts the arrowhead on the ring
+   at any bearing, without a per-angle transform chain. */
+.blue-dot__tipwrap {
+  top: 0;
+  left: 0;
+  transform: rotate(var(--heading-deg, 0deg));
+}
+
+.blue-dot__tip {
+  position: absolute;
+  left: -5px;
+  top: -33px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--heading-arc);
+}
+
+.blue-dot--has-heading .blue-dot__bezel,
+.blue-dot--has-heading .blue-dot__arc,
+.blue-dot--has-heading .blue-dot__tipwrap {
   opacity: 1;
+}
+
+/* Compass heading: where the device points, which is not a claim about travel. Amber
+   separates it from the blue travel arc, and it is the only thing shown while stopped. */
+.blue-dot--heading-facing {
+  --heading-arc: rgba(192, 122, 18, 0.85);
+  --heading-bezel: rgba(192, 122, 18, 0.24);
+}
+
+/* The arrowhead sweep is the one moving part worth suppressing for reduced motion; the
+   arc itself is a gradient angle and does not animate. */
+@media (prefers-reduced-motion: reduce) {
+  .blue-dot__bezel,
+  .blue-dot__arc,
+  .blue-dot__tipwrap {
+    transition: none;
+  }
 }
 
 /* Pulsing ring on the blue dot */
@@ -1667,6 +1734,35 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   line-height: 1.6;
 }
 
+/* Compass opt-in, inserted by consent.ts above the actions and only where orientation
+   exists. Sits outside the scrollable terms and above the buttons deliberately: it is a
+   choice the user is making, not clause text, and it has to be visible without scrolling
+   for a preselected box to be honest. */
+#consent-compass {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 24px 0;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #444;
+  cursor: pointer;
+  border-top: 1px solid #eee;
+}
+
+#consent-compass input {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin: 1px 0 0;
+  cursor: pointer;
+}
+
+#consent-compass strong {
+  color: #222;
+}
+
 #consent-actions {
   display: flex;
   flex-direction: column;
@@ -1674,6 +1770,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   padding: 16px 24px 20px;
   flex-shrink: 0;
   border-top: 1px solid #eee;
+}
+
+/* The opt-in belongs with the buttons, so the rule that separates actions from terms moves
+   up to sit above it when it is present — one divider, not two. */
+#consent-compass + #consent-actions {
+  border-top: 0;
 }
 
 #consent-accept {
@@ -1786,8 +1888,9 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   outline-offset: 2px;
 }
 
-/* Device-orientation compass (top-right). Initial state is muted; first tap requests permission
-   on iOS, after which .compass-rose--active rotates the SVG by --heading-deg. */
+/* Device-orientation compass (bottom-left cluster). Muted until granted — normally by the
+   preselected option in the first-run consent modal, otherwise by tapping it — after which
+   .compass-rose--active rotates the SVG by --heading-deg. */
 .compass-rose {
   width: 36px;
   height: 36px;
@@ -1828,7 +1931,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* Direction-of-travel tick on a cue point — sits just outside the dot in the
    direction of travel, rotated by --heading-deg set inline per feature (same
-   convention as .blue-dot__heading). Non-interactive: hover/tap belong to the
+   convention as .blue-dot__arc). Non-interactive: hover/tap belong to the
    circle marker beneath. */
 .cue-heading-arrow {
   pointer-events: none;
@@ -1992,7 +2095,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* Direction arrowhead on a directional custom zone — one per polyline edge, rotated to that edge's
    bearing via the --heading-deg custom-property convention (as .cue-heading-arrow and
-   .blue-dot__heading). Non-interactive: the zone line beneath owns hover, tap, and the popup. */
+   .blue-dot__arc). Non-interactive: the zone line beneath owns hover, tap, and the popup. */
 .custom-zone-arrow {
   pointer-events: none;
 }

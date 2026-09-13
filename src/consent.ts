@@ -1,16 +1,57 @@
 /**
  * Intent: First-run consent modal — blocks app usage until terms are accepted
  * Context: Called by main.ts at load time; re-prompts when CONSENT_VERSION changes
- * Pattern: Returns a Promise that resolves true (accepted) or false (declined); no AppState dependency
+ * Pattern: Returns a Promise resolving a ConsentResult; no AppState dependency
+ *
+ * This modal also carries the compass opt-in, for a reason that is entirely about iOS:
+ * DeviceOrientationEvent.requestPermission() is ignored unless it is called from a user
+ * gesture, so a compass that is "on by default" is impossible without a tap somewhere.
+ * The accept button is a tap the user already makes, so the grant rides along with it
+ * instead of costing a second, undiscoverable one on the compass rose.
  */
+import { requestOrientationPermission, type OrientationPermission } from './orientation';
 
-const CONSENT_VERSION = '2.2';
+/**
+ * Bumped from 2.2 for the compass opt-in. The modal now asks for a device sensor it did not
+ * ask for before, which the terms' own "material changes require re-acceptance" clause
+ * covers — and re-accepting is also the only way existing installs pick up the preselected
+ * grant, rather than being left on the tap-the-rose path the change exists to remove.
+ */
+const CONSENT_VERSION = '2.3';
 const KEY_VERSION = 'webmap-consent-version';
 const KEY_ACCEPTED_AT = 'webmap-consent-accepted-at';
 const KEY_INSTALL_ID = 'webmap-consent-install-id';
+const KEY_COMPASS_OPT_IN = 'webmap-compass-opt-in';
+
+export interface ConsentResult {
+  accepted: boolean;
+  /**
+   * The in-flight orientation permission request, when the user accepted with the compass
+   * option left checked on a platform that exposes orientation events.
+   *
+   * Deliberately handed back unresolved: main.ts awaits consent before booting the app, and
+   * awaiting an OS permission prompt on that path would leave a blank page for as long as
+   * the user ignores it. null when there is nothing to wait for.
+   */
+  compassRequest: Promise<OrientationPermission> | null;
+}
 
 export function hasConsent(): boolean {
   return localStorage.getItem(KEY_VERSION) === CONSENT_VERSION;
+}
+
+/** Whether the platform can be asked for orientation at all — false on desktop. */
+function orientationAvailable(): boolean {
+  return typeof DeviceOrientationEvent !== 'undefined';
+}
+
+/**
+ * Whether the user last left the compass opt-in checked. Read on later loads, where there is
+ * no modal and so no gesture: a returning user's preference is known, even though acting on
+ * it still depends on the platform allowing a gesture-less request.
+ */
+export function hasCompassOptIn(): boolean {
+  return localStorage.getItem(KEY_COMPASS_OPT_IN) === 'true';
 }
 
 /**
@@ -40,8 +81,8 @@ function recordConsent(): void {
   localStorage.setItem(KEY_ACCEPTED_AT, new Date().toISOString());
 }
 
-export function showConsentModal(): Promise<boolean> {
-  return new Promise((resolve) => {
+export function showConsentModal(): Promise<ConsentResult> {
+  return new Promise<ConsentResult>((resolve) => {
     const overlay = document.createElement('div');
     overlay.id = 'consent-overlay';
 
@@ -80,6 +121,22 @@ export function showConsentModal(): Promise<boolean> {
       </div>
     `;
 
+    // Compass opt-in, inserted above the actions only where orientation exists — on desktop
+    // the row would promise something the platform cannot deliver. Checked by default: this
+    // is the whole mechanism behind "compass on by default on mobile".
+    let compassBox: HTMLInputElement | null = null;
+    if (orientationAvailable()) {
+      const row = document.createElement('label');
+      row.id = 'consent-compass';
+      row.innerHTML =
+        '<input type="checkbox" id="consent-compass-check" checked>' +
+        '<span><strong>Show which way I’m facing.</strong> ' +
+        'Uses the device compass while the map is open, so you still get a direction when ' +
+        'you’re standing still. Nothing leaves your device.</span>';
+      panel.querySelector('#consent-actions')!.before(row);
+      compassBox = row.querySelector<HTMLInputElement>('#consent-compass-check');
+    }
+
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
@@ -114,7 +171,7 @@ export function showConsentModal(): Promise<boolean> {
       window.addEventListener('resize', onScrollOrResize);
     }
 
-    function cleanup(accepted: boolean): void {
+    function cleanup(accepted: boolean, compassRequest: Promise<OrientationPermission> | null = null): void {
       // Symmetric teardown — tear down every listener regardless of which path closes
       // the modal (e.g. decline-before-scroll leaves the scroll listener attached).
       body.removeEventListener('scroll', onScrollOrResize);
@@ -136,10 +193,23 @@ export function showConsentModal(): Promise<boolean> {
           );
         }
       }
-      resolve(accepted);
+      resolve({ accepted, compassRequest });
     }
 
-    acceptBtn.addEventListener('click', () => cleanup(true));
+    acceptBtn.addEventListener('click', () => {
+      const wantsCompass = compassBox?.checked ?? false;
+      // Fire the request from inside the click, not after it: iOS suppresses
+      // requestPermission() outside a user gesture, and awaiting it here instead would
+      // hold the boot gate open for as long as the OS prompt sits unanswered.
+      const compassRequest = wantsCompass ? requestOrientationPermission() : null;
+      try {
+        localStorage.setItem(KEY_COMPASS_OPT_IN, String(wantsCompass));
+      } catch {
+        // Same reasoning as the consent record below — a storage failure must not stop
+        // the app booting. The consequence is only that the preference is re-asked later.
+      }
+      cleanup(true, compassRequest);
+    });
     panel.querySelector('#consent-decline')!.addEventListener('click', () => cleanup(false));
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) cleanup(false);

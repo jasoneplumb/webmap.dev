@@ -16,3 +16,6 @@ dropbox_uploader.sh
 .ghost-prompt
 .clone-prompt
 .tux/
+
+# macOS Finder metadata
+.DS_Store

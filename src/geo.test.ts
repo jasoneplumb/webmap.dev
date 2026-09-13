@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import L from 'leaflet';
-import { bearingDeg, pointToSegmentMeters } from './geo';
+import { bearingDeg, normalizeDeg, pointToSegmentMeters, shortestArcDeg } from './geo';
 
 describe('bearingDeg', () => {
   it('returns ~0 for due north', () => {
@@ -63,5 +63,62 @@ describe('pointToSegmentMeters', () => {
     const p = L.latLng(40.001, -74);
     expect(pointToSegmentMeters(p, a, a)).toBeGreaterThan(100);
     expect(pointToSegmentMeters(p, a, a)).toBeLessThan(125);
+  });
+});
+
+describe('normalizeDeg', () => {
+  it('leaves an in-range angle alone', () => {
+    expect(normalizeDeg(90)).toBe(90);
+  });
+
+  it('wraps negatives into range', () => {
+    expect(normalizeDeg(-90)).toBe(270);
+  });
+
+  it('wraps past a full turn', () => {
+    expect(normalizeDeg(450)).toBe(90);
+  });
+
+  it('wraps many turns in either direction', () => {
+    expect(normalizeDeg(360 * 3 + 45)).toBeCloseTo(45);
+    expect(normalizeDeg(-360 * 3 - 45)).toBeCloseTo(315);
+  });
+
+  it('maps a full turn to zero, not 360', () => {
+    expect(normalizeDeg(360)).toBe(0);
+  });
+});
+
+describe('shortestArcDeg', () => {
+  it('is zero between equal angles', () => {
+    expect(shortestArcDeg(42, 42)).toBe(0);
+  });
+
+  it('is positive turning clockwise', () => {
+    expect(shortestArcDeg(10, 80)).toBe(70);
+  });
+
+  it('is negative turning anticlockwise', () => {
+    expect(shortestArcDeg(80, 10)).toBe(-70);
+  });
+
+  it('crosses north the short way rather than sweeping backwards', () => {
+    expect(shortestArcDeg(350, 10)).toBe(20);
+    expect(shortestArcDeg(10, 350)).toBe(-20);
+  });
+
+  it('stays within -180..180 for every pair', () => {
+    for (let a = 0; a < 360; a += 7) {
+      for (let b = 0; b < 360; b += 11) {
+        const d = shortestArcDeg(a, b);
+        expect(d).toBeGreaterThanOrEqual(-180);
+        expect(d).toBeLessThanOrEqual(180);
+      }
+    }
+  });
+
+  it('lands on the target when added to the start', () => {
+    expect(normalizeDeg(350 + shortestArcDeg(350, 10))).toBeCloseTo(10);
+    expect(normalizeDeg(10 + shortestArcDeg(10, 350))).toBeCloseTo(350);
   });
 });

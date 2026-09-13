@@ -30,12 +30,14 @@ export interface AppState {
   lastAltM: number | undefined;
   lastGpsAccuracy: number | null;
 
-  // Heading-cone wedge: hold last valid GPS bearing for ~10 s when course is NaN
+  // Heading ring: last valid GPS course, held ~10 s when course is NaN
   lastValidHeadingDeg: number | null;
   lastValidHeadingMs: number;
 
   // Device-orientation compass permission state
   compassPermission: OrientationPermission;
+  compassHeadingDeg: number | null;   // low-passed device heading, the stationary source
+  shownHeadingDeg: number | null;     // heading currently drawn, eased toward the source
 
   // GPS weak-signal hysteresis (badge debounce)
   gpsWeakStreak: number;
@@ -126,7 +128,7 @@ GPS errors with `code === 1` (PERMISSION_DENIED) are debounced: a 3-second timer
 
 ---
 
-## 4. Haversine Jitter Filter + Heading-Cone Wedge (`location.ts`)
+## 4. Haversine Jitter Filter + Heading Ring (`location.ts`)
 
 GPS fixes arrive every ~1 s within a ~10 m circle when standing still. Without filtering, the blue dot wanders.
 
@@ -145,12 +147,14 @@ if (e.accuracy < state.prior || dist > e.accuracy / 2) {
 
 The pure haversine, bearing, and point-to-segment helpers live in `src/geo.ts` and are independently unit-tested.
 
-**Heading-cone wedge.** A translucent CSS cone rendered behind the blue dot rotates to match `e.heading` (GPS course, 0–360°). It's the same idiom as Google Maps and Apple Maps — direction of travel without rotating the map.
+**Heading ring.** A ring around the blue dot — faint bezel, bright arc, arrowhead — shows one heading, whose source follows motion state. See [ADR-007](adr/ADR-007-heading-source-selection.md).
 
-Two implementation details matter:
+Four implementation details matter:
 
-1. **Hold last bearing for 10 s** when `e.heading` is `NaN` (typical at speeds < 1 m/s). After the hold window, the wedge fades.
-2. **`--heading-deg` CSS custom property** drives a `conic-gradient` masked by a `radial-gradient`, with a 0.12 s transition for jitter smoothing.
+1. **Source selection** lives in `selectHeading()` (`heading.ts`): GPS course at or above 0.5 m/s, device compass below it, a course held for 10 s only where no compass exists, otherwise nothing. Drawing nothing is deliberate — a stale bearing is worse than an absent one.
+2. **`--heading-deg` CSS custom property** drives a `conic-gradient` masked by a `radial-gradient` into an annulus, plus a rotated arrowhead.
+3. **Two clocks, one element.** Fixes arrive around 1 Hz and orientation events around 60 Hz, so `heading-indicator.ts` owns the drawing and coalesces orientation-driven writes to one per frame.
+4. **Two-stage filtering.** `compass.ts` low-passes the raw magnetometer to reject jitter; `heading-indicator.ts` eases the drawn angle along the shortest arc so a heading crossing north turns 20° forward rather than 340° backward.
 
 The map itself does **not** rotate — this is the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md), chosen over `leaflet-rotate` (GPL-3 license clash) and CSS-transform rotation (per-overlay coordinate inversion).
 
@@ -196,13 +200,13 @@ idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
 
 ## 6. Device-Orientation Compass (`compass.ts` + `orientation.ts`)
 
-A top-right SVG compass rose rotates by `-deviceHeading` so true north stays at the top. It complements the heading-cone wedge: the wedge shows GPS course (works while moving), the compass shows where the device is physically pointing (works while stationary).
+A bottom-left SVG compass rose rotates by `-deviceHeading` so true north stays at the top. Its heading is no longer only its own: every reading is low-passed into `state.compassHeadingDeg`, which the heading ring uses as its source while the user is stationary (see [ADR-007](adr/ADR-007-heading-source-selection.md)). Before that, the rose read a true-north heading and spent it entirely on a 38 px glyph.
 
-**Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture. `compass.ts` calls it in the click handler, caches the result on `state.compassPermission`, and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
+**Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture, which is why the compass cannot simply default to on. The first-run consent modal carries a preselected compass row and fires the request from inside its accept handler, so the grant rides on a tap the user already makes; the request is handed back to `main.ts` unresolved, because awaiting an OS prompt on the boot path would leave a blank page. Tapping the rose still works for anyone who declined, and a returning opt-in is retried without a gesture — which some platforms refuse, leaving the rose exactly as it was. `compass.ts` caches the outcome on `state.compassPermission` and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
 
 **Heading extraction (`orientation.ts`).** Prefers iOS's `webkitCompassHeading` (already true-north calibrated, clockwise). Falls back to W3C `alpha`, flipped from anti-clockwise to clockwise. Subscribes to `deviceorientationabsolute` when available — it provides true-north headings without manual calibration.
 
-The rose is driven by a `--heading-deg` CSS custom property (same pattern as the wedge) with a 0.12 s transition for smoothing.
+The rose is driven by a `--heading-deg` CSS custom property (same convention as the heading ring) and renders the filtered heading rather than the raw one, which is what stops it shivering at rest.
 
 ---
 
@@ -327,9 +331,9 @@ These patterns work together to keep webmap.dev small, responsive, and offline-t
 1. **Single state** keeps the codebase simple and type-safe.
 2. **Refcount** lets locate and guidance share GPS without coordination.
 3. **Three-state locate button** matches the user's mental model of "follow / look / off".
-4. **Haversine filter + heading wedge** clean up GPS noise and show direction without rotating the map.
+4. **Haversine filter + heading ring** clean up GPS noise and show direction without rotating the map.
 5. **Guidance state machine** owns the routing → guiding ↔ off-route → arrived lifecycle.
-6. **Device-orientation compass** complements the wedge while stationary.
+6. **Device-orientation compass** supplies the heading ring's source while stationary.
 7. **Keepalive** keeps GPS flowing with the screen off on iOS.
 8. **Responsive sheet** adapts to mobile and desktop with the iOS `offsetHeight` workaround.
 9. **Consent modal** gates third-party egress with explicit re-acceptance on `CONSENT_VERSION` bumps.

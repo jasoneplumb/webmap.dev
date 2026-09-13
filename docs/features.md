@@ -2,7 +2,7 @@
 
 ## Live GPS Tracking
 
-**What it does.** Shows your real-time location on the map as a blue dot with an accuracy circle, plus a translucent heading-cone wedge that points in your GPS course.
+**What it does.** Shows your real-time location on the map as a blue dot with an accuracy circle, plus a heading ring around the dot that shows which way you are pointing.
 
 **How to use:**
 
@@ -18,7 +18,11 @@
 
 The "Locate" text label is shown on first load for discoverability and collapses to icon-only after the first tap (persisted in `localStorage`).
 
-**Heading-cone wedge.** When GPS reports a course (`e.heading` from the Geolocation API), a translucent cone behind the blue dot rotates to match. At low speeds the browser reports `NaN`; the wedge holds the last valid bearing for ~10 seconds before fading out. The map itself never rotates — north stays up.
+**Heading ring.** A ring around the blue dot — a faint bezel with a bright arc and arrowhead — shows a single direction, and where that direction comes from depends on whether you are moving.
+
+Above walking pace it follows your GPS course, so the arrow sits inline with your direction of travel. Below it, GPS stops reporting a course at all, and the ring switches to the device compass to show which way you are facing — blue for travel, amber for facing, so the two claims are never confused. With neither available the ring hides rather than point somewhere stale.
+
+The map itself never rotates — north stays up.
 
 **Accuracy circle.**
 
@@ -35,7 +39,7 @@ The "Locate" text label is shown on first load for discoverability and collapses
 **Known limitations:**
 
 - GPS requires a clear view of the sky; accuracy degrades indoors and in dense urban canyons.
-- Heading wedge doesn't show direction-of-travel below ~1 m/s — use the compass widget for stationary orientation.
+- Below ~0.5 m/s the GPS course is unavailable, so the ring shows device facing instead of direction of travel. Without the compass enabled it holds the last course for ~10 seconds and then hides.
 
 ---
 
@@ -79,15 +83,13 @@ The mode chip in the pill shows the active profile.
 
 ## Device-Orientation Compass
 
-**What it does.** Top-right compass rose that rotates so true north stays at the top, regardless of how the device is physically held. Complements the heading-cone wedge (which only works while moving).
+**What it does.** Bottom-left compass rose that rotates so true north stays at the top, regardless of how the device is physically held. It also feeds the heading ring, which is what gives you a direction while standing still.
 
-**How to use:**
+**How to use:** on a phone, nothing — the first-run consent screen offers the compass already ticked, and accepting turns it on. iOS only grants sensor access from a deliberate tap, and that accept tap is it, so there is no second prompt and nothing to find.
 
-1. Tap the compass rose to enable.
-2. On iOS 13+ the browser shows a permission prompt — tap **Allow**.
-3. Once granted, the rose rotates with the device.
+If you unticked it, or your install predates the option, tap the compass rose and allow the prompt.
 
-**Why two heading indicators?** The heading-cone wedge shows GPS course (direction of travel) and works only while moving. The compass shows where the device is physically pointing and works while stationary — most useful at junctions, when matching the map to your surroundings.
+**One direction, two sources.** There is a single indicator, not two competing ones. Moving, it shows GPS course; stopped, it shows device facing. While moving, the compass is ignored even when available — your phone can be in a bar bag or pocket, pointing nowhere near your direction of travel, and travel is the useful answer then.
 
 **Heading source.** Prefers iOS's `webkitCompassHeading` (true-north calibrated, clockwise). Falls back to the W3C `alpha` (anti-clockwise, flipped to clockwise) and the `deviceorientationabsolute` event when available.
 
@@ -259,7 +261,7 @@ The changelog content is bundled at build time from `CHANGELOG.md` — it reflec
 
 - Cached map tiles (OSM, including the proactively-downloaded region)
 - Pan and zoom the map
-- The live blue dot, accuracy circle, and heading-cone wedge (GPS works without internet on most phones)
+- The live blue dot, accuracy circle, and heading ring (GPS and the compass both work without internet on most phones)
 - All UI controls (locate, layers, compass, consent, changelog)
 - Tile-error fallback: when a tile is missing, the app crops a parent-zoom tile from the cache onto a canvas — degraded but visible
 
