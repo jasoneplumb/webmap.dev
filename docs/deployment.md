@@ -248,7 +248,7 @@ The other base maps (CyclOSM, OpenTopo, Humanitarian) and the Esri hillshade ove
 Before releasing (`/release` tags a version, and the tag push deploys):
 
 - [ ] Local quality gate passes: `npm run type-check && npm run lint && npm test && npm run build`
-- [ ] Bundle size within budget: `npm run size` (≤ 103 kB gzipped)
+- [ ] Bundle size within budget: `npm run size` (150 kB gzipped ceiling on the main JS chunk)
 - [ ] Manual browser testing covered the changed feature
 - [ ] Mobile checks (DevTools device emulation, ideally also a real phone)
 - [ ] Offline behavior verified (DevTools → Network → "Offline")
@@ -278,7 +278,7 @@ No dedicated monitoring is wired up. Manual smoke check:
 ### Performance
 
 - **nginx** — static-file serving with minimal overhead.
-- **Bundle** — minified, tree-shaken; ≤ 103 kB JS gzipped (enforced by `npm run size`).
+- **Bundle** — minified, tree-shaken; main JS chunk measured 126.39 kB gzipped at v0.50.0 (`439caf4`, 2026-09-13) against the 150 kB budget enforced by `npm run size`. CSS adds 19.10 kB gzipped; the two are not included in one another.
 - **Tiles** — cached by Workbox SWR; subsequent views are instant.
 - **API calls** — ESRI geocoding ~100–500 ms; FOSSGIS Valhalla typically 200–800 ms (no SLA).
 
