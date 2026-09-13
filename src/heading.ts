@@ -1,0 +1,91 @@
+/**
+ * Intent: Decide which direction the position indicator should show, and move it there smoothly
+ * Context: Pure helpers consumed by heading-indicator.ts; no DOM, no Leaflet, no AppState
+ * Pattern: selectHeading() picks a source from the current inputs; smoothHeadingDeg() eases toward it
+ *
+ * The problem this module exists to solve: GPS course is the only heading the map used to
+ * consume, and it is NaN below walking pace. The device compass is a true-north heading that
+ * is good precisely when course is not — while standing still. Neither source is correct on
+ * its own, so the choice has to be made per fix, from the motion state.
+ */
+import { normalizeDeg, shortestArcDeg } from './geo';
+
+/**
+ * Speed below which the user is treated as stationary (m/s). 0.5 m/s ~ 1.8 km/h.
+ * Shared with location.ts's adaptive-accuracy logic: "is the user moving" should not be
+ * able to answer differently in two places.
+ */
+export const STATIONARY_SPEED_MS = 0.5;
+
+/**
+ * How long a course reading stays usable after it goes NaN, for devices with no compass
+ * to fall back on. Keeps the pre-compass behavior intact rather than blanking the
+ * indicator sooner than it used to.
+ */
+export const HEADING_HOLD_MS = 10_000;
+
+export type HeadingSource = 'course' | 'compass' | 'held-course' | 'none';
+
+export interface HeadingInputs {
+  /** Speed from the GPS fix. Callers pass 0 when it is NaN or negative. */
+  speedMs: number;
+  /** GPS course over ground, or null when the fix reports NaN. */
+  courseDeg: number | null;
+  /** Smoothed device-compass heading, or null with no grant or no reading yet. */
+  compassDeg: number | null;
+  /** Most recent valid course, for the no-compass fallback. */
+  lastCourseDeg: number | null;
+  /** Age of lastCourseDeg in ms. Irrelevant when lastCourseDeg is null. */
+  lastCourseAgeMs: number;
+}
+
+export interface HeadingChoice {
+  source: HeadingSource;
+  /** Degrees clockwise from true north, or null when nothing should be drawn. */
+  deg: number | null;
+}
+
+/**
+ * Pick the heading to display, in priority order:
+ *
+ * 1. Moving with a valid course — the direction of travel, which is what a moving user
+ *    means by "which way am I pointing".
+ * 2. A compass reading — correct while stopped, and the reason a standing user now sees
+ *    anything at all.
+ * 3. A recent course, within HEADING_HOLD_MS — only reachable without a compass, and kept
+ *    so devices that deny or lack orientation behave exactly as they did before.
+ * 4. Nothing. Better than a bearing we know is stale.
+ *
+ * Note the deliberate asymmetry in rule 1: while moving, a compass reading is ignored even
+ * when present. The phone can face somewhere other than the direction of travel — bar bag,
+ * jersey pocket, held sideways at a junction — and travel is the answer the user wants then.
+ */
+export function selectHeading(i: HeadingInputs): HeadingChoice {
+  const moving = i.speedMs >= STATIONARY_SPEED_MS;
+
+  if (moving && i.courseDeg !== null) {
+    return { source: 'course', deg: normalizeDeg(i.courseDeg) };
+  }
+  if (i.compassDeg !== null) {
+    return { source: 'compass', deg: normalizeDeg(i.compassDeg) };
+  }
+  if (i.lastCourseDeg !== null && i.lastCourseAgeMs < HEADING_HOLD_MS) {
+    return { source: 'held-course', deg: normalizeDeg(i.lastCourseDeg) };
+  }
+  return { source: 'none', deg: null };
+}
+
+/**
+ * Ease `current` toward `target` by `factor` of the shortest arc between them.
+ *
+ * Going through shortestArcDeg is what keeps a compass crossing north from spinning the
+ * long way round, and low-passing at all is what keeps a raw magnetometer — which jitters
+ * by several degrees at rest — from making the indicator shiver.
+ *
+ * `factor` is clamped to 0..1, so a caller deriving it from elapsed time cannot overshoot
+ * past the target on a long frame.
+ */
+export function smoothHeadingDeg(current: number, target: number, factor: number): number {
+  const k = Math.max(0, Math.min(1, factor));
+  return normalizeDeg(current + shortestArcDeg(normalizeDeg(current), normalizeDeg(target)) * k);
+}
