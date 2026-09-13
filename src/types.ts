@@ -61,6 +61,13 @@ export interface AppState {
 
   // Device-orientation compass: permission state cached so subsequent taps skip the prompt
   compassPermission: OrientationPermission;
+  // Smoothed device-compass heading (degrees clockwise from true north), or null before the
+  // first reading. Written by compass.ts, read by heading-indicator.ts — this is what lets a
+  // standing user see a direction at all, since GPS course is NaN below walking pace.
+  compassHeadingDeg: number | null;
+  // Heading currently DRAWN on the position marker, kept separately from the sources above so
+  // the indicator can ease toward a new bearing instead of snapping to it.
+  shownHeadingDeg: number | null;
 
   // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
   gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
@@ -103,6 +110,8 @@ export function createInitialState(): AppState {
     lastValidHeadingDeg: null,
     lastValidHeadingMs: 0,
     compassPermission: 'unknown',
+    compassHeadingDeg: null,
+    shownHeadingDeg: null,
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,
     gpsWeakBadgeVisible: false,

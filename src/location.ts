@@ -10,21 +10,24 @@ import { updateLocateIcon } from './controls';
 import { setWatchAccuracy } from './timer';
 import { haversineDistance } from './geo';
 import { updateGuidance } from './guidance';
+import { STATIONARY_SPEED_MS } from './heading';
+import { resetHeadingIndicator, updateHeadingIndicator } from './heading-indicator';
 
 /** Discard GPS fixes coarser than this threshold (metres). */
 export const TRAIL_MAX_ACCURACY_M = 30;
 
-/** Speed below which the user is considered stationary (m/s). 0.5 m/s ~ 1.8 km/h. */
-const STATIONARY_SPEED_MS = 0.5;
 /** Consecutive stationary fixes before switching to low-accuracy GPS to save battery. */
 const STATIONARY_THRESHOLD = 5;
 
 // Blue pulsing dot — styled via .blue-dot CSS in style.css.
-// .blue-dot__heading is hidden until a valid GPS course (e.heading) is observed
-// via the .blue-dot--has-heading class set in onLocationFound; rotation is
-// driven by a CSS custom property --heading-deg.
+// The direction indicator is a ring AROUND the dot rather than a cone behind it: a faint
+// permanent bezel, plus a bright arc and arrowhead at the heading. heading-indicator.ts
+// owns what it shows, rotating it via the --heading-deg custom property and gating it with
+// .blue-dot--has-heading. Drawn before .blue-dot__inner so the dot sits on top of the arc.
 const BLUE_DOT_HTML =
-  '<div class="blue-dot__heading" aria-hidden="true"></div>' +
+  '<div class="blue-dot__bezel" aria-hidden="true"></div>' +
+  '<div class="blue-dot__arc" aria-hidden="true"></div>' +
+  '<div class="blue-dot__tipwrap" aria-hidden="true"><div class="blue-dot__tip"></div></div>' +
   '<div class="blue-dot__inner"></div>';
 
 const BLUE_DOT_ICON = L.divIcon({
@@ -44,9 +47,6 @@ function createGrayDotIcon(): L.DivIcon {
   });
 }
 
-// Hold-last-bearing window: GPS course is NaN at low speeds, so keep the wedge
-// pointed in the last valid direction for this long before fading it out.
-const HEADING_HOLD_MS = 10_000;
 
 /**
  * intent: Accept or reject a GPS fix based on whether we moved meaningfully or accuracy improved
@@ -129,27 +129,14 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     state.lastSpeedMs = isNaN(e.speed) ? 0 : e.speed;
     state.lastAltM = (e.altitude as number | null) !== null ? e.altitude : undefined;
 
-    // Heading wedge: rotate the cone behind the blue dot to match GPS course.
-    // Hold the last valid bearing for ~10s when course is NaN (low speed);
-    // fade out after that so the wedge doesn't lie about direction.
-    if (state.locationMarker !== null && !state.screenOff) {
-      const el = state.locationMarker.getElement();
-      if (el) {
-        if (!isNaN(e.heading)) {
-          state.lastValidHeadingDeg = e.heading;
-          state.lastValidHeadingMs = performance.now();
-          el.style.setProperty('--heading-deg', `${e.heading}deg`);
-          el.classList.add('blue-dot--has-heading');
-        } else if (
-          state.lastValidHeadingDeg !== null &&
-          performance.now() - state.lastValidHeadingMs < HEADING_HOLD_MS
-        ) {
-          el.classList.add('blue-dot--has-heading');
-        } else {
-          el.classList.remove('blue-dot--has-heading');
-        }
-      }
+    // Record the course when the fix carries one, then let heading-indicator.ts decide what
+    // to draw. It weighs this course against the device compass using the speed recorded
+    // just above, so the decision has to happen after lastSpeedMs is current.
+    if (!isNaN(e.heading)) {
+      state.lastValidHeadingDeg = e.heading;
+      state.lastValidHeadingMs = performance.now();
     }
+    updateHeadingIndicator(state);
 
     updateGuidance(e, state, map);
   }
@@ -204,4 +191,7 @@ export function clearLocationMarkers(state: AppState, map: L.Map): void {
     map.removeLayer(state.accuracyCircle);
     state.accuracyCircle = null;
   }
+  // The easing origin belongs to the marker that just went away; keeping it would make the
+  // next locate session sweep in from wherever the last one stopped.
+  resetHeadingIndicator(state);
 }
