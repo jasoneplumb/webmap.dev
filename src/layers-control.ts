@@ -12,6 +12,14 @@
 import L from 'leaflet';
 import { setupCollapsibleLabel } from './controls';
 
+/** Offline coverage shown as a badge on a layer's popover row. `saved: true` means a
+ *  deliberately downloaded region covers this layer (styled as an assurance);
+ *  false means only passively-browsed ground survives offline (styled neutrally). */
+export interface OfflineBadge {
+  text: string;
+  saved: boolean;
+}
+
 export interface LayerDef {
   id: string;
   name: string;
@@ -19,6 +27,9 @@ export interface LayerDef {
   // L.Layer (not L.TileLayer) so a base map can be a composite L.LayerGroup
   // — e.g. the 'Trails' layer (OSM base + Waymarked route overlays).
   tileLayer: L.Layer;
+  // Re-evaluated every time the popover opens — saved-region state changes as the
+  // user downloads and deletes regions, so a build-time snapshot would go stale.
+  offlineBadge?: () => OfflineBadge | null;
 }
 
 export interface OverlayDef {
@@ -56,6 +67,8 @@ export interface OverlayDef {
   // screen — without touching the row's persisted checked state, so switching to a base
   // where the overlay does real work brings it straight back. (#305)
   redundantOverBases?: string[];
+  // Same contract as LayerDef.offlineBadge.
+  offlineBadge?: () => OfflineBadge | null;
 }
 
 /** Whether `overlay` would add nothing over the given base, so the control should keep
@@ -219,6 +232,9 @@ export class LayersControl extends L.Control {
     // Before measuring: the base may have changed while the popover was closed, and a
     // redundancy note changes the row's width.
     this.syncOverlayRowStates();
+    // Saved-region coverage may have changed since the popover was built (a
+    // download finished, a region was deleted) — recompute badges on every open.
+    this.refreshOfflineBadges();
 
     // Position popover
     this.positionPopover();
@@ -333,6 +349,8 @@ export class LayersControl extends L.Control {
       layerName.textContent = layer.name;
       label.appendChild(layerName);
 
+      this.appendOfflineBadge(layerName, layer);
+
       const layerDesc = document.createElement('span');
       layerDesc.className = 'layers-option__desc';
       layerDesc.textContent = layer.description;
@@ -373,6 +391,8 @@ export class LayersControl extends L.Control {
         overlayName.className = 'layers-option__name';
         overlayName.textContent = overlay.name;
         label.appendChild(overlayName);
+
+        this.appendOfflineBadge(overlayName, overlay);
 
         if (overlay.description) {
           const overlayDesc = document.createElement('span');
@@ -549,6 +569,35 @@ export class LayersControl extends L.Control {
           checkbox?.removeAttribute('aria-describedby');
         }
       }
+    }
+  }
+
+  /** Mount a badge span inside a row's name element and paint its current state.
+   *  The span is created even when the current badge is null so a later refresh
+   *  can populate it without rebuilding the popover. */
+  private appendOfflineBadge(nameEl: HTMLElement, def: { id: string; offlineBadge?: () => OfflineBadge | null }): void {
+    if (!def.offlineBadge) return;
+    const badge = document.createElement('span');
+    badge.className = 'layers-option__badge';
+    badge.dataset['badgeFor'] = def.id;
+    nameEl.appendChild(badge);
+    this.paintBadge(badge, def.offlineBadge());
+  }
+
+  private paintBadge(el: HTMLElement, badge: OfflineBadge | null): void {
+    el.textContent = badge?.text ?? '';
+    el.style.display = badge ? '' : 'none';
+    el.classList.toggle('layers-option__badge--saved', badge?.saved === true);
+  }
+
+  private refreshOfflineBadges(): void {
+    if (!this.popoverEl) return;
+    for (const def of [...this.baseMaps, ...this.overlays]) {
+      if (!def.offlineBadge) continue;
+      const el = this.popoverEl.querySelector<HTMLElement>(
+        `.layers-option__badge[data-badge-for="${def.id}"]`,
+      );
+      if (el) this.paintBadge(el, def.offlineBadge());
     }
   }
 

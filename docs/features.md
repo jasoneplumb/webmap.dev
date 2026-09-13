@@ -183,9 +183,9 @@ The pin can be dragged to refine the location; the geocode bar updates with the 
 
 ---
 
-## Offline Tile Download
+## Offline Region Download
 
-**What it does.** Pre-cache map tiles for a region and zoom range so they load instantly when offline.
+**What it does.** Save a region — bounds, zoom range, and chosen layers — so it works offline exactly as it does online. Saved tiles live in a protected cache that everyday browsing can never evict ([ADR-007](adr/ADR-007-region-tile-cache.md)).
 
 **How to use:**
 
@@ -193,18 +193,21 @@ The pin can be dragged to refine the location; the geocode bar updates with the 
 2. A draggable selection rectangle with corner handles appears on the map.
 3. Drag the corners to define the region.
 4. Adjust the **min zoom** and **max zoom** sliders.
-5. The tile count and estimated size update in real time.
-6. Tap **Download**; a progress bar shows completion. Already-cached tiles are skipped.
+5. Check the **layers to save** — Streets (OSM) and Hillshade terrain, each with its own size estimate.
+6. Tap **Download**; a progress bar shows completion. Already-cached tiles are skipped, and the app requests persistent storage so the browser won't evict the region under pressure.
 
 The "Download" text label collapses to icon-only after the first tap.
+
+**Saved regions.** The panel lists every saved region with its layers, zoom range, and size. **Delete** removes a region's tiles and frees quota. The Layers popover badges each layer with its offline coverage — "N saved regions" for downloadable layers, "browsed areas" for the rest.
 
 **Mobile.** The panel anchors to the bottom of the screen so it doesn't block the selection handles. Tap the header to collapse / expand the panel while dragging.
 
 **Limits:**
 
-- Safari has a ~50 MB cache quota; a warning surfaces if your estimate exceeds it.
-- Only OSM tiles are cached by both the service worker and the proactive download (CyclOSM, OpenTopo, and Humanitarian are not — see [ADR-005](adr/ADR-005-offline-tile-strategy.md)).
-- Download requires internet; tiles land in the same Cache API store the service worker uses.
+- Safari has a ~50 MB cache quota; a warning surfaces if your estimate exceeds it, and the panel shows current usage against the browser's quota.
+- Only providers whose terms allow bulk download can be saved: OSM Streets and Terrarium elevation (Hillshade). Every other layer (Cycle, Outdoors, Parks & POIs, Satellite, route overlays) still caches passively as you browse it — their providers prohibit bulk fetching (see [ADR-007](adr/ADR-007-region-tile-cache.md)).
+- Hillshade saves at up to z15 (Terrarium's native ceiling); higher zooms render from the z15 data, slightly softened.
+- Download requires internet. Overlapping regions share tiles, so deleting one may thin an overlapping region — re-download to restore.
 
 ---
 
@@ -259,15 +262,16 @@ The changelog content is bundled at build time from `CHANGELOG.md` — it reflec
 
 **What works offline:**
 
-- Cached map tiles (OSM, including the proactively-downloaded region)
+- Saved regions — Streets and Hillshade render exactly as online inside a downloaded region, protected from cache eviction ([ADR-007](adr/ADR-007-region-tile-cache.md))
+- Passively cached tiles from every layer you've browsed (all providers are service-worker cached once viewed)
 - Pan and zoom the map
 - The live blue dot, accuracy circle, and heading ring (GPS and the compass both work without internet on most phones)
-- All UI controls (locate, layers, compass, consent, changelog)
-- Tile-error fallback: when a tile is missing, the app crops a parent-zoom tile from the cache onto a canvas — degraded but visible
+- All UI controls (locate, layers, compass, consent, changelog); the Layers popover badges each layer's offline coverage
+- Tile-error fallback: when a Streets tile is missing, the app crops a parent-zoom tile from the saved-region or passive cache onto a canvas — degraded but visible
 
 **What requires internet:**
 
-- Address search (ESRI; silently empty offline)
+- Address search (ESRI; a toast explains you're offline)
 - Reverse geocoding (ESRI; the geocode bar shows coordinates only)
 - Turn-by-turn navigation (FOSSGIS Valhalla; routing fails with a clear toast)
 - Tile cache refresh (cached tiles still serve; expired entries fall through to error fallback)
@@ -275,9 +279,9 @@ The changelog content is bundled at build time from `CHANGELOG.md` — it reflec
 **How to populate the cache:**
 
 1. **Passive** — use the app normally with internet; tiles you've viewed are cached automatically.
-2. **Proactive** — use the Download button to pre-cache a specific region and zoom range.
+2. **Proactive** — use the Download button to save a region, zoom range, and layer set.
 
-Cached tiles stay for 30 days; using them refreshes the timer (`StaleWhileRevalidate`).
+Passively cached tiles stay for 30 days (`StaleWhileRevalidate` for OSM, `CacheFirst` for the rest); saved regions never expire — only their manager's Delete removes them.
 
 **Offline banner.** The app watches `navigator.onLine` and shows a banner at the top when it goes false. The banner clears automatically when connectivity returns. The banner does not disable any UI — controls remain visible and offline-capable features keep working.
 

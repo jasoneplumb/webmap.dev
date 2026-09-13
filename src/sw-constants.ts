@@ -8,10 +8,27 @@ export const OSM_TILE_CACHE_NAME = 'osm-tiles' as const;
  *  Waymarked, Esri imagery, Terrarium elevation).
  *
  *  Deliberately a SEPARATE cache from OSM_TILE_CACHE_NAME rather than a widened
- *  route on it: that one is also written by the region pre-download feature and read
- *  by the canvas tile fallback, so letting incidental browsing share its LRU would
- *  let a pan over new ground silently evict a region the user deliberately saved. */
+ *  route on it: sharing an LRU would let a pan over new ground evict tiles another
+ *  consumer relies on. */
 export const BASEMAP_TILE_CACHE_NAME = 'basemap-tiles' as const;
+
+/** Deliberately pre-downloaded region tiles (OSM Streets + Terrarium elevation),
+ *  written by offline-download.ts and served by sw.ts AHEAD of the passive
+ *  strategies. Its own cache with NO ExpirationPlugin: the passive caches' LRU and
+ *  30-day sweep must never evict a region the user deliberately saved — regions are
+ *  removed only by the region manager's explicit delete. See ADR-007 / #303. */
+export const REGION_TILE_CACHE_NAME = 'region-tiles' as const;
+
+/** Every URL an OSM tile may be requested under. Leaflet spreads requests across
+ *  the a/b/c subdomains (`abs(x+y) % 3`) and pre-download mirrors that formula,
+ *  but any drift between writers and readers would otherwise turn into silent
+ *  cache misses — so region lookups try all three. Non-OSM URLs pass through
+ *  unchanged. Pure so it can be unit-tested (the SW around it can't be). */
+export function osmTileUrlVariants(url: string): string[] {
+  const m = /^https:\/\/[abc]\.tile\.openstreetmap\.org\/(.+)$/.exec(url);
+  if (!m) return [url];
+  return ['a', 'b', 'c'].map((s) => `https://${s}.tile.openstreetmap.org/${m[1]}`);
+}
 
 /** Tile hosts served into BASEMAP_TILE_CACHE_NAME — everything the app draws that
  *  isn't openstreetmap.org. Keep in step with the URL templates in map.ts. */

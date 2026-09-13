@@ -12,7 +12,13 @@ import { registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate, CacheFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { clientsClaim, type WorkboxPlugin } from 'workbox-core';
-import { OSM_TILE_CACHE_NAME, BASEMAP_TILE_CACHE_NAME, isBasemapTileUrl } from './sw-constants';
+import {
+  OSM_TILE_CACHE_NAME,
+  BASEMAP_TILE_CACHE_NAME,
+  REGION_TILE_CACHE_NAME,
+  isBasemapTileUrl,
+  osmTileUrlVariants,
+} from './sw-constants';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -41,21 +47,45 @@ registerRoute(
   },
 );
 
+// ── Saved regions ──────────────────────────────────────────────────────────────
+// Tiles the user deliberately pre-downloaded (offline-download.ts). Checked BEFORE
+// the passive strategies on both tile routes, so a saved region serves offline —
+// and without a network round-trip online — regardless of what the passive LRUs
+// have evicted. This cache has no ExpirationPlugin on purpose: only the region
+// manager's explicit delete removes entries (ADR-007). purgeOnQuotaError is also
+// deliberately absent — under quota pressure the passive caches purge first, and
+// saved regions are the last thing the user wants sacrificed.
+async function matchRegionTile(url: string): Promise<Response | undefined> {
+  const cache = await caches.open(REGION_TILE_CACHE_NAME);
+  for (const variant of osmTileUrlVariants(url)) {
+    const hit = await cache.match(variant);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 // ── Map tiles ──────────────────────────────────────────────────────────────────
-// Cache-while-revalidate. purgeOnQuotaError purges the cache on a storage-quota hit
-// instead of throwing (the documented iOS/WKWebView mitigation).
+// Region-first, then cache-while-revalidate. purgeOnQuotaError purges the passive
+// cache on a storage-quota hit instead of throwing (the documented iOS/WKWebView
+// mitigation).
+const osmPassiveStrategy = new StaleWhileRevalidate({
+  cacheName: OSM_TILE_CACHE_NAME,
+  plugins: [
+    new ExpirationPlugin({
+      maxEntries: 300,
+      maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+      purgeOnQuotaError: true,
+    }),
+  ],
+});
+
 registerRoute(
   /^https:\/\/.*\.tile\.openstreetmap\.org\/.*/,
-  new StaleWhileRevalidate({
-    cacheName: OSM_TILE_CACHE_NAME,
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 300,
-        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-        purgeOnQuotaError: true,
-      }),
-    ],
-  }),
+  async ({ event, request }) => {
+    const regionHit = await matchRegionTile(request.url);
+    if (regionHit) return regionHit;
+    return osmPassiveStrategy.handle({ event, request });
+  },
 );
 
 // ── Non-OSM tiles ──────────────────────────────────────────────────────────────
@@ -74,26 +104,37 @@ const onlyReadable: WorkboxPlugin = {
     response.status === 200 && response.type !== 'opaque' ? response : null,
 };
 
+// CacheFirst, not StaleWhileRevalidate: a revalidation round-trip on every tile
+// spends cellular data and provider quota to refresh imagery that changes on a
+// scale of months. Passive caching of tiles the user actually viewed is what the
+// OSM and Thunderforest policies permit; nothing here fetches ahead of the view.
+// (Region pre-download is the one exception, and it only ever targets providers
+// whose terms allow it — OSM and AWS-Open-Data Terrarium; see offline-regions.ts.)
+const basemapPassiveStrategy = new CacheFirst({
+  cacheName: BASEMAP_TILE_CACHE_NAME,
+  plugins: [
+    onlyReadable,
+    // ~500 entries at a ~25 KB blended average (Esri JPEG ~20-40 KB, Terrarium PNG
+    // ~40-60 KB, Thunderforest PNG ~15-30 KB) is ~12 MB, alongside osm-tiles' ~4.5 MB,
+    // inside the ~50 MB Safari budget with room left for pre-downloaded regions.
+    new ExpirationPlugin({
+      maxEntries: 500,
+      maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+      purgeOnQuotaError: true,
+    }),
+  ],
+});
+
 registerRoute(
   ({ url }) => isBasemapTileUrl(url),
-  // CacheFirst, not StaleWhileRevalidate: a revalidation round-trip on every tile
-  // spends cellular data and provider quota to refresh imagery that changes on a
-  // scale of months. Passive caching of tiles the user actually viewed is what the
-  // OSM and Thunderforest policies permit; nothing here fetches ahead of the view.
-  new CacheFirst({
-    cacheName: BASEMAP_TILE_CACHE_NAME,
-    plugins: [
-      onlyReadable,
-      // ~500 entries at a ~25 KB blended average (Esri JPEG ~20-40 KB, Terrarium PNG
-      // ~40-60 KB, Thunderforest PNG ~15-30 KB) is ~12 MB, alongside osm-tiles' ~4.5 MB,
-      // inside the ~50 MB Safari budget with room left for pre-downloaded regions.
-      new ExpirationPlugin({
-        maxEntries: 500,
-        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-        purgeOnQuotaError: true,
-      }),
-    ],
-  }),
+  // Region-first covers the hillshade offline: hillshade.ts fetches Terrarium
+  // elevation through this route, so a saved region's elevation tiles serve from
+  // region-tiles even after the passive LRU has moved on.
+  async ({ event, request }) => {
+    const regionHit = await matchRegionTile(request.url);
+    if (regionHit) return regionHit;
+    return basemapPassiveStrategy.handle({ event, request });
+  },
 );
 
 // ── Geocoding: never cache ───────────────────────────────────────────────────────

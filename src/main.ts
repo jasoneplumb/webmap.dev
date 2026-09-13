@@ -22,7 +22,8 @@ import { requestOrientationPermission, type OrientationPermission } from './orie
 import { createInitialState } from './types';
 import { HILLSHADE_AZIMUTH_DEG, HILLSHADE_NW_AZIMUTH_DEG } from './hillshade';
 import { createMap, initOfflineTileFallback, getTileLayers, syncTileGridToBase } from './map';
-import { addLayersControl, type LayerDef, type LayersControl, type OverlayDef } from './layers-control';
+import { addLayersControl, type LayerDef, type LayersControl, type OfflineBadge, type OverlayDef } from './layers-control';
+import { loadRegions, type RegionLayerId } from './offline-regions';
 import { createSqueezeZonesOverlay } from './squeeze-zones';
 import { createCueEventsOverlay } from './cue-events';
 import { createCustomZonesOverlay, addDrawZoneControl } from './custom-zones';
@@ -406,36 +407,55 @@ function syncToBase(baseId: string | null): void {
   if (base) syncTileGridToBase(base);
 }
 
+// ── Offline coverage badges for the layers popover ────────────────────────────
+// Providers whose terms allow bulk pre-download (OSM, Terrarium) badge with their
+// saved-region count; everything else survives offline only for browsed ground.
+// Evaluated lazily on every popover open — see LayerDef.offlineBadge.
+const passiveBadge = (): OfflineBadge => ({ text: 'offline: browsed areas', saved: false });
+function savedRegionBadge(layer: RegionLayerId): () => OfflineBadge {
+  return () => {
+    const n = loadRegions().filter((r) => r.layers.includes(layer)).length;
+    return n > 0
+      ? { text: n === 1 ? 'offline: 1 saved region' : `offline: ${n} saved regions`, saved: true }
+      : passiveBadge();
+  };
+}
+
 const layerDefs: LayerDef[] = [
   {
     id: CYCLE_BASE_ID,
     name: 'Cycle',
     description: 'Bike routes & cycling map (OpenCycleMap)',
     tileLayer: tileLayers.cycleLayer,
+    offlineBadge: passiveBadge,
   },
   {
     id: 'outdoors',
     name: 'Outdoors',
     description: 'Hiking trails & terrain',
     tileLayer: tileLayers.outdoorsLayer,
+    offlineBadge: passiveBadge,
   },
   {
     id: 'osm-streets',
     name: 'Streets',
     description: 'Street map with roads and labels',
     tileLayer: tileLayers.osmStreetsLayer,
+    offlineBadge: savedRegionBadge('streets'),
   },
   {
     id: 'parks',
     name: 'Parks & POIs',
     description: 'Highlights parks and amenities',
     tileLayer: tileLayers.humanitarianLayer,
+    offlineBadge: passiveBadge,
   },
   {
     id: SATELLITE_BASE_ID,
     name: 'Satellite',
     description: 'Aerial imagery (Esri World Imagery)',
     tileLayer: tileLayers.satelliteLayer,
+    offlineBadge: passiveBadge,
   },
 ];
 
@@ -460,6 +480,7 @@ const overlayDefs: OverlayDef[] = [
     name: 'Hillshade',
     description: 'Terrain shading over any base map',
     tileLayer: tileLayers.hillshadeLayer,
+    offlineBadge: savedRegionBadge('hillshade'),
   },
   {
     id: 'cycle-blend',
@@ -471,18 +492,21 @@ const overlayDefs: OverlayDef[] = [
     // multiply is self-multiplication, which the base now applies as a filter from a
     // single fetch. See .self-multiply in style.css and #305.
     redundantOverBases: [CYCLE_BASE_ID],
+    offlineBadge: passiveBadge,
   },
   {
     id: 'hiking-routes',
     zIndex: 30,
     name: 'Hiking routes',
     tileLayer: tileLayers.hikingLayer,
+    offlineBadge: passiveBadge,
   },
   {
     id: 'cycling-routes',
     zIndex: 30,
     name: 'Cycling routes',
     tileLayer: tileLayers.cyclingLayer,
+    offlineBadge: passiveBadge,
   },
   {
     id: 'bike-infra',
@@ -490,6 +514,7 @@ const overlayDefs: OverlayDef[] = [
     name: 'Bike infrastructure',
     description: 'Bike lanes & paths (CyclOSM-lite) — composes over any base, no baked-in hillshade',
     tileLayer: tileLayers.bikeInfraLayer,
+    offlineBadge: passiveBadge,
   },
   {
     id: 'squeeze-zones',

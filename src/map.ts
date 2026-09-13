@@ -7,7 +7,8 @@
 import L from 'leaflet';
 import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid';
-import { OSM_TILE_CACHE_NAME } from './sw-constants';
+import { OSM_TILE_CACHE_NAME, REGION_TILE_CACHE_NAME } from './sw-constants';
+import { hasSavedLayer } from './offline-regions';
 
 /** Leaflet grid-layer internals that @types/leaflet doesn't declare.
  *
@@ -74,7 +75,10 @@ interface TileErrorEvent extends L.LeafletEvent {
 let tileWarnCooldown = false;
 
 // Opened once on first use; reused for every subsequent tile error lookup.
+// The region cache is searched before the passive OSM cache — a deliberately saved
+// region should revive tiles even after passive browsing has evicted its own copies.
 let osmCachePromise: Promise<Cache> | null = null;
+let regionCachePromise: Promise<Cache> | null = null;
 
 /** Wire up offline tile warnings and canvas-based lower-zoom fallback.
  *  Must be called after createMap(). Attaches tileerror handlers to the base/overlay
@@ -96,6 +100,7 @@ export function initOfflineTileFallback(
   }
   if ('caches' in window) {
     osmCachePromise = caches.open(OSM_TILE_CACHE_NAME);
+    regionCachePromise = caches.open(REGION_TILE_CACHE_NAME);
   }
   for (const layer of layers) {
     layer.on('tileerror', (e: L.LeafletEvent) => {
@@ -111,13 +116,18 @@ async function handleTileError(
 ): Promise<void> {
   if (!navigator.onLine && !tileWarnCooldown) {
     tileWarnCooldown = true;
+    // Point at coverage that actually exists: a saved region beats generic advice,
+    // and the base the pre-download saves is Streets.
+    const savedHint = hasSavedLayer('streets')
+      ? 'switch to the Streets base in Layers \u2014 your saved regions cover it offline.'
+      : 'switch to the Streets base in Layers for the best offline coverage.';
+    // "Streets" (in savedHint above) has to match the label in the layers control
+    // (main.ts, id 'osm-streets'), or this sends the user looking for a layer that is
+    // not in the picker. It is also the right layer to name: osmStreetsLayer is the
+    // only one with the lower-zoom canvas fallback below. (#308)
     const msg = isOsmLayer
-      ? 'Some map tiles aren\u2019t cached for this area \u2014 zoom out for cached coverage. (Safari limits offline cache to ~50\u00a0MB.)'
-      // "Streets" has to match the label in the layers control (main.ts, id
-      // 'osm-streets'), or this sends the user looking for a layer that is not in the
-      // picker. It is also the right layer to name: osmStreetsLayer is the only one with
-      // the lower-zoom canvas fallback below. (#308)
-      : 'Tiles unavailable offline \u2014 switch to Streets layer for offline coverage.';
+      ? 'Some map tiles aren\u2019t cached for this area \u2014 zoom out for cached coverage, or save this region from the Download button while online.'
+      : `Tiles unavailable offline \u2014 ${savedHint}`;
     showToast(msg, 7000);
     setTimeout(() => {
       tileWarnCooldown = false;
@@ -128,7 +138,10 @@ async function handleTileError(
   if (!isOsmLayer || !(tile instanceof HTMLImageElement) || navigator.onLine ||
       osmCachePromise === null || tile.src.startsWith('data:')) return;
   const coords = e.coords;
-  const cache = await osmCachePromise;
+  const tileCaches = [
+    ...(regionCachePromise ? [await regionCachePromise] : []),
+    await osmCachePromise,
+  ];
 
   for (let dz = 1; dz <= 3; dz++) {
     const parentZ = coords.z - dz;
@@ -137,11 +150,14 @@ async function handleTileError(
     const parentX = Math.floor(coords.x / scale);
     const parentY = Math.floor(coords.y / scale);
 
-    // Check all three subdomains in parallel — parent tile is on exactly one of them
+    // Check all three subdomains in parallel — the parent tile sits under exactly one
+    // of them — and both caches: region-tiles first, then the passive OSM cache.
     const subUrls = ['a', 'b', 'c'].map(
       sub => `https://${sub}.tile.openstreetmap.org/${parentZ}/${parentX}/${parentY}.png`,
     );
-    const responses = await Promise.all(subUrls.map(url => cache.match(url)));
+    const responses = await Promise.all(
+      tileCaches.flatMap(cache => subUrls.map(url => cache.match(url))),
+    );
     const response = responses.find(Boolean);
     if (response !== undefined) {
       try {
