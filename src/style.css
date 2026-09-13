@@ -1576,8 +1576,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 .layers-option--inactive { cursor: default; }
 .layers-option--inactive:hover { background-color: transparent; }
-.layers-option--inactive .layers-option__name,
-.layers-option--inactive .layers-option__desc { color: #bbb; }
+/* #767676 is the darkest gray that still reads as dimmed against this popover's white
+   and the lightest that clears WCAG AA for normal text (4.54:1) — the row is inert, not
+   unreadable. The badge carries the actual meaning, so the description keeps its normal
+   color rather than fading further. */
+.layers-option--inactive .layers-option__name { color: #767676; }
 
 
 

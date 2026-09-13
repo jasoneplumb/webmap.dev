@@ -383,12 +383,16 @@ export class LayersControl extends L.Control {
 
         // Filled in by syncOverlayRowStates while this overlay is redundant over the
         // active base. An inert checkbox with no explanation reads as a bug, so the row
-        // says why it is off instead of just refusing to do anything.
-        const note = document.createElement('span');
-        note.className = 'layers-option__note';
-        note.dataset['overlayId'] = overlay.id;
-        note.hidden = true;
-        label.appendChild(note);
+        // says why it is off instead of just refusing to do anything. Only overlays that
+        // can ever BE redundant get the node — the rest would carry a permanently empty
+        // span for the life of the popover.
+        if (overlay.redundantOverBases) {
+          const note = document.createElement('span');
+          note.className = 'layers-option__note';
+          note.dataset['overlayId'] = overlay.id;
+          note.hidden = true;
+          label.appendChild(note);
+        }
 
         const requestFilePick = overlay.requestFilePick;
         if (requestFilePick) {
