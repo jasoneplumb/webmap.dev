@@ -3,9 +3,19 @@
 [![CI](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml/badge.svg)](https://github.com/jasoneplumb/webmap.dev/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![TypeScript](https://img.shields.io/badge/TypeScript-ES2020-blue)
-![Bundle Size](https://img.shields.io/badge/bundle-%E2%89%A4103kB_gzip-brightgreen)
+![Bundle Size](https://img.shields.io/badge/bundle-126kB_gzip_%7C_150kB_budget-brightgreen)
 
 > A mobile-first Progressive Web App for live GPS navigation and offline map exploration.
+
+## Evidence
+
+| | |
+| --- | --- |
+| **Contribution** | Designed, built, and operated solo, AI-assisted under test and CI gates. Leaflet, esri-leaflet, Workbox, and Vite are third-party; tiles come from OSM-derived providers, geocoding from ESRI, and routing from FOSSGIS Valhalla. |
+| **Status** | Live and in use at [webmap.dev](https://www.webmap.dev). No account system and no server-side user data. |
+| **Evidence** | Main JS chunk measured **126.39 kB gzipped** at v0.50.0 (`439caf4`, 2026-09-13) against a 150 kB `size-limit` budget; CSS is a further 19.10 kB gzipped. Unit tests cover the pure modules (`geo`, `routing`, `guidance`, `geocoding`, `location`, `orientation`, `bottom-sheet`); CI runs them on every push. |
+| **Reproduction** | `npm ci && npm run build && npm run size` prints the measured figure. `npm test` runs the unit tests. An ESRI API key is needed for geocoding at runtime, not for the build. |
+| **Limitations** | Offline means cached map tiles and GPS position; search and route calculation require network. Tile coverage offline is whatever was cached or pre-downloaded. The budget is a ceiling, not a measurement, and the two numbers should never be quoted interchangeably. No formal accessibility audit has been done. |
 
 ## Preview
 
@@ -53,7 +63,7 @@
 
 | Layer | Technology |
 |-------|------------|
-| **Build** | Vite 5 + TypeScript ES2020 (strict, `noUncheckedIndexedAccess`) |
+| **Build** | Vite 8 + TypeScript ES2020 (strict, `noUncheckedIndexedAccess`) |
 | **Map** | Leaflet 1.9 + esri-leaflet 3 + esri-leaflet-geocoder 3 |
 | **Tiles** | Free OSM-derived: CyclOSM, OpenStreetMap, OpenTopoMap, Humanitarian; Esri hillshade overlay |
 | **Geocoding** | ESRI ArcGIS (forward + reverse) |
@@ -98,7 +108,7 @@ npm run preview      # Preview production build
 npm run type-check   # TypeScript validation
 npm run lint         # ESLint
 npm test             # Run unit tests
-npm run size         # size-limit check (≤103 kB gzipped)
+npm run size         # size-limit check (main JS chunk, 150 kB gzipped budget)
 npm run og           # Regenerate the social-preview OG image
 npm run icons        # Regenerate maskable PWA icons
 npm run screenshots  # Regenerate the preview screenshots in docs/images/
