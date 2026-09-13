@@ -11,13 +11,6 @@ import type { AppState } from './types';
 import { selectHeading, smoothHeadingDeg } from './heading';
 
 /**
- * How long a course reading counts as current rather than held. Roughly one fix interval:
- * past this the fix that produced it is gone, and only selectHeading's hold branch should
- * still be willing to use it.
- */
-const COURSE_FRESH_MS = 1_500;
-
-/**
  * Fraction of the remaining arc closed per second. At 60 Hz this eases visibly without
  * lagging a real turn; at the 1 Hz of a fix-only update it clamps to a direct jump, which
  * is what the pre-compass indicator already did.
@@ -50,12 +43,14 @@ export function updateHeadingIndicator(state: AppState, nowMs: number = performa
   // A fix can report speed as NaN; treat unknown as stationary rather than as motion.
   const speedMs = Number.isFinite(state.lastSpeedMs) ? Math.max(0, state.lastSpeedMs) : 0;
 
+  // Staleness is not applied here on purpose: selectHeading gets the raw course and its age
+  // and owns every decision about what is still usable, so the two cannot disagree about
+  // whether a fix is live.
   const choice = selectHeading({
     speedMs,
-    courseDeg: courseAgeMs < COURSE_FRESH_MS ? state.lastValidHeadingDeg : null,
+    courseDeg: state.lastValidHeadingDeg,
+    courseAgeMs,
     compassDeg: state.compassPermission === 'granted' ? state.compassHeadingDeg : null,
-    lastCourseDeg: state.lastValidHeadingDeg,
-    lastCourseAgeMs: courseAgeMs,
   });
 
   if (choice.deg === null) {

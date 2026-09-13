@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COURSE_FRESH_MS,
   HEADING_HOLD_MS,
   STATIONARY_SPEED_MS,
   selectHeading,
@@ -11,9 +12,8 @@ function inputs(over: Partial<HeadingInputs> = {}): HeadingInputs {
   return {
     speedMs: 0,
     courseDeg: null,
+    courseAgeMs: 0,
     compassDeg: null,
-    lastCourseDeg: null,
-    lastCourseAgeMs: 0,
     ...over,
   };
 }
@@ -52,20 +52,64 @@ describe('selectHeading', () => {
     expect(r).toEqual({ source: 'compass', deg: 99 });
   });
 
-  it('holds a recent course when there is no compass at all', () => {
+  it('falls back to a held course just under the threshold with no compass', () => {
+    const r = selectHeading(inputs({ speedMs: STATIONARY_SPEED_MS - 0.01, courseDeg: 10, courseAgeMs: 900 }));
+    expect(r).toEqual({ source: 'held-course', deg: 10 });
+  });
+
+  it('holds a recent course when stopped with no compass at all', () => {
     // Pre-compass behavior, preserved for devices that deny or lack orientation.
-    const r = selectHeading(inputs({ lastCourseDeg: 123, lastCourseAgeMs: 2_000 }));
+    const r = selectHeading(inputs({ courseDeg: 123, courseAgeMs: 2_000 }));
     expect(r).toEqual({ source: 'held-course', deg: 123 });
   });
 
   it('drops a held course once it goes stale rather than lie', () => {
-    const r = selectHeading(inputs({ lastCourseDeg: 123, lastCourseAgeMs: HEADING_HOLD_MS }));
+    const r = selectHeading(inputs({ courseDeg: 123, courseAgeMs: HEADING_HOLD_MS }));
     expect(r).toEqual({ source: 'none', deg: null });
   });
 
-  it('prefers a live compass over a still-fresh held course', () => {
-    const r = selectHeading(inputs({ compassDeg: 5, lastCourseDeg: 123, lastCourseAgeMs: 100 }));
+  it('prefers a live compass over a held course when stopped', () => {
+    const r = selectHeading(inputs({ compassDeg: 5, courseDeg: 123, courseAgeMs: 100 }));
     expect(r.source).toBe('compass');
+  });
+
+  // ── Regression: a gap between fixes must not flip a moving rider to facing ──────
+  // Speed comes from the last fix and does not age on its own. When "usable course"
+  // expired after one fix interval, any longer gap left speed reading "moving" with the
+  // course nulled, so the ring fell through to the compass and turned amber mid-ride —
+  // and because orientation drives redraws at ~60 Hz, it stayed amber for the whole gap.
+  it('keeps showing travel while moving when the course is older than one fix interval', () => {
+    const r = selectHeading(inputs({
+      speedMs: 5.5,
+      courseDeg: 90,
+      courseAgeMs: COURSE_FRESH_MS * 2,
+      compassDeg: 270,
+    }));
+    expect(r.source).toBe('held-course');
+    expect(r.deg).toBe(90);
+  });
+
+  it('labels a course fresh or held by age, but draws both as travel', () => {
+    const common = { speedMs: 5.5, courseDeg: 90, compassDeg: 270 };
+    expect(selectHeading(inputs({ ...common, courseAgeMs: COURSE_FRESH_MS - 1 })).source).toBe('course');
+    expect(selectHeading(inputs({ ...common, courseAgeMs: COURSE_FRESH_MS })).source).toBe('held-course');
+  });
+
+  it('gives up on travel and switches to facing once the hold window passes', () => {
+    // Signal genuinely lost: at this point a stale speed reading is no reason to keep
+    // claiming a direction of travel.
+    const r = selectHeading(inputs({
+      speedMs: 5.5,
+      courseDeg: 90,
+      courseAgeMs: HEADING_HOLD_MS,
+      compassDeg: 270,
+    }));
+    expect(r).toEqual({ source: 'compass', deg: 270 });
+  });
+
+  it('shows nothing when moving with a stale course and no compass', () => {
+    const r = selectHeading(inputs({ speedMs: 5.5, courseDeg: 90, courseAgeMs: HEADING_HOLD_MS }));
+    expect(r).toEqual({ source: 'none', deg: null });
   });
 
   it('shows nothing when no source is available', () => {
