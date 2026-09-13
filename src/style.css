@@ -77,14 +77,25 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   border: none !important;
 }
 
+/* Every part of this marker is centred on one point: the GPS fix, which Leaflet
+   puts at the divIcon's iconAnchor (8,8 of a 16x16 icon). Getting there takes
+   border-box plus an explicit centring transform, because the default content-box
+   made this 20px wide (16 + 2px border each side) and laid it out from the
+   container's top-left, which put the dot 2px down-right of the fix it marks.
+   Children are positioned against this element's padding box, so centring it is
+   also what lets the ring and arrowhead below share the same centre. */
 .blue-dot__inner {
-  width: 16px;
-  height: 16px;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   background-color: #4285F4;
   border: 2px solid white;
   border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  position: relative;
 }
 
 /* ── Heading indicator ─────────────────────────────────────────────────────────
@@ -102,20 +113,26 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   --heading-bezel: rgba(66, 133, 244, 0.22);
 }
 
+/* left/top 50% + translate(-50%,-50%) centres each part on the dot's centre
+   regardless of its own size. Hard-coded negative offsets were what drifted:
+   they had to be re-derived by hand whenever a width or a border changed, and
+   the bezel's 1.5px border alone put it half a pixel off the arc. */
 .blue-dot__bezel,
 .blue-dot__arc,
 .blue-dot__tipwrap {
   position: absolute;
+  left: 50%;
+  top: 50%;
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
 }
 
 .blue-dot__bezel {
+  box-sizing: border-box;
   width: 46px;
   height: 46px;
-  top: -17px;
-  left: -17px;
+  transform: translate(-50%, -50%);
   border: 1.5px solid var(--heading-bezel);
   border-radius: 50%;
 }
@@ -123,10 +140,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 /* Annulus rather than a filled wedge: the conic gradient paints a ~58° arc and the
    radial mask cuts the middle out, leaving the dot and its pulse unobscured. */
 .blue-dot__arc {
+  box-sizing: border-box;
   width: 46px;
   height: 46px;
-  top: -17px;
-  left: -17px;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
   background: conic-gradient(
     from calc(var(--heading-deg, 0deg) - 29deg),
@@ -140,17 +157,22 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 }
 
 /* Rotating the wrapper and offsetting the tip inside it puts the arrowhead on the ring
-   at any bearing, without a per-angle transform chain. */
+   at any bearing, without a per-angle transform chain. The wrapper is a zero-size box,
+   so its transform-origin is wherever the box sits — it must therefore be translated to
+   the dot's centre before it is rotated, or the arrowhead orbits a corner instead of
+   the marker. Order matters: translate first, then rotate. */
 .blue-dot__tipwrap {
-  top: 0;
-  left: 0;
-  transform: rotate(var(--heading-deg, 0deg));
+  width: 0;
+  height: 0;
+  transform: translate(-50%, -50%) rotate(var(--heading-deg, 0deg));
 }
 
+/* Measured from the dot's centre: the ring's outer edge is at 23px, so a base at -23
+   and an 8px-tall triangle put the arrowhead just outside the ring, touching it. */
 .blue-dot__tip {
   position: absolute;
   left: -5px;
-  top: -33px;
+  top: -31px;
   width: 0;
   height: 0;
   border-left: 5px solid transparent;
