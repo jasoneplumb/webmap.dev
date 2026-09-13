@@ -357,6 +357,10 @@ map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passi
 const tileLayers = getTileLayers();
 
 const SATELLITE_BASE_ID = 'satellite';
+// Named because two declarations below have to agree on it: the base map's own id, and
+// the Cycle blend overlay's redundantOverBases. They are the same layer style, so a typo
+// that decoupled them would silently restore the double fetch. (#305)
+const CYCLE_BASE_ID = 'cycle';
 
 // The Hillshade sun follows the base map rather than a rider setting: south-east
 // over Satellite, so the shading agrees with the real shadows baked into the
@@ -396,7 +400,7 @@ function syncToBase(baseId: string | null): void {
 
 const layerDefs: LayerDef[] = [
   {
-    id: 'cycle',
+    id: CYCLE_BASE_ID,
     name: 'Cycle',
     description: 'Bike routes & cycling map (OpenCycleMap)',
     tileLayer: tileLayers.cycleLayer,
@@ -455,6 +459,10 @@ const overlayDefs: OverlayDef[] = [
     name: 'Cycle blend',
     description: 'The Cycle base map composited over any base — lighter colors turn transparent',
     tileLayer: tileLayers.cycleBlendLayer,
+    // Over the Cycle base this overlay IS the base — identical tile URLs — so its
+    // multiply is self-multiplication, which the base now applies as a filter from a
+    // single fetch. See .self-multiply in style.css and #305.
+    redundantOverBases: [CYCLE_BASE_ID],
   },
   {
     id: 'hiking-routes',

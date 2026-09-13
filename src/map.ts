@@ -294,6 +294,12 @@ export function createMap(): L.Map {
     'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=' + tfKey,
     {
       attribution: tfAttribution,
+      // Same URL as cycleBlendLayer below — that overlay IS this style, and stacking it
+      // over this base multiplied the tiles by themselves, which is what gave the Cycle
+      // base its saturated look. .self-multiply reproduces that curve exactly from this
+      // one fetch; the layers control suppresses the overlay here so the two can't
+      // compound. See #305 and .self-multiply in style.css.
+      className: 'self-multiply',
       ...stdConfig,
     },
   );

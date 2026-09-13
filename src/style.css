@@ -20,6 +20,16 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .multiply-blend { mix-blend-mode: multiply; }
 .overlay-blend { mix-blend-mode: overlay; }
 
+/* Exact equivalent of compositing a layer over its OWN source with multiply: that is
+   just c x c, so a gamma-2.0 curve reproduces it from a single fetch. The Cycle base
+   keeps the richer, more saturated look it only had while the Cycle blend overlay was
+   duplicating it, and the layers control suppresses that now-redundant overlay over
+   this base so the stack can't compound to c^4. Filter lives in index.html. (#305)
+   Applied at the layer container, like the blend modes above, so every tile is
+   filtered as one surface and no seams appear between them — the failure mode that
+   made the per-tile blend of #168 dropout at max zoom. */
+.self-multiply { filter: url(#webmap-self-multiply); }
+
 /* Zoom wireframe (see tile-grid.ts). The raster layers hold their current level for
    the whole gesture and load the new one only once it settles, so this draws the
    target zoom's tile seams immediately — crisp structure over the stretched level.
@@ -1549,6 +1559,25 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   border-color: #ddd;
   cursor: default;
 }
+
+/* Badge on an overlay row whose effect the active base already produces (see
+   syncOverlayRowStates). Sits where the action buttons sit so the row keeps one
+   right-hand column. */
+.layers-option__note {
+  align-self: center;
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #777;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.layers-option--inactive { cursor: default; }
+.layers-option--inactive:hover { background-color: transparent; }
+.layers-option--inactive .layers-option__name,
+.layers-option--inactive .layers-option__desc { color: #bbb; }
 
 
 

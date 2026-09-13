@@ -48,6 +48,22 @@ export interface OverlayDef {
   // e.g. "Export reviews" on cue events. Enabled only while the overlay is
   // checked, same as the change-file button.
   rowAction?: { label: string; title: string; onClick: () => void };
+  // Base-map ids over which this overlay adds nothing, because it composites its own
+  // tile source against itself. Cycle blend over the Cycle base is the case: identical
+  // URLs, so the multiply is just gamma 2.0 and the base produces it with a filter from
+  // one fetch (see .self-multiply). Listing the base here makes the control skip the
+  // layer — a second fetch, cache entry and composite pass for pixels already on
+  // screen — without touching the row's persisted checked state, so switching to a base
+  // where the overlay does real work brings it straight back. (#305)
+  redundantOverBases?: string[];
+}
+
+/** Whether `overlay` would add nothing over the given base, so the control should keep
+ *  its checked state but leave the layer off the map. Pure — the membership rule lives
+ *  here rather than inline so it can be tested without a map or a DOM. */
+export function isOverlayRedundantOverBase(overlay: OverlayDef, baseId: string | null): boolean {
+  if (baseId === null) return false;
+  return overlay.redundantOverBases?.includes(baseId) ?? false;
 }
 
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
@@ -199,6 +215,10 @@ export class LayersControl extends L.Control {
 
     this.popoverEl.style.display = 'block';
     this.popoverOpen = true;
+
+    // Before measuring: the base may have changed while the popover was closed, and a
+    // redundancy note changes the row's width.
+    this.syncOverlayRowStates();
 
     // Position popover
     this.positionPopover();
@@ -361,6 +381,15 @@ export class LayersControl extends L.Control {
           label.appendChild(overlayDesc);
         }
 
+        // Filled in by syncOverlayRowStates while this overlay is redundant over the
+        // active base. An inert checkbox with no explanation reads as a bug, so the row
+        // says why it is off instead of just refusing to do anything.
+        const note = document.createElement('span');
+        note.className = 'layers-option__note';
+        note.dataset['overlayId'] = overlay.id;
+        note.hidden = true;
+        label.appendChild(note);
+
         const requestFilePick = overlay.requestFilePick;
         if (requestFilePick) {
           const changeBtn = document.createElement('button');
@@ -407,28 +436,39 @@ export class LayersControl extends L.Control {
   }
 
   private selectBaseMap(layer: LayerDef): void {
-    if (!this.map) return;
+    const map = this.map;
+    if (!map) return;
+
+    // Snapshot membership BEFORE the swap: only overlays that survive the switch need the
+    // restack below. Ones reconcileOverlays adds afterwards go on above the new base
+    // already, and re-adding them would pay a full tile teardown for nothing.
+    const wasOnMap = new Set(
+      this.overlays.filter((o) => map.hasLayer(o.tileLayer)).map((o) => o.id),
+    );
 
     // Remove old base map
     if (this.currentBase) {
-      this.map.removeLayer(this.currentBase.tileLayer);
+      map.removeLayer(this.currentBase.tileLayer);
     }
 
     // Add new base map
     this.currentBase = layer;
-    this.currentBase.tileLayer.addTo(this.map);
+    this.currentBase.tileLayer.addTo(map);
 
-    // Re-add active overlays so they render above the new base map. Grid overlays
-    // that declare a zIndex don't need it — their paint order is pinned, and skipping
-    // the remove/add spares them a full tile teardown and refetch on every base switch.
+    // Membership first — the new base can make a checked-but-redundant overlay relevant
+    // again, or make a visible one redundant.
+    this.reconcileOverlays();
+
+    // Then paint order: a surviving overlay kept the DOM position it held before the new
+    // base was inserted, so the ones without a declared zIndex need a remove/add to sit
+    // above it. Grid overlays that declare a zIndex don't — their order is pinned, and
+    // skipping the remove/add spares them a teardown and refetch on every base switch.
     for (const overlay of this.overlays) {
-      if (!this.activeOverlays.has(overlay.id) || !this.map.hasLayer(overlay.tileLayer)) continue;
-      if (overlay.zIndex !== undefined) {
-        this.applyOverlayZIndex(overlay);
-        continue;
-      }
+      if (overlay.zIndex !== undefined) continue;
+      if (!wasOnMap.has(overlay.id)) continue;
+      if (!map.hasLayer(overlay.tileLayer)) continue;
       overlay.tileLayer.remove();
-      overlay.tileLayer.addTo(this.map);
+      overlay.tileLayer.addTo(map);
     }
 
     // Persist selection
@@ -439,6 +479,9 @@ export class LayersControl extends L.Control {
     radios.forEach((r) => {
       (r as HTMLInputElement).checked = (r as HTMLInputElement).value === layer.id;
     });
+
+    // Which overlays are redundant changed with the base — refresh their rows.
+    this.syncOverlayRowStates();
 
     // Last: let a caller re-tune an overlay to the new base (the Hillshade sun
     // follows the imagery underneath it) once the map is in its final state.
@@ -457,6 +500,35 @@ export class LayersControl extends L.Control {
     const checkbox = this.popoverEl?.querySelector<HTMLInputElement>(`input[name="overlay-${id}"]`);
     if (checkbox) checkbox.checked = enabled;
     this.syncRowActionButtons(id, enabled);
+  }
+
+  /** Show redundancy in the popover rather than leaving a checkbox that does nothing:
+   *  the row is dimmed, annotated, and its checkbox disabled while the active base
+   *  already produces the overlay's effect. The PERSISTED checked state is deliberately
+   *  untouched — switching to a base where the overlay does real work restores it. */
+  private syncOverlayRowStates(): void {
+    const popover = this.popoverEl;
+    if (!popover) return;
+
+    for (const overlay of this.overlays) {
+      const redundant = isOverlayRedundantOverBase(overlay, this.activeBaseId);
+
+      const checkbox = popover.querySelector<HTMLInputElement>(
+        `input[name="overlay-${overlay.id}"]`,
+      );
+      if (checkbox) {
+        checkbox.disabled = redundant;
+        checkbox.closest('.layers-option')?.classList.toggle('layers-option--inactive', redundant);
+      }
+
+      const note = popover.querySelector<HTMLElement>(
+        `.layers-option__note[data-overlay-id="${overlay.id}"]`,
+      );
+      if (note) {
+        note.textContent = redundant ? 'Already in this base' : '';
+        note.hidden = !redundant;
+      }
+    }
   }
 
   // Change-file buttons and rowAction buttons follow the checkbox.
@@ -479,15 +551,43 @@ export class LayersControl extends L.Control {
 
     if (enabled) {
       this.activeOverlays.add(overlay.id);
-      overlay.tileLayer.addTo(this.map);
-      this.applyOverlayZIndex(overlay);
     } else {
       this.activeOverlays.delete(overlay.id);
-      this.map.removeLayer(overlay.tileLayer);
     }
+    this.reconcileOverlays();
 
-    // Persist selection
+    // Persist the user's intent, not what is on the map — a redundant overlay stays
+    // checked so it returns when the base changes.
     localStorage.setItem(OVERLAY_STORAGE_KEY, JSON.stringify(Array.from(this.activeOverlays)));
+  }
+
+  /**
+   * The single decision point for which overlays are on the map: checked by the user AND
+   * not redundant over the active base. Every path that can change the answer — the
+   * initial add, a checkbox, a base switch — routes through here instead of adding and
+   * removing on its own, so those paths cannot disagree about membership. #287 fixed
+   * exactly that class of disagreement for paint ORDER; this keeps it from reappearing
+   * for presence.
+   *
+   * Idempotent: it only touches a layer whose desired state differs from its current
+   * one, so re-running it never costs a tile teardown and refetch.
+   */
+  private reconcileOverlays(): void {
+    const map = this.map;
+    if (!map) return;
+
+    for (const overlay of this.overlays) {
+      const shouldShow = this.activeOverlays.has(overlay.id)
+        && !isOverlayRedundantOverBase(overlay, this.activeBaseId);
+      const onMap = map.hasLayer(overlay.tileLayer);
+
+      if (shouldShow && !onMap) {
+        overlay.tileLayer.addTo(map);
+      } else if (!shouldShow && onMap) {
+        map.removeLayer(overlay.tileLayer);
+      }
+      if (shouldShow) this.applyOverlayZIndex(overlay);
+    }
   }
 
   private applyCurrentLayers(): void {
@@ -498,13 +598,7 @@ export class LayersControl extends L.Control {
       this.currentBase.tileLayer.addTo(this.map);
     }
 
-    // Add active overlays
-    for (const overlay of this.overlays) {
-      if (this.activeOverlays.has(overlay.id)) {
-        overlay.tileLayer.addTo(this.map);
-        this.applyOverlayZIndex(overlay);
-      }
-    }
+    this.reconcileOverlays();
   }
 
   onRemove(): void {

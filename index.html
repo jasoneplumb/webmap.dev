@@ -57,6 +57,28 @@
 </head>
 <body>
   <div id="map"></div>
+
+  <!-- Gamma-2 curve for the Cycle base map (see .self-multiply in style.css).
+       feComponentTransfer with exponent 2 computes c^2 per channel, which is exactly
+       what mix-blend-mode: multiply produced back when the Cycle blend overlay
+       composited the Cycle base over its own source — the same pixels from one tile
+       fetch instead of two. (#305)
+       color-interpolation-filters="sRGB" is required, not decoration: filters default
+       to linearRGB, which would NOT match multiply's sRGB result. Alpha is left alone
+       (no feFuncA) — the curve belongs on color, and these tiles are opaque anyway.
+       Paints nothing itself (zero-size, no rendered content), so unlike #map it adds
+       no compositing layer at first paint. -->
+  <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true"
+       focusable="false" style="position:absolute">
+    <filter id="webmap-self-multiply" color-interpolation-filters="sRGB">
+      <feComponentTransfer>
+        <feFuncR type="gamma" exponent="2"/>
+        <feFuncG type="gamma" exponent="2"/>
+        <feFuncB type="gamma" exponent="2"/>
+      </feComponentTransfer>
+    </filter>
+  </svg>
+
   <!-- #offline-banner is created lazily by main.ts only when the app goes offline.
        Keeping it out of the static HTML avoids a position:fixed+transform compositing
        layer at first paint, which (with #map) contributed to the iOS-26 WKWebView
