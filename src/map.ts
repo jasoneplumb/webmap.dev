@@ -113,7 +113,11 @@ async function handleTileError(
     tileWarnCooldown = true;
     const msg = isOsmLayer
       ? 'Some map tiles aren\u2019t cached for this area \u2014 zoom out for cached coverage. (Safari limits offline cache to ~50\u00a0MB.)'
-      : 'Tiles unavailable offline \u2014 switch to Structures layer for offline coverage.';
+      // "Streets" has to match the label in the layers control (main.ts, id
+      // 'osm-streets'), or this sends the user looking for a layer that is not in the
+      // picker. It is also the right layer to name: osmStreetsLayer is the only one with
+      // the lower-zoom canvas fallback below. (#308)
+      : 'Tiles unavailable offline \u2014 switch to Streets layer for offline coverage.';
     showToast(msg, 7000);
     setTimeout(() => {
       tileWarnCooldown = false;
