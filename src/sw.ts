@@ -55,8 +55,11 @@ registerRoute(
 // manager's explicit delete removes entries (ADR-007). purgeOnQuotaError is also
 // deliberately absent — under quota pressure the passive caches purge first, and
 // saved regions are the last thing the user wants sacrificed.
+let regionCachePromise: Promise<Cache> | null = null;
+
 async function matchRegionTile(url: string): Promise<Response | undefined> {
-  const cache = await caches.open(REGION_TILE_CACHE_NAME);
+  if (!regionCachePromise) regionCachePromise = caches.open(REGION_TILE_CACHE_NAME);
+  const cache = await regionCachePromise;
   for (const variant of osmTileUrlVariants(url)) {
     const hit = await cache.match(variant);
     if (hit) return hit;

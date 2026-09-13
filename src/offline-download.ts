@@ -38,6 +38,15 @@ const CONCURRENT_FETCHES = 6; // max parallel tile fetches (browser limit per do
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 18;
 
+// Region names are auto-generated today, but the manifest lives in localStorage —
+// writable by anything on the origin — so treat names as data, not markup.
+function escapeHtml(s: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  };
+  return s.replace(/[&<>"']/g, (c) => map[c] ?? c);
+}
+
 function toRegionBounds(bounds: L.LatLngBounds): RegionBounds {
   return {
     south: bounds.getSouth(),
@@ -367,7 +376,8 @@ function buildPanel(
         ? 'Select at least one layer to save'
         : `~${tiles.toLocaleString()} tiles (${formatBytes(estimatedBytes)})`;
     }
-    if (startBtn) startBtn.disabled = layers.length === 0 && _downloadState === 'selecting';
+    // Only manage the button while selecting — mid-download it belongs to setUiState.
+    if (startBtn && _downloadState === 'selecting') startBtn.disabled = layers.length === 0;
     if (warningEl) {
       if (estimatedBytes > SAFARI_QUOTA_BYTES) {
         (warningEl as HTMLElement).textContent =
@@ -403,7 +413,7 @@ function buildPanel(
         const layerNames = r.layers.map((l) => REGION_LAYERS[l].label).join(', ');
         return (
           '<div class="offline-dl-regions__row">' +
-          `  <span class="offline-dl-regions__name">${r.name}` +
+          `  <span class="offline-dl-regions__name">${escapeHtml(r.name)}` +
           `    <small>${layerNames} &middot; z${r.zMin}&ndash;${r.zMax} &middot; ${formatBytes(r.bytes)}</small></span>` +
           `  <button class="offline-dl-regions__delete" data-region-id="${r.id}">Delete</button>` +
           '</div>'
@@ -538,6 +548,13 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
   const progressEl = panel.querySelector('#offline-dl-progress') as HTMLElement | null;
   const zminInput = panel.querySelector('#offline-dl-zmin') as HTMLInputElement | null;
   const zmaxInput = panel.querySelector('#offline-dl-zmax') as HTMLInputElement | null;
+  // The layer checkboxes freeze with the sliders — the selection is part of the
+  // in-flight download's definition.
+  const setLayerBoxes = (disabled: boolean): void => {
+    panel.querySelectorAll<HTMLInputElement>('.offline-dl-layers input').forEach((box) => {
+      box.disabled = disabled;
+    });
+  };
 
   switch (state) {
     case 'selecting':
@@ -546,6 +563,7 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       if (progressEl) progressEl.style.display = 'none';
       if (zminInput) zminInput.disabled = false;
       if (zmaxInput) zmaxInput.disabled = false;
+      setLayerBoxes(false);
       break;
     case 'downloading':
       if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'Downloading...'; }
@@ -553,12 +571,14 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       if (progressEl) progressEl.style.display = 'flex';
       if (zminInput) zminInput.disabled = true;
       if (zmaxInput) zmaxInput.disabled = true;
+      setLayerBoxes(true);
       break;
     case 'done':
       if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'Done'; }
       if (cancelBtn) cancelBtn.textContent = 'Close';
       if (zminInput) zminInput.disabled = true;
       if (zmaxInput) zmaxInput.disabled = true;
+      setLayerBoxes(true);
       break;
   }
 }
@@ -590,20 +610,23 @@ async function startDownload(
     if (textEl) textEl.textContent = `${pct}% (${p.done}/${p.total})`;
   });
 
-  if (!_panelEl) return; // panel was closed during download
-
+  // Record coverage BEFORE any panel guard, and even for an aborted download:
+  // every tile already written lives in the eviction-exempt region cache, so it
+  // must appear in the region manager to stay deletable. Skipping the manifest
+  // here would orphan those tiles with no reclamation path at all — region-tiles
+  // has no ExpirationPlugin by design (ADR-007).
   const aborted = result.done < result.total;
-  if (!aborted) {
-    // Record the region so the SW keeps serving it, the layers popover can badge
-    // coverage, and the manager can delete it. Failed tiles are missing coverage,
-    // not a failed region — re-running the same download skips what's cached.
+  const newlyFetched = result.done - result.failed - result.cached;
+  if (!aborted || newlyFetched > 0) {
+    // Failed tiles are missing coverage, not a failed region — re-running the
+    // same download skips what's cached and fills the gaps.
     const existing = loadRegions();
     const succeeded = result.done - result.failed;
     const estimates = estimateLayers(layers, regionBounds, zMin, zMax);
     const avgBytes = estimates.reduce((sum, e) => sum + e.bytes, 0) / Math.max(1, result.total);
     const region: SavedRegion = {
       id: `region-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-      name: nextRegionName(existing),
+      name: nextRegionName(existing) + (aborted ? ' (partial)' : ''),
       bounds: regionBounds,
       zMin,
       zMax,
@@ -614,6 +637,8 @@ async function startDownload(
     };
     addRegion(region);
   }
+
+  if (!_panelEl) return; // panel was closed during download
 
   setUiState(_panelEl, 'done');
 
