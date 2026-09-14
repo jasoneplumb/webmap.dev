@@ -3,7 +3,8 @@
   "version": "0.50.0",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run && bash scripts/test-deploy-webmap.sh",
+    "test:deploy-script": "bash scripts/test-deploy-webmap.sh",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

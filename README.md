@@ -163,6 +163,7 @@ src/
 infrastructure/
   nginx/
     www.webmap.dev.conf  # HSTS, SPA fallback, asset caching, gzip, security headers
+                         # (applied automatically by the deploy — never edit on the host)
 
 docs/
   architecture.md      # Architectural deep-dive
@@ -172,7 +173,11 @@ docs/
   adr/                 # Architecture Decision Records (ADR-001 … ADR-006)
   images/              # Screenshots used in this README
 
-scripts/                # generate-og-image.mjs, generate-maskable-icons.mjs, capture-screenshots.mjs
+scripts/
+  deploy-webmap.sh      # runs on the host: extract content, apply nginx conf, verify, roll back
+  test-deploy-webmap.sh # end-to-end tests for deploy-webmap.sh (part of `npm test`)
+  ssh-retry.sh          # SSH/SCP retry wrapper with backoff
+  generate-og-image.mjs, generate-maskable-icons.mjs, capture-screenshots.mjs
 vite.config.ts          # PWA manifest + Workbox runtime caching
 package.json            # Dependencies, scripts, version, size-limit budget
 CLAUDE.md               # Project conventions for AI-assisted development
