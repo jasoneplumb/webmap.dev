@@ -128,8 +128,8 @@ if [ -f "$WEB_ROOT/index.html" ]; then
 fi
 
 rm -rf "${WEB_ROOT:?}"/*
-tar -xzf - -C "$WEB_ROOT"
-chown -R www-data:www-data "$WEB_ROOT"
+tar -xzf - -C "$WEB_ROOT" || fail_and_rollback "could not extract the deployment tarball"
+chown -R www-data:www-data "$WEB_ROOT" || fail_and_rollback "could not chown the web root"
 
 echo "Extraction complete!"
 
@@ -168,11 +168,13 @@ else
     NGINX_CONF_BACKUP="none"
   fi
 
-  $SUDO install -o root -g root -m 0644 "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
+  $SUDO install -o root -g root -m 0644 "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" \
+    || fail_and_rollback "could not install the nginx conf (missing sudoers entry?)"
 
   # Idempotent enable: ln -sfn replaces a stale symlink without nesting one
   # inside a directory the way `ln -s` into an existing symlink-to-dir would.
-  $SUDO ln -sfn "$NGINX_AVAILABLE" "$NGINX_ENABLED"
+  $SUDO ln -sfn "$NGINX_AVAILABLE" "$NGINX_ENABLED" \
+    || fail_and_rollback "could not enable the nginx conf symlink"
 
   if ! $SUDO "$NGINX_BIN" -t </dev/null; then
     echo "ERROR: new nginx conf failed validation — nginx was NOT reloaded."

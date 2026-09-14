@@ -260,6 +260,29 @@ test_missing_conf_source_deploys_content_only() {
   rm -rf "$root"
 }
 
+test_install_failure_rolls_back_content() {
+  echo "a failed conf install (e.g. missing sudoers rule) rolls back the content"
+  setup; local root="$ROOT"
+  printf 'server { listen 80; }\n' >"$root/incoming.conf"
+  # Simulate `sudo -n install` being denied by sudoers.
+  cat >"$root/bin/install" <<'EOF'
+#!/usr/bin/env bash
+echo "install $*" >> "$STUB_LOG"
+echo "sudo: a password is required" >&2
+exit 1
+EOF
+  chmod +x "$root/bin/install"
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  check "$rc" 1 "deploy fails"
+  check_contains "$out" "missing sudoers entry" "cause is reported"
+  check_not_contains "$(cat "$STUB_LOG")" "systemctl reload" "nginx was never reloaded"
+  check "$(cat "$root/var/www/webmap/web/index.html")" \
+        '<html><script type="module" src="/old.js"></script></html>' "content rolled back"
+  rm -rf "$root"
+}
+
 test_repo_conf_is_the_one_that_ships() {
   echo "the conf shipped is the repo's canonical conf"
   local conf="$REPO_ROOT/infrastructure/nginx/www.webmap.dev.conf"
@@ -277,6 +300,7 @@ test_invalid_conf_is_never_activated
 test_preflight_blocks_on_already_broken_host
 test_health_check_failure_rolls_back_conf_and_content
 test_missing_conf_source_deploys_content_only
+test_install_failure_rolls_back_content
 test_repo_conf_is_the_one_that_ships
 
 echo
