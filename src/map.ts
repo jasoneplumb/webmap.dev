@@ -153,15 +153,19 @@ async function handleTileError(
   }
 
   const tile = e.tile;
+  // Deliberately not gated on osmCachePromise: a saved region can satisfy this fallback on
+  // its own, and bailing when only the passive cache failed to open would make the
+  // region lookup below dead code in exactly the case it exists for. tileCaches.length is
+  // the real gate.
   if (!isOsmLayer || !(tile instanceof HTMLImageElement) || navigator.onLine ||
-      osmCachePromise === null || tile.src.startsWith('data:')) return;
+      tile.src.startsWith('data:')) return;
   const coords = e.coords;
   // A cache that failed to open resolves null (see initOfflineTileFallback) — drop it and
   // keep searching the others rather than abandoning the fallback.
   const tileCaches = (
     await Promise.all([
       regionCachePromise ?? Promise.resolve(null),
-      osmCachePromise,
+      osmCachePromise ?? Promise.resolve(null),
     ])
   ).filter((c): c is Cache => c !== null);
   if (tileCaches.length === 0) return;
