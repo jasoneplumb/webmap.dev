@@ -228,6 +228,12 @@ function isSavedRegion(value: unknown): value is SavedRegion {
     typeof r['zMax'] === 'number' &&
     Array.isArray(r['layers']) &&
     r['layers'].every((l) => typeof l === 'string' && l in REGION_LAYERS) &&
+    // The numeric display fields are validated too: a hand-edited or schema-drifted entry
+    // with a non-numeric bytes renders as "NaN MB" in the manager rather than being
+    // dropped like every other malformed row. Finite, not merely number — NaN is a number.
+    Number.isFinite(r['tileCount']) &&
+    Number.isFinite(r['bytes']) &&
+    Number.isFinite(r['createdAt']) &&
     isRegionBounds(r['bounds'])
   );
 }

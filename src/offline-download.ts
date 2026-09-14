@@ -296,6 +296,10 @@ function createSelectionRect(
 type DownloadState = 'selecting' | 'downloading' | 'done';
 
 let _panelEl: HTMLElement | null = null;
+/** The live panel's updateEstimate. setUiState is module-level and cannot see that
+ *  closure, but every return to the selecting state has to recompute whether Download is
+ *  usable — the answer depends on the current selection, not on the state transition. */
+let _refreshEstimate: (() => void) | null = null;
 // The control that opens the panel. Module-level rather than closure-held because
 // openOfflineDownloadPanel/closePanel are module functions and also reachable from
 // other entry points — they mark the control blue for as long as the panel is up (#289).
@@ -395,7 +399,6 @@ function buildPanel(
     // longitudes and cannot be expressed as one tile range. Say so and disable the
     // download rather than quietly fetching the wrong thing (or the whole world).
     const wrapped = crossesAntimeridian(bounds);
-    startBtn.disabled = wrapped || layers.length === 0;
 
     const estimates = estimateLayers(layers, bounds, zMin, zMax);
     const tiles = estimates.reduce((sum, e) => sum + e.tiles, 0);
@@ -410,7 +413,12 @@ function buildPanel(
           : `~${tiles.toLocaleString()} tiles (${formatBytes(estimatedBytes)})`;
     }
     // Only manage the button while selecting — mid-download it belongs to setUiState.
-    if (startBtn && _downloadState === 'selecting') startBtn.disabled = layers.length === 0;
+    // This is the single writer for the selecting state: an earlier assignment here was
+    // overwritten by this line within the same call, so a wrapped selection showed its
+    // warning next to a live Download button.
+    if (startBtn && _downloadState === 'selecting') {
+      startBtn.disabled = wrapped || layers.length === 0;
+    }
     if (warningEl) {
       if (estimatedBytes > SAFARI_QUOTA_BYTES) {
         (warningEl as HTMLElement).textContent =
@@ -554,6 +562,8 @@ function buildPanel(
     updateEstimate();
   });
 
+  _refreshEstimate = updateEstimate;
+
   // Initial estimate + saved-regions list + storage line
   setTimeout(() => {
     updateEstimate();
@@ -617,7 +627,12 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
 
   switch (state) {
     case 'selecting':
-      if (startBtn) { startBtn.disabled = false; startBtn.textContent = 'Download'; }
+      // Text only: whether the button is usable depends on the current selection, and
+      // updateEstimate owns that. Forcing it enabled here re-armed Download for exactly
+      // the selection startDownload had just refused; leaving it untouched would strand
+      // it disabled after a cancel. So ask the one writer instead.
+      if (startBtn) startBtn.textContent = 'Download';
+      _refreshEstimate?.();
       if (cancelBtn) cancelBtn.textContent = 'Cancel';
       if (progressEl) progressEl.style.display = 'none';
       if (zminInput) zminInput.disabled = false;
@@ -749,6 +764,9 @@ function closePanel(map: L.Map): void {
     _panelEl = null;
   }
   _controlEl?.classList.remove(CONTROL_ACTIVE_CLASS);
+  // The closure belongs to the panel that just went away; holding it would let a later
+  // setUiState call into a dead DOM.
+  _refreshEstimate = null;
   _selectedBounds = null;
   _downloadState = 'selecting';
   // Keep cached overlay visible after close — intentional so user can see what's cached

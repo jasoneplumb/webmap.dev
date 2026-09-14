@@ -294,4 +294,14 @@ describe('region manifest', () => {
       expect(isCoveredBySavedRegion(inner, ['streets'], 9, 14)).toBe(false);
     });
   });
+
+  it('drops a manifest entry whose numeric display fields are not numbers', () => {
+    // Hand-edited localStorage or a schema drift: a non-numeric bytes used to survive
+    // validation and render as "NaN MB" in the saved-regions list.
+    const good = makeRegion({ name: 'Keep' });
+    const bad = { ...makeRegion({ name: 'Drop' }), bytes: 'lots' };
+    localStorage.setItem('webmap-offline-regions', JSON.stringify([good, bad]));
+    const loaded = loadRegions();
+    expect(loaded.map((r) => r.name)).toEqual(['Keep']);
+  });
 });
