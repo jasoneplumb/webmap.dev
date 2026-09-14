@@ -8,17 +8,13 @@
  * would make a stationary compass heading update once a second, which reads as broken.
  */
 import type { AppState } from './types';
-import { selectHeading, smoothHeadingDeg } from './heading';
+import {
+  HEADING_EASE_PER_SEC,
+  HEADING_MAX_FRAME_S,
+  selectHeading,
+  smoothHeadingDeg,
+} from './heading';
 
-/**
- * Fraction of the remaining arc closed per second. At 60 Hz this eases visibly without
- * lagging a real turn; at the 1 Hz of a fix-only update it clamps to a direct jump, which
- * is what the pre-compass indicator already did.
- */
-const EASE_PER_SEC = 6;
-
-/** Longest frame the easing will integrate, so a backgrounded tab does not resume mid-sweep. */
-const MAX_FRAME_S = 0.25;
 
 let lastUpdateMs: number | null = null;
 let rafHandle: number | null = null;
@@ -67,8 +63,8 @@ export function updateHeadingIndicator(state: AppState, nowMs: number = performa
     // spin the ring in from north on the very first fix.
     state.shownHeadingDeg = choice.deg;
   } else {
-    const dtS = Math.min(MAX_FRAME_S, Math.max(0, (nowMs - lastUpdateMs) / 1000));
-    state.shownHeadingDeg = smoothHeadingDeg(state.shownHeadingDeg, choice.deg, dtS * EASE_PER_SEC);
+    const dtS = Math.min(HEADING_MAX_FRAME_S, Math.max(0, (nowMs - lastUpdateMs) / 1000));
+    state.shownHeadingDeg = smoothHeadingDeg(state.shownHeadingDeg, choice.deg, dtS * HEADING_EASE_PER_SEC);
   }
   lastUpdateMs = nowMs;
 

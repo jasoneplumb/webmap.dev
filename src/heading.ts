@@ -31,6 +31,25 @@ export const HEADING_HOLD_MS = 10_000;
  */
 export const COURSE_FRESH_MS = 1_500;
 
+/**
+ * Fraction of the remaining arc the DRAWN heading closes per second.
+ *
+ * Per second, not per event: orientation delivery runs anywhere from ~10 Hz to ~60 Hz
+ * depending on device and OS, so a fixed per-event fraction has no fixed time constant.
+ * At 60 Hz a 0.25-per-event filter leaves 3e-08 of the error after a second — it tracks
+ * raw magnetometer noise and reads as a shiver; at 10 Hz the same constant is a visible
+ * lag. Scaling by elapsed time makes the response a property of the signal rather than
+ * of the handset.
+ *
+ * Shared by the position marker and the compass rose deliberately. They draw different
+ * headings — travel versus device facing — but they should settle at the same speed, and
+ * two constants would drift apart the first time one was tuned.
+ */
+export const HEADING_EASE_PER_SEC = 6;
+
+/** Longest frame the easing will integrate, so a backgrounded tab does not resume mid-sweep. */
+export const HEADING_MAX_FRAME_S = 0.25;
+
 export type HeadingSource = 'course' | 'compass' | 'held-course' | 'none';
 
 export interface HeadingInputs {
@@ -128,4 +147,20 @@ export function smoothHeadingDeg(current: number, target: number, factor: number
  */
 export function unwrapHeadingDeg(previousUnwrapped: number, target: number): number {
   return previousUnwrapped + shortestArcDeg(normalizeDeg(previousUnwrapped), normalizeDeg(target));
+}
+
+/**
+ * Ease a continuously-unwrapped angle toward a target by `factor` of the shortest arc,
+ * without normalizing the result.
+ *
+ * smoothHeadingDeg normalizes, which is right for a value compared against other headings
+ * and wrong for one handed to CSS: `transition: transform` interpolates the raw number, so
+ * a normalized angle reintroduces the full-turn spin at north that unwrapHeadingDeg exists
+ * to prevent. This is the easing and the unwrapping in one step, so no caller has to keep
+ * a shadow copy of the pre-normalized value to undo the normalization afterwards.
+ */
+export function easeUnwrappedDeg(currentUnwrapped: number, target: number, factor: number): number {
+  const k = Math.max(0, Math.min(1, factor));
+  return currentUnwrapped
+    + shortestArcDeg(normalizeDeg(currentUnwrapped), normalizeDeg(target)) * k;
 }
