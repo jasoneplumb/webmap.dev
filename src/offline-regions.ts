@@ -313,6 +313,10 @@ export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): Save
     ? existing.name.slice(0, -PARTIAL_SUFFIX.length)
     : existing.name;
   return {
+    // Keeping existing's raw zMin/zMax is safe because isSameFootprint has already checked
+    // that it clamps to the same per-layer range as incoming's, for every layer either side
+    // carries — including a layer only incoming brings. So the kept range still describes
+    // the newly-merged layer's fetched tiles when deleteRegion recomputes URLs from it.
     ...existing,
     name: partial ? base + PARTIAL_SUFFIX : base,
     layers,

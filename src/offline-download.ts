@@ -480,6 +480,10 @@ function buildPanel(
         const id = btn.dataset['regionId'];
         const region = regions.find((r) => r.id === id);
         if (!id || !region) return;
+        // region.name goes in unescaped on purpose: showConfirmDialog writes it with
+        // textContent, not innerHTML. The list row above needs escapeHtml because it
+        // builds markup as a string — both are safe, for different reasons.
+        //
         // Confirm first. Deletion is irreversible — region-tiles has no expiry and no
         // other reclamation path (ADR-007), so the only way back is downloading the whole
         // region again, which needs a connection the user may not have. It can also reach
