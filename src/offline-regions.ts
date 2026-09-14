@@ -287,11 +287,11 @@ export function nextRegionName(existing: SavedRegion[]): string {
  *  `id` and `createdAt` stay on the original — the coverage was created then, and the id is
  *  the handle the manager's Delete button already carries.
  *
- *  `bytes`/`tileCount` take the maximum rather than the newer value. Both estimate one
- *  footprint and the cache holds the union of the two runs, so the larger is the honest
- *  "at least this much is held": an aborted re-run of an already-complete region reports
- *  fewer succeeded tiles than the region still holds, and writing that in would shrink the
- *  row for a download that removed nothing.
+ *  `bytes`/`tileCount` depend on whether the merge changes the layer set. Same layers: take
+ *  the maximum, since both totals count the same tiles and the larger is the honest "at
+ *  least this much is held". Different layers: the totals count different tiles, so they are
+ *  apportioned per layer and recombined (see combineSizeByLayer) — comparing them would drop
+ *  a whole layer's estimate from the row.
  *
  *  The "(partial)" marker is recomputed per layer rather than carried over, because a merge
  *  can now add layers. A layer both runs covered is complete once either run finished; a
@@ -305,6 +305,47 @@ export function nextRegionName(existing: SavedRegion[]): string {
  *  all of them can. That errs towards reporting a complete region as partial, never the
  *  reverse — the direction that cannot send someone offline on coverage they do not have.
  *  Per-layer completeness would need a manifest schema change and a migration. */
+function sameLayerSet(a: RegionLayerId[], b: RegionLayerId[]): boolean {
+  return a.length === b.length && a.every((l) => b.includes(l));
+}
+
+/** Split a row's recorded totals back across the layers it carries, in proportion to what a
+ *  full download of each would weigh.
+ *
+ *  The manifest stores one bytes/tileCount per row, not per layer, so a merge that adds a
+ *  layer has no per-layer figure to add to. startDownload spreads a run's succeeded-tile
+ *  count evenly across the layers it fetched (its avgBytes); this reverses that, assuming
+ *  the same uniform completion, which is the most the stored fields can support. */
+function perLayerShare(r: SavedRegion): Map<RegionLayerId, { tiles: number; bytes: number }> {
+  const full = estimateLayers(r.layers, r.bounds, r.zMin, r.zMax);
+  const fullTiles = full.reduce((sum, e) => sum + e.tiles, 0);
+  // Clamped: a row whose stored count drifted above what the footprint can hold must not
+  // inflate the share past a complete download.
+  const ratio = fullTiles > 0 ? Math.min(1, r.tileCount / fullTiles) : 0;
+  return new Map(full.map((e) => [e.layer, { tiles: e.tiles * ratio, bytes: e.bytes * ratio }]));
+}
+
+/** Per-layer maximum, summed over the union — for merges whose layer sets differ.
+ *
+ *  A layer both rows carry describes the same tiles either side, so the fuller side wins.
+ *  A layer only one row carries is additional coverage and has to be added; the absent
+ *  side contributes zero, which is what makes one Math.max cover both cases. */
+function combineSizeByLayer(
+  existing: SavedRegion,
+  incoming: SavedRegion,
+  layers: RegionLayerId[],
+): { tileCount: number; bytes: number } {
+  const a = perLayerShare(existing);
+  const b = perLayerShare(incoming);
+  let tiles = 0;
+  let bytes = 0;
+  for (const l of layers) {
+    tiles += Math.max(a.get(l)?.tiles ?? 0, b.get(l)?.tiles ?? 0);
+    bytes += Math.max(a.get(l)?.bytes ?? 0, b.get(l)?.bytes ?? 0);
+  }
+  return { tileCount: Math.round(tiles), bytes: Math.round(bytes) };
+}
+
 export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): SavedRegion {
   const existingPartial = existing.name.endsWith(PARTIAL_SUFFIX);
   const incomingPartial = incoming.name.endsWith(PARTIAL_SUFFIX);
@@ -316,6 +357,21 @@ export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): Save
     return inExisting ? existingPartial : incomingPartial;
   });
   const base = stripPartial(existing.name);
+  const size = sameLayerSet(existing.layers, incoming.layers)
+    // The same layers over the same footprint: both totals count the same tiles, so the
+    // larger is the honest "at least this much is held". An aborted re-run of an
+    // already-complete region reports fewer succeeded tiles than the region still holds,
+    // and writing that in would shrink the row for a download that removed nothing.
+    ? {
+      tileCount: Math.max(existing.tileCount, incoming.tileCount),
+      bytes: Math.max(existing.bytes, incoming.bytes),
+    }
+    // Different layer sets: the totals count different tiles and cannot be compared. Taking
+    // the larger would drop the smaller side's layers from the figure altogether — save
+    // Streets (~1.5 MB), then save Hillshade (~5 MB) over the same rectangle, and the row
+    // would read 5 MB rather than 6.5 MB. The delete confirmation quotes this number as its
+    // safety signal, so it must not under-report what deletion frees.
+    : combineSizeByLayer(existing, incoming, layers);
   return {
     // Keeping existing's raw zMin/zMax is safe because isSameFootprint has already checked
     // that it clamps to the same per-layer range as incoming's, for every layer either side
@@ -324,8 +380,7 @@ export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): Save
     ...existing,
     name: partial ? base + PARTIAL_SUFFIX : base,
     layers,
-    tileCount: Math.max(existing.tileCount, incoming.tileCount),
-    bytes: Math.max(existing.bytes, incoming.bytes),
+    ...size,
   };
 }
 

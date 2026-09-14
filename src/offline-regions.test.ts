@@ -533,6 +533,50 @@ describe('coverage comparison', () => {
     });
   });
 
+  it('adds the estimates when a merge brings a new layer instead of comparing them', () => {
+    // Save Streets, then come back and save Hillshade alone over the same rectangle — the
+    // natural way to add a layer, since there is no reason to re-check Streets. The two
+    // totals count different tiles, so taking the larger would quietly drop the streets
+    // estimate and the delete confirmation would quote less than it actually frees.
+    const [streets] = estimateLayers(['streets'], YOSEMITE, 12, 14);
+    const [hillshade] = estimateLayers(['hillshade'], YOSEMITE, 12, 14);
+    const merged = mergeRegions(
+      makeRegion({ layers: ['streets'], tileCount: streets!.tiles, bytes: streets!.bytes }),
+      makeRegion({ layers: ['hillshade'], tileCount: hillshade!.tiles, bytes: hillshade!.bytes }),
+    );
+    expect(merged.layers).toEqual(['streets', 'hillshade']);
+    expect(merged.tileCount).toBe(streets!.tiles + hillshade!.tiles);
+    expect(merged.bytes).toBe(streets!.bytes + hillshade!.bytes);
+    // Strictly more than either side alone — taking the max was the bug.
+    expect(merged.bytes).toBeGreaterThan(Math.max(streets!.bytes, hillshade!.bytes));
+  });
+
+  it('scales an added layer\u2019s contribution by how much of it landed', () => {
+    const [streets] = estimateLayers(['streets'], YOSEMITE, 12, 14);
+    const [hillshade] = estimateLayers(['hillshade'], YOSEMITE, 12, 14);
+    const merged = mergeRegions(
+      makeRegion({ layers: ['streets'], tileCount: streets!.tiles, bytes: streets!.bytes }),
+      // Half the hillshade tiles landed before the run was stopped.
+      makeRegion({
+        name: 'Region 2' + PARTIAL_SUFFIX,
+        layers: ['hillshade'],
+        tileCount: Math.floor(hillshade!.tiles / 2),
+        bytes: Math.round(hillshade!.bytes / 2),
+      }),
+    );
+    expect(merged.bytes).toBeGreaterThan(streets!.bytes);
+    expect(merged.bytes).toBeLessThan(streets!.bytes + hillshade!.bytes);
+  });
+
+  it('still compares rather than adds when the layer sets match', () => {
+    // Both totals count the same tiles here, so summing would double the row.
+    const merged = mergeRegions(
+      makeRegion({ layers: ['streets'], tileCount: 100, bytes: 1_500_000 }),
+      makeRegion({ layers: ['streets'], tileCount: 100, bytes: 1_500_000 }),
+    );
+    expect(merged).toMatchObject({ tileCount: 100, bytes: 1_500_000 });
+  });
+
   it('mergeRegions unions the layer sets', () => {
     const merged = mergeRegions(
       makeRegion({ layers: ['hillshade'] }),

@@ -499,6 +499,9 @@ function buildPanel(
           confirmLabel: 'Delete',
           destructive: true,
         }).then((confirmed) => {
+          // No _downloadState check on the confirm path, unlike the cancel path below: the
+          // dialog overlay covers the panel while it is open and renderRegions never runs
+          // mid-download, so a download cannot start behind an open confirm.
           if (!confirmed) {
             // Re-arm — unless a download started behind the dialog, which freezes deletion
             // for its duration (see setUiState).
