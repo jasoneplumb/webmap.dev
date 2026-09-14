@@ -94,15 +94,18 @@ The residual risk is a config that passes `nginx -t` but is semantically wrong. 
 The deploy runs the privileged steps as root directly if the SSH user is root; otherwise it uses `sudo -n` (non-interactive, so a missing rule fails fast instead of hanging on a password prompt). For a non-root deploy user, grant a **tightly scoped** sudoers entry — never broad sudo:
 
 ```sudoers
-# /etc/sudoers.d/webmap-deploy  (mode 0440, validate with `visudo -c -f`)
-deploy ALL=(root) NOPASSWD: /usr/sbin/nginx -t, \
-                            /usr/bin/systemctl reload nginx, \
-                            /usr/bin/install -o root -g root -m 0644 /tmp/www.webmap.dev.conf /etc/nginx/sites-available/www.webmap.dev.conf, \
-                            /bin/ln -sfn /etc/nginx/sites-available/www.webmap.dev.conf /etc/nginx/sites-enabled/www.webmap.dev.conf, \
-                            /bin/cp /etc/nginx/sites-available/www.webmap.dev.conf /tmp/webmap-nginx-backup-*.conf, \
-                            /bin/cp /tmp/webmap-nginx-backup-*.conf /etc/nginx/sites-available/www.webmap.dev.conf, \
-                            /bin/rm -f /etc/nginx/sites-enabled/www.webmap.dev.conf /etc/nginx/sites-available/www.webmap.dev.conf
+# /etc/sudoers.d/webmap-deploy  (mode 0440, validate with `visudo -c -f <file>`)
+Cmnd_Alias WEBMAP_NGINX = /usr/sbin/nginx -t, \
+                          /usr/bin/systemctl reload nginx, \
+                          /usr/bin/install -o root -g root -m 0644 /tmp/www.webmap.dev.conf /etc/nginx/sites-available/www.webmap.dev.conf, \
+                          /usr/bin/install -o root -g root -m 0644 /tmp/webmap-nginx-backup-*.conf /etc/nginx/sites-available/www.webmap.dev.conf, \
+                          /usr/bin/ln -sfn /etc/nginx/sites-available/www.webmap.dev.conf /etc/nginx/sites-enabled/www.webmap.dev.conf, \
+                          /usr/bin/rm -f /etc/nginx/sites-enabled/www.webmap.dev.conf /etc/nginx/sites-available/www.webmap.dev.conf
+
+deploy ALL=(root) NOPASSWD: WEBMAP_NGINX
 ```
+
+Every rule pins its exact arguments, so the grant is "manage *this* vhost's conf and reload nginx" — not arbitrary file writes. Backing up the current conf needs no rule: it is mode 0644 in a world-traversable directory, so the deploy user reads it directly.
 
 Adjust binary paths to the host (`command -v nginx systemctl install ln cp rm`). `NGINX_BIN` and `SYSTEMCTL_BIN` can be overridden via the environment if they live elsewhere.
 

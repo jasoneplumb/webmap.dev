@@ -71,7 +71,7 @@ rollback_nginx_conf() {
     $SUDO rm -f "$NGINX_ENABLED" "$NGINX_AVAILABLE"
   else
     echo "Restoring previous nginx conf from: $NGINX_CONF_BACKUP"
-    $SUDO cp "$NGINX_CONF_BACKUP" "$NGINX_AVAILABLE"
+    $SUDO install -o root -g root -m 0644 "$NGINX_CONF_BACKUP" "$NGINX_AVAILABLE"
   fi
 
   # Never reload a config that does not validate — that would take down every
@@ -158,7 +158,9 @@ else
   echo "Applying nginx config from repo..."
 
   if [ -f "$NGINX_AVAILABLE" ]; then
-    if $SUDO cp "$NGINX_AVAILABLE" "$BACKUP_DIR/webmap-nginx-backup-$BACKUP_TS.conf"; then
+    # No sudo: the conf is 0644 in a world-traversable dir, so the deploy user
+    # can read it. Keeps the sudoers surface to writes and the reload.
+    if cp "$NGINX_AVAILABLE" "$BACKUP_DIR/webmap-nginx-backup-$BACKUP_TS.conf"; then
       NGINX_CONF_BACKUP="$BACKUP_DIR/webmap-nginx-backup-$BACKUP_TS.conf"
       echo "Backed up current nginx conf to $NGINX_CONF_BACKUP"
     else
