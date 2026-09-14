@@ -39,7 +39,7 @@
     "workbox-routing": "^7.4.0",
     "workbox-strategies": "^7.4.0"
   },
-  "comment:overrides": "@babel/core reaches us only through vite-plugin-pwa -> workbox-build, which pins a range that resolves to 7.29.0 — the last version affected by GHSA-4x5r-pxfx-6jf8 (arbitrary file read via sourceMappingURL). Build-time only and not in any shipped bundle, but the override costs nothing. Remove it once workbox-build resolves past 7.29.0 on its own.",
+  "comment:overrides": "GHSA-4x5r-pxfx-6jf8 via vite-plugin-pwa -> workbox-build; drop when it resolves past 7.29.0 (see issue #320)",
   "overrides": {
     "@babel/core": "^7.29.7"
   },
