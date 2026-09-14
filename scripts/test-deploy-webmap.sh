@@ -28,6 +28,7 @@ make_stubs() {
   cat >"$bin/sudo" <<'EOF'
 #!/usr/bin/env bash
 while [ "${1:-}" = "-n" ]; do shift; done
+export SUDO_STUB=1
 exec "$@"
 EOF
 
@@ -50,9 +51,16 @@ EOF
 
   # chown/install can't set root ownership in a test sandbox — keep the file
   # copy semantics, drop the ownership flags.
+  # chown to a *different* user needs root. The stub refuses unless it was
+  # invoked through sudo (the sudo stub exports SUDO_STUB=1), so dropping the
+  # $SUDO prefix in deploy-webmap.sh fails the suite instead of passing silently.
   cat >"$bin/chown" <<'EOF'
 #!/usr/bin/env bash
 echo "chown $*" >> "$STUB_LOG"
+if [ "${SUDO_STUB:-0}" != "1" ]; then
+  echo "chown: changing ownership: Operation not permitted" >&2
+  exit 1
+fi
 exit 0
 EOF
 
@@ -77,6 +85,11 @@ echo "curl $*" >> "$STUB_LOG"
 exit 0
 EOF
 
+  cat >"$bin/true" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+
   chmod +x "$bin"/*
 }
 
@@ -87,6 +100,8 @@ setup() {
   local root
   root=$(mktemp -d)
   ROOT="$root"
+  CONF_SRC=  # unset marker; tests may set CONF_SRC="" to simulate no staged conf
+  unset CONF_SRC
   mkdir -p "$root/bin" "$root/var/www/webmap/web" "$root/etc/nginx/sites-available" \
            "$root/etc/nginx/sites-enabled" "$root/backups" "$root/stub"
   STUB_DIR="$root/stub"
@@ -114,7 +129,7 @@ run_deploy() {
   STUB_LOG="$STUB_LOG" \
   WEBMAP_ROOT="$root/var/www/webmap" \
   BACKUP_DIR="$root/backups" \
-  NGINX_CONF_SRC="$root/incoming.conf" \
+  NGINX_CONF_SRC="${CONF_SRC-$root/incoming.conf}" \
   NGINX_SITES_AVAILABLE="$root/etc/nginx/sites-available" \
   NGINX_SITES_ENABLED="$root/etc/nginx/sites-enabled" \
   NGINX_BIN="nginx" \
@@ -246,9 +261,10 @@ test_health_check_failure_rolls_back_conf_and_content() {
   rm -rf "$root"
 }
 
-test_missing_conf_source_deploys_content_only() {
-  echo "a missing conf source deploys content and leaves nginx alone"
-  setup; local root="$ROOT"   # note: no $root/incoming.conf created
+test_unset_conf_source_deploys_content_only() {
+  echo "an unset NGINX_CONF_SRC deploys content and leaves nginx alone"
+  setup; local root="$ROOT"
+  local CONF_SRC=""   # simulates a caller that stages no conf at all
 
   local out; out=$(run_deploy "$root"); local rc=$?
 
@@ -283,6 +299,72 @@ EOF
   rm -rf "$root"
 }
 
+test_staged_conf_that_never_landed_fails() {
+  echo "a staged conf path that does not exist fails the deploy"
+  setup; local root="$ROOT"   # NGINX_CONF_SRC points at a file never created
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  check "$rc" 1 "deploy fails"
+  check_contains "$out" "not a regular file" "missing staged conf is reported"
+  check "$(cat "$root/var/www/webmap/web/index.html")" \
+        '<html><script type="module" src="/old.js"></script></html>' "content left untouched"
+  rm -rf "$root"
+}
+
+test_chown_goes_through_sudo() {
+  echo "the content chown is privileged (sudo-wrapped)"
+  setup; local root="$ROOT"
+  printf 'server { listen 80; }\n' >"$root/incoming.conf"
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  # The chown stub fails unless invoked via sudo, so a green deploy proves the
+  # $SUDO prefix is present on every chown the happy path reaches.
+  check "$rc" 0 "deploy succeeds with an unprivileged-chown stub"
+  check_not_contains "$out" "could not chown" "chown was not denied"
+}
+
+test_symlinked_conf_source_is_refused() {
+  echo "a symlinked conf source is refused before install"
+  setup; local root="$ROOT"
+  printf 'server { listen 80; } # PLANTED\n' >"$root/planted.conf"
+  ln -s "$root/planted.conf" "$root/incoming.conf"
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  check "$rc" 1 "deploy fails"
+  check_contains "$out" "is a symlink" "symlink is reported"
+  check_not_contains "$(cat "$STUB_LOG")" "systemctl reload" "nginx was never reloaded"
+  if [ ! -e "$root/etc/nginx/sites-available/www.webmap.dev.conf" ]; then
+    ok "planted conf was never installed"
+  else
+    bad "planted conf was never installed"
+  fi
+  rm -rf "$root"
+}
+
+test_missing_passwordless_sudo_aborts_early() {
+  echo "no passwordless sudo aborts before touching content"
+  setup; local root="$ROOT"
+  printf 'server { listen 80; }\n' >"$root/incoming.conf"
+  cat >"$root/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+echo "sudo: a password is required" >&2
+exit 1
+EOF
+  chmod +x "$root/bin/sudo"
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  check "$rc" 1 "deploy fails"
+  check_contains "$out" "no passwordless sudo" "cause is reported"
+  check_contains "$out" "Nothing was changed" "abort is reported as no-op"
+  check "$(cat "$root/var/www/webmap/web/index.html")" \
+        '<html><script type="module" src="/old.js"></script></html>' "content left untouched"
+  rm -rf "$root"
+}
+
 test_repo_conf_is_the_one_that_ships() {
   echo "the conf shipped is the repo's canonical conf"
   local conf="$REPO_ROOT/infrastructure/nginx/www.webmap.dev.conf"
@@ -299,8 +381,12 @@ test_unchanged_conf_skips_reload
 test_invalid_conf_is_never_activated
 test_preflight_blocks_on_already_broken_host
 test_health_check_failure_rolls_back_conf_and_content
-test_missing_conf_source_deploys_content_only
+test_unset_conf_source_deploys_content_only
+test_staged_conf_that_never_landed_fails
 test_install_failure_rolls_back_content
+test_chown_goes_through_sudo
+test_symlinked_conf_source_is_refused
+test_missing_passwordless_sudo_aborts_early
 test_repo_conf_is_the_one_that_ships
 
 echo

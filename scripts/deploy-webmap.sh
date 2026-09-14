@@ -20,8 +20,8 @@ set -e
 # these and gets the real locations.
 WEBMAP_ROOT="${WEBMAP_ROOT:-/var/www/webmap}"
 WEB_ROOT="$WEBMAP_ROOT/web"
-BACKUP_DIR="${BACKUP_DIR:-/tmp}"
-NGINX_CONF_SRC="${NGINX_CONF_SRC:-/tmp/www.webmap.dev.conf}"
+BACKUP_DIR="${BACKUP_DIR:-$WEBMAP_ROOT/.backups}"
+NGINX_CONF_SRC="${NGINX_CONF_SRC:-}"
 NGINX_CONF_NAME=www.webmap.dev.conf
 NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
 NGINX_SITES_ENABLED="${NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}"
@@ -46,6 +46,32 @@ else
   SUDO="sudo -n"
 fi
 
+# Refuse to install a file as root-owned nginx config unless it is a plain file
+# owned by us or by root. The staging path is unpredictable (the workflow makes
+# it with 128 bits of randomness and mode 0700), but this is the check that
+# actually holds: a file planted by another local account never reaches
+# `install`, and so never reaches an nginx instance shared with other vhosts.
+assert_safe_source() {
+  local f="$1" owner
+  if [ -L "$f" ]; then
+    echo "ERROR: $f is a symlink — refusing to install it as nginx config"
+    return 1
+  fi
+  if [ ! -f "$f" ]; then
+    echo "ERROR: $f is not a regular file — refusing to install it as nginx config"
+    return 1
+  fi
+  owner=$(stat -c '%u' "$f" 2>/dev/null || stat -f '%u' "$f" 2>/dev/null || echo "")
+  if [ -z "$owner" ]; then
+    echo "ERROR: could not determine the owner of $f — refusing"
+    return 1
+  fi
+  if [ "$owner" != "$(id -u)" ] && [ "$owner" != "0" ]; then
+    echo "ERROR: $f is owned by uid $owner (expected $(id -u) or 0) — refusing"
+    return 1
+  fi
+}
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 # Restore the previous content tree. Safe to call when no backup was taken.
@@ -57,7 +83,7 @@ rollback_content() {
   echo "Restoring content from: $CONTENT_BACKUP"
   rm -rf "${WEB_ROOT:?}"/*
   cp -r "$CONTENT_BACKUP"/. "$WEB_ROOT"/
-  chown -R www-data:www-data "$WEB_ROOT"
+  $SUDO chown -R www-data:www-data "$WEB_ROOT"
   echo "Content rollback complete"
 }
 
@@ -71,6 +97,7 @@ rollback_nginx_conf() {
     $SUDO rm -f "$NGINX_ENABLED" "$NGINX_AVAILABLE"
   else
     echo "Restoring previous nginx conf from: $NGINX_CONF_BACKUP"
+    assert_safe_source "$NGINX_CONF_BACKUP" || return 1
     $SUDO install -o root -g root -m 0644 "$NGINX_CONF_BACKUP" "$NGINX_AVAILABLE"
   fi
 
@@ -92,6 +119,9 @@ rollback_nginx_conf() {
 # Roll back everything this deploy changed, then exit non-zero.
 fail_and_rollback() {
   echo "ERROR: $1 — rolling back..."
+  # `|| true` is load-bearing, not decorative: it keeps a failed conf rollback
+  # from aborting under `set -e` before the content rollback below has run. We
+  # always want both attempted, and rollback_nginx_conf reports its own failure.
   rollback_nginx_conf || true
   rollback_content
   exit 1
@@ -103,7 +133,21 @@ fail_and_rollback() {
 # someone else's breakage) and must not leave a half-applied state behind.
 # stdin is the deployment tarball — every command here reads from /dev/null so
 # none of them can swallow it.
-if [ -f "$NGINX_CONF_SRC" ]; then
+
+# A non-root deploy user needs passwordless sudo for the privileged steps. Check
+# it up front so a missing sudoers entry fails before any content is touched,
+# rather than half-way through with a rollback.
+if [ -n "$SUDO" ]; then
+  if ! sudo -n true </dev/null 2>/dev/null; then
+    echo "ERROR: running as $(id -un) with no passwordless sudo."
+    echo "       Install /etc/sudoers.d/webmap-deploy (see docs/deployment.md)."
+    echo "       Nothing was changed."
+    exit 1
+  fi
+fi
+
+if [ -n "$NGINX_CONF_SRC" ]; then
+  assert_safe_source "$NGINX_CONF_SRC" || exit 1
   echo "Preflight: validating existing nginx config..."
   if ! $SUDO "$NGINX_BIN" -t </dev/null; then
     echo "ERROR: the host's current nginx config is already invalid."
@@ -117,6 +161,10 @@ fi
 echo "Receiving and extracting webmap deployment..."
 
 mkdir -p "$WEB_ROOT"
+# 0700 so no other local account can plant a file that a later rollback would
+# install as nginx config.
+mkdir -p "$BACKUP_DIR" && chmod 700 "$BACKUP_DIR" \
+  || { echo "ERROR: could not create backup dir $BACKUP_DIR"; exit 1; }
 
 if [ -f "$WEB_ROOT/index.html" ]; then
   echo "Backing up current deployment..."
@@ -129,7 +177,8 @@ fi
 
 rm -rf "${WEB_ROOT:?}"/*
 tar -xzf - -C "$WEB_ROOT" || fail_and_rollback "could not extract the deployment tarball"
-chown -R www-data:www-data "$WEB_ROOT" || fail_and_rollback "could not chown the web root"
+$SUDO chown -R www-data:www-data "$WEB_ROOT" \
+  || fail_and_rollback "could not chown the web root (missing sudoers entry?)"
 
 echo "Extraction complete!"
 
@@ -146,8 +195,8 @@ echo "Content verification passed!"
 # Applied from the repo so a change to infrastructure/nginx/*.conf takes effect
 # on the next deploy with no manual step. Fail-closed: the new conf is validated
 # with `nginx -t` before any reload, and restored on failure.
-if [ ! -f "$NGINX_CONF_SRC" ]; then
-  echo "No nginx conf at $NGINX_CONF_SRC — skipping nginx config step."
+if [ -z "$NGINX_CONF_SRC" ]; then
+  echo "No nginx conf staged (NGINX_CONF_SRC unset) — skipping nginx config step."
 elif [ -f "$NGINX_AVAILABLE" ] \
   && cmp -s "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" \
   && [ "$(readlink -f "$NGINX_ENABLED" 2>/dev/null)" = "$(readlink -f "$NGINX_AVAILABLE")" ]; then
@@ -170,6 +219,7 @@ else
     NGINX_CONF_BACKUP="none"
   fi
 
+  assert_safe_source "$NGINX_CONF_SRC" || fail_and_rollback "unsafe nginx conf source"
   $SUDO install -o root -g root -m 0644 "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" \
     || fail_and_rollback "could not install the nginx conf (missing sudoers entry?)"
 
