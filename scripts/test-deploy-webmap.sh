@@ -323,6 +323,7 @@ test_chown_goes_through_sudo() {
   # $SUDO prefix is present on every chown the happy path reaches.
   check "$rc" 0 "deploy succeeds with an unprivileged-chown stub"
   check_not_contains "$out" "could not chown" "chown was not denied"
+  rm -rf "$root"
 }
 
 test_symlinked_conf_source_is_refused() {
@@ -415,6 +416,32 @@ test_workflow_stages_into_a_random_private_dir() {
   esac
 }
 
+test_failed_content_backup_aborts_before_rm() {
+  echo "a failed content backup aborts before the web root is cleared"
+  setup; local root="$ROOT"
+  printf 'server { listen 80; }\n' >"$root/incoming.conf"
+  # Make the backup destination un-writable so `cp -r` fails.
+  rm -rf "$root/backups" && : >"$root/backups-blocker"
+  cat >"$root/bin/cp" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *webmap-backup-*) echo "cp: No space left on device" >&2; exit 1 ;;
+esac
+exec /bin/cp "$@"
+EOF
+  chmod +x "$root/bin/cp"
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  check "$rc" 1 "deploy fails"
+  check_contains "$out" "Refusing to replace the live site" "cause is reported"
+  check_contains "$out" "Nothing was changed" "abort is reported as no-op"
+  check "$(cat "$root/var/www/webmap/web/index.html")" \
+        '<html><script type="module" src="/old.js"></script></html>' "live site left intact"
+  check_not_contains "$(cat "$STUB_LOG")" "systemctl reload" "nginx was never reloaded"
+  rm -rf "$root"
+}
+
 test_repo_conf_is_the_one_that_ships() {
   echo "the conf shipped is the repo's canonical conf"
   local conf="$REPO_ROOT/infrastructure/nginx/www.webmap.dev.conf"
@@ -439,6 +466,7 @@ test_symlinked_conf_source_is_refused
 test_missing_passwordless_sudo_aborts_early
 test_failed_conf_removal_is_reported_honestly
 test_workflow_stages_into_a_random_private_dir
+test_failed_content_backup_aborts_before_rm
 test_repo_conf_is_the_one_that_ships
 
 echo

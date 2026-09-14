@@ -176,13 +176,21 @@ mkdir -p "$WEB_ROOT"
 mkdir -p "$BACKUP_DIR" && chmod 700 "$BACKUP_DIR" \
   || { echo "ERROR: could not create backup dir $BACKUP_DIR"; exit 1; }
 
+# Fail closed, like every other precondition here: without a backup the
+# `rm -rf` below is irreversible, so a later failure would leave the web root
+# empty with nothing to restore. Abort while the site is still intact instead.
+# (A first deploy has nothing to back up — that case is not an error.)
 if [ -f "$WEB_ROOT/index.html" ]; then
   echo "Backing up current deployment..."
-  if cp -r "$WEB_ROOT" "$BACKUP_DIR/webmap-backup-$BACKUP_TS"; then
-    CONTENT_BACKUP="$BACKUP_DIR/webmap-backup-$BACKUP_TS"
-  else
-    echo "WARNING: content backup failed — rollback will not be available"
+  if ! cp -r "$WEB_ROOT" "$BACKUP_DIR/webmap-backup-$BACKUP_TS"; then
+    echo "ERROR: could not back up the current deployment to $BACKUP_DIR."
+    echo "       Refusing to replace the live site with no way back (disk full?)."
+    echo "       Nothing was changed."
+    exit 1
   fi
+  CONTENT_BACKUP="$BACKUP_DIR/webmap-backup-$BACKUP_TS"
+else
+  echo "No existing deployment to back up (first deploy)."
 fi
 
 rm -rf "${WEB_ROOT:?}"/*

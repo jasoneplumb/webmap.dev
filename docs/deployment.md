@@ -58,6 +58,8 @@ Runs **only for releases** — never on plain pushes to `mainline`.
 6. `scripts/deploy-webmap.sh` extracts the content, then applies the nginx config (see [Applying the nginx config](#applying-the-nginx-config)) and reloads nginx only if the config actually changed and passes `nginx -t`
 7. A health check against the live vhost validates the new content *and* the new config together; failure rolls back both
 
+The content backup is a hard precondition: if it cannot be written, the deploy aborts **before** the web root is cleared rather than replacing the live site with no way back.
+
 **Server.** `www.webmap.dev` — nginx reverse proxy serving from `/var/www/webmap/web/dist/`.
 
 ## Applying the nginx config
