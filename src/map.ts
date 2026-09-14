@@ -513,6 +513,58 @@ export function createMap(): L.Map {
   });
 
   const container = map.getContainer();
+
+  // Double-tap zoom on touch, because Leaflet's does not reach iOS.
+  //
+  // Leaflet listens for `dblclick` and simulates one from paired `click`s when the
+  // browser does not fire it — but its window is 200 ms (addDoubleTapListener,
+  // leaflet-src.js), which is tighter than an ordinary thumb double-tap, and iOS does
+  // not reliably fire a native dblclick on a container with touch-action: none. The
+  // gesture therefore worked on desktop and did nothing on a phone.
+  //
+  // preventDefault on the second tap suppresses any dblclick the browser does go on to
+  // synthesize, so the zoom happens once rather than twice. Capture phase for the same
+  // reason the old recenter handler used it: to get there before Leaflet does.
+  {
+    const DOUBLE_TAP_MS = 320;   // a relaxed human double-tap, not Leaflet's 200
+    const SLOP_PX = 32;          // thumbs do not land twice on the same pixel
+    let lastEndMs = 0;
+    let lastX = 0;
+    let lastY = 0;
+
+    container.addEventListener('touchend', (e: TouchEvent) => {
+      // Respect whoever turned the gesture off — custom-zones disables it for the
+      // duration of a draw session, where every tap places a vertex.
+      if (!map.doubleClickZoom.enabled()) return;
+      // Multi-touch is a pinch, and a tap on a control belongs to the control.
+      if (e.touches.length !== 0 || e.changedTouches.length !== 1) return;
+      if ((e.target as HTMLElement | null)?.closest('.leaflet-control')) return;
+
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const now = Date.now();
+      const near = Math.hypot(touch.clientX - lastX, touch.clientY - lastY) <= SLOP_PX;
+
+      if (now - lastEndMs <= DOUBLE_TAP_MS && near) {
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const point = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+        // setZoomAround keeps the tapped coordinate under the finger, which is what
+        // makes a double-tap feel like "zoom in HERE" rather than "zoom in somewhere".
+        // ?? 1 only satisfies the optional type: zoomDelta is set explicitly above, and
+        // reading it here rather than hard-coding 1 keeps this gesture tied to the same
+        // step the buttons and keyboard use.
+        const delta = map.options.zoomDelta ?? 1;
+        map.setZoomAround(map.containerPointToLatLng(point), map.getZoom() + delta);
+        lastEndMs = 0; // a third tap starts a fresh pair rather than chaining
+      } else {
+        lastEndMs = now;
+        lastX = touch.clientX;
+        lastY = touch.clientY;
+      }
+    }, { capture: true, passive: false });
+  }
+
   map.on('zoomstart', () => container.classList.add('map-zooming'));
   map.on('zoomend', () => container.classList.remove('map-zooming'));
 
