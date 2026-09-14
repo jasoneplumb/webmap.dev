@@ -10,8 +10,9 @@ import {
   clampZoomRange,
   countTiles,
   coverageContains,
-  isSameCoverage,
+  isSameFootprint,
   mergeRegions,
+  unionLayers,
   estimateLayers,
   formatBytes,
   getTileRange,
@@ -365,13 +366,68 @@ describe('region manifest', () => {
     it('keeps genuinely different selections as separate entries', () => {
       addRegion(makeRegion({ id: 'base' }));
       addRegion(makeRegion({ id: 'deeper', zMax: 15 })); // holds tiles 'base' never fetched
-      addRegion(makeRegion({ id: 'two-layer', layers: ['streets', 'hillshade'] }));
       addRegion(makeRegion({
         id: 'tahoe',
         bounds: { south: 39, west: -120.2, north: 39.2, east: -120 },
       }));
-      expect(loadRegions().map((r) => r.id))
-        .toEqual(['base', 'deeper', 'two-layer', 'tahoe']);
+      expect(loadRegions().map((r) => r.id)).toEqual(['base', 'deeper', 'tahoe']);
+    });
+
+    it('folds an added layer into the row for that footprint instead of duplicating it', () => {
+      // The #318 failure through its other door: save Streets over an area, come back and
+      // save Streets + Hillshade over the same rectangle. The hillshade tiles are new, so
+      // the download is recorded — and as two rows, both listing the same streets tiles.
+      // Deleting the two-layer row calls tileUrlsForLayer('streets', …) and wipes them,
+      // leaving the streets-only row reading as fully saved over empty cache.
+      addRegion(makeRegion({ id: 'streets-only', layers: ['streets'] }));
+      addRegion(makeRegion({ id: 'both', layers: ['streets', 'hillshade'] }));
+      const saved = loadRegions();
+      expect(saved).toHaveLength(1);
+      expect(saved[0]).toMatchObject({ id: 'streets-only', layers: ['streets', 'hillshade'] });
+    });
+
+    it('collapses separate single-layer saves of one footprint in a single pass', () => {
+      // Streets, then Hillshade, then both. Merging only on overlapping layer sets would
+      // fold the third into the first and leave the second duplicating it; keying on the
+      // footprint keeps one row throughout.
+      addRegion(makeRegion({ id: 'first', layers: ['streets'] }));
+      addRegion(makeRegion({ id: 'second', layers: ['hillshade'] }));
+      addRegion(makeRegion({ id: 'third', layers: ['streets', 'hillshade'] }));
+      const saved = loadRegions();
+      expect(saved).toHaveLength(1);
+      expect(saved[0]).toMatchObject({ id: 'first', layers: ['streets', 'hillshade'] });
+    });
+
+    it('marks the row partial when a stopped run is what added a layer', () => {
+      // Streets is complete, but the hillshade run this merge brought in was stopped early,
+      // so the row as a whole is not fully saved.
+      addRegion(makeRegion({ name: 'Region 1', layers: ['streets'] }));
+      addRegion(makeRegion({ name: 'Region 2' + PARTIAL_SUFFIX, layers: ['hillshade'] }));
+      expect(loadRegions().map((r) => r.name)).toEqual(['Region 1' + PARTIAL_SUFFIX]);
+    });
+
+    it('clears the marker only when one run covers every layer in the row', () => {
+      addRegion(makeRegion({ name: 'Region 1', layers: ['streets'] }));
+      addRegion(makeRegion({ name: 'Region 2' + PARTIAL_SUFFIX, layers: ['hillshade'] }));
+      expect(loadRegions().map((r) => r.name)).toEqual(['Region 1' + PARTIAL_SUFFIX]);
+      // Completing hillshade alone does not clear it. The row carries one marker, not one
+      // per layer, so once set it cannot say which layer it was set for — and a run that
+      // leaves streets untouched cannot vouch for streets. Conservative by choice: the
+      // marker may over-report incompleteness, never under-report it.
+      addRegion(makeRegion({ name: 'Region 3', layers: ['hillshade'] }));
+      expect(loadRegions().map((r) => r.name)).toEqual(['Region 1' + PARTIAL_SUFFIX]);
+      // A run over both layers does clear it — the natural fix, and the one the panel's
+      // checkboxes make easy.
+      addRegion(makeRegion({ name: 'Region 4', layers: ['streets', 'hillshade'] }));
+      expect(loadRegions().map((r) => r.name)).toEqual(['Region 1']);
+    });
+
+    it('keeps footprints apart when the zoom ranges differ for a shared layer', () => {
+      // Same rectangle, but streets z12-14 and streets z12-15 hold different tiles, so
+      // these are two footprints and neither delete can strand the other's z15 row.
+      addRegion(makeRegion({ id: 'shallow', layers: ['streets'], zMin: 12, zMax: 14 }));
+      addRegion(makeRegion({ id: 'deep', layers: ['streets', 'hillshade'], zMin: 12, zMax: 15 }));
+      expect(loadRegions().map((r) => r.id)).toEqual(['shallow', 'deep']);
     });
 
     it('does not swallow a smaller selection into the region that contains it', () => {
@@ -422,14 +478,14 @@ describe('coverage comparison', () => {
 
   it('holds its own coverage', () => {
     expect(coverageContains(base, base)).toBe(true);
-    expect(isSameCoverage(base, base)).toBe(true);
+    expect(isSameFootprint(base, base)).toBe(true);
   });
 
   it('is directional — a wider region contains a narrower one, not the reverse', () => {
     const wider = { ...base, zMin: 11, zMax: 15 };
     expect(coverageContains(wider, base)).toBe(true);
     expect(coverageContains(base, wider)).toBe(false);
-    expect(isSameCoverage(base, wider)).toBe(false);
+    expect(isSameFootprint(base, wider)).toBe(false);
   });
 
   it('treats unwrapped longitudes as the same ground', () => {
@@ -444,14 +500,27 @@ describe('coverage comparison', () => {
       bounds: { south: 0, west: -170, north: 1, east: -169 },
       layers: STREETS, zMin: 5, zMax: 6,
     };
-    expect(isSameCoverage(wrapped, plain)).toBe(true);
+    expect(isSameFootprint(wrapped, plain)).toBe(true);
   });
 
-  it('requires the same layer set, not merely an overlapping one', () => {
+  it('coverageContains still needs the outer layer set to be a superset', () => {
     const both = { ...base, layers: ['streets', 'hillshade'] as RegionLayerId[] };
     expect(coverageContains(both, base)).toBe(true);
     expect(coverageContains(base, both)).toBe(false);
-    expect(isSameCoverage(base, both)).toBe(false);
+  });
+
+  it('isSameFootprint ignores layer-set differences but not zoom differences', () => {
+    const both = { ...base, layers: ['streets', 'hillshade'] as RegionLayerId[] };
+    expect(isSameFootprint(base, both)).toBe(true);
+    // z14 vs z15 differ for streets (ceiling 18), so these are two footprints even though
+    // hillshade alone would clamp them to the same range.
+    expect(isSameFootprint(base, { ...both, zMax: 15 })).toBe(false);
+  });
+
+  it('unionLayers dedupes and keeps REGION_LAYERS declaration order', () => {
+    expect(unionLayers(['hillshade'], ['streets', 'hillshade']))
+      .toEqual(['streets', 'hillshade']);
+    expect(unionLayers([], [])).toEqual([]);
   });
 
   it('mergeRegions keeps the original identity and the larger estimate', () => {
@@ -462,5 +531,13 @@ describe('coverage comparison', () => {
     expect(merged).toMatchObject({
       id: 'a', createdAt: 1_000, tileCount: 100, bytes: 1_500_000,
     });
+  });
+
+  it('mergeRegions unions the layer sets', () => {
+    const merged = mergeRegions(
+      makeRegion({ layers: ['hillshade'] }),
+      makeRegion({ layers: ['streets'] }),
+    );
+    expect(merged.layers).toEqual(['streets', 'hillshade']);
   });
 });

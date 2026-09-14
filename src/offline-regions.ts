@@ -275,31 +275,57 @@ export function nextRegionName(existing: SavedRegion[]): string {
   return `Region ${max + 1}`;
 }
 
-/** Fold a re-download into the entry that already holds the same tiles, keeping the row's
- *  identity and the better of the two size estimates.
- *
- *  `bytes`/`tileCount` take the maximum rather than the newer value: both estimate the same
- *  footprint, and the cache holds the union of the two runs. An aborted re-run of an
- *  already-complete region reports fewer succeeded tiles than the region actually holds, and
- *  writing that in would shrink the row for a download that removed nothing.
+/** Fold a download into the entry that already covers the same footprint: union the layers,
+ *  keep the row's identity, and take the better of the two size estimates.
  *
  *  `id` and `createdAt` stay on the original — the coverage was created then, and the id is
- *  the handle the manager's Delete button already carries. Only the "(partial)" marker
- *  moves, and only off: a re-download that finishes fills in what a stopped run left, while
- *  a run stopped early cannot un-download tiles an earlier complete run wrote. */
+ *  the handle the manager's Delete button already carries.
+ *
+ *  `bytes`/`tileCount` take the maximum rather than the newer value. Both estimate one
+ *  footprint and the cache holds the union of the two runs, so the larger is the honest
+ *  "at least this much is held": an aborted re-run of an already-complete region reports
+ *  fewer succeeded tiles than the region still holds, and writing that in would shrink the
+ *  row for a download that removed nothing.
+ *
+ *  The "(partial)" marker is recomputed per layer rather than carried over, because a merge
+ *  can now add layers. A layer both runs covered is complete once either run finished; a
+ *  layer only one run covered is only as complete as that run. Any layer still partial
+ *  leaves the marker on. With identical layer sets this reduces to the obvious rule — a
+ *  finished re-download clears the marker, and a run stopped early cannot un-download what
+ *  an earlier complete run wrote.
+ *
+ *  One marker covers the whole row, so once set it no longer says which layer set it. A run
+ *  that covers only some of the row's layers therefore cannot clear it; only a run covering
+ *  all of them can. That errs towards reporting a complete region as partial, never the
+ *  reverse — the direction that cannot send someone offline on coverage they do not have.
+ *  Per-layer completeness would need a manifest schema change and a migration. */
 export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): SavedRegion {
-  const completed = existing.name.endsWith(PARTIAL_SUFFIX)
-    && !incoming.name.endsWith(PARTIAL_SUFFIX);
+  const existingPartial = existing.name.endsWith(PARTIAL_SUFFIX);
+  const incomingPartial = incoming.name.endsWith(PARTIAL_SUFFIX);
+  const layers = unionLayers(existing.layers, incoming.layers);
+  const partial = layers.some((l) => {
+    const inExisting = existing.layers.includes(l);
+    const inIncoming = incoming.layers.includes(l);
+    if (inExisting && inIncoming) return existingPartial && incomingPartial;
+    return inExisting ? existingPartial : incomingPartial;
+  });
+  const base = existingPartial
+    ? existing.name.slice(0, -PARTIAL_SUFFIX.length)
+    : existing.name;
   return {
     ...existing,
-    name: completed ? existing.name.slice(0, -PARTIAL_SUFFIX.length) : existing.name,
+    name: partial ? base + PARTIAL_SUFFIX : base,
+    layers,
     tileCount: Math.max(existing.tileCount, incoming.tileCount),
     bytes: Math.max(existing.bytes, incoming.bytes),
   };
 }
 
-/** Append a region to the manifest — or merge it into the entry that already covers exactly
- *  the same tiles.
+/** Append a region to the manifest — or merge it into the entry that already covers the
+ *  same footprint.
+ *
+ *  The invariant: at most one entry per (bounds, zoom) footprint, carrying the union of
+ *  every layer saved over it.
  *
  *  Re-downloading an area (to resume a stopped run, or to restore coverage a sibling's
  *  delete took with it — ADR-007 tells users to do exactly that) used to append a second
@@ -311,13 +337,18 @@ export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): Save
  *
  *  Limitation: matching is on bounds, not on the tile ranges they resolve to. Two
  *  hand-drawn rectangles a hair apart can cover identical tiles and still be filed as two
- *  regions. The path that actually produces duplicates — pressing Download again on the
- *  selection still on screen — reuses the same bounds object, so it merges. Closing the
+ *  regions. The paths that actually produce duplicates — pressing Download again, or adding
+ *  a layer — reuse the selection still on screen and so reuse the same bounds. Closing the
  *  near-miss case means comparing per-zoom tile ranges instead; cheap enough, but it also
- *  changes what isCoveredBySavedRegion means, so it is left for its own change. */
+ *  changes what isCoveredBySavedRegion means, so it is left for its own change.
+ *
+ *  Partial overlap between different rectangles is out of scope by design: ADR-007 accepts
+ *  that deleting one of two overlapping regions thins the other. What must not happen is two
+ *  rows describing the SAME ground, where one delete silently empties a row that goes on
+ *  claiming full coverage. */
 export function addRegion(region: SavedRegion): SavedRegion[] {
   const existing = loadRegions();
-  const idx = existing.findIndex((r) => isSameCoverage(r, region));
+  const idx = existing.findIndex((r) => isSameFootprint(r, region));
   const regions = idx === -1
     ? [...existing, region]
     : existing.map((r, i) => (i === idx ? mergeRegions(r, region) : r));
@@ -413,13 +444,44 @@ export function coverageContains(outer: RegionCoverage, inner: RegionCoverage): 
   );
 }
 
-/** True when two selections resolve to the same set of tiles — containment both ways.
+function sameBounds(a: RegionBounds, b: RegionBounds): boolean {
+  // Longitudes normalized first: Leaflet reports west 190 after a pan past the dateline,
+  // which is the same meridian as -170 and generates byte-identical tile URLs.
+  return normalizeLng(a.west) === normalizeLng(b.west)
+    && normalizeLng(a.east) === normalizeLng(b.east)
+    && a.south === b.south && a.north === b.north;
+}
+
+/** True when two selections describe the same ground at the same zoom — the same rectangle,
+ *  and the same clamped zoom range for every layer either one carries.
  *
- *  Deliberately not field equality. A hillshade region saved z10-18 and one saved z10-15
- *  both hold z15 and below, because tileUrlsForLayer clamps to the provider ceiling; they
- *  are one region wearing two slider settings, and deleting either empties the other. */
-export function isSameCoverage(a: RegionCoverage, b: RegionCoverage): boolean {
-  return coverageContains(a, b) && coverageContains(b, a);
+ *  Layer sets deliberately need NOT match. Two entries over one rectangle that share even a
+ *  single layer also share that layer's tiles, so deleting either empties the other — the
+ *  #318 failure, reached by "add Hillshade to an area I already saved Streets for" rather
+ *  than by a plain re-download. Keying on the footprint and unioning the layers (see
+ *  mergeRegions) collapses every such pair, and does so in one pass: were merging to
+ *  require overlapping layer sets instead, Streets then Hillshade then Streets+Hillshade
+ *  would fold into the first row and leave the second one duplicating it.
+ *
+ *  Zoom is compared per layer, after clamping, across the union of both layer sets. A
+ *  hillshade region saved z10-18 and one saved z10-15 hold byte-identical tiles because
+ *  tileUrlsForLayer stops at the provider ceiling; the same two ranges are genuinely
+ *  different footprints once streets is in play, and stay separate rows. */
+export function isSameFootprint(a: RegionCoverage, b: RegionCoverage): boolean {
+  if (!sameBounds(a.bounds, b.bounds)) return false;
+  return unionLayers(a.layers, b.layers).every((l) => {
+    const ceiling = REGION_LAYERS[l].maxNativeZoom;
+    const ra = clampZoomRange(a.zMin, a.zMax, ceiling);
+    const rb = clampZoomRange(b.zMin, b.zMax, ceiling);
+    return ra.zMin === rb.zMin && ra.zMax === rb.zMax;
+  });
+}
+
+/** Both layer sets, deduped, in REGION_LAYERS declaration order so a merged row's layer
+ *  list does not reshuffle with the order downloads happened to arrive in. */
+export function unionLayers(a: RegionLayerId[], b: RegionLayerId[]): RegionLayerId[] {
+  return (Object.keys(REGION_LAYERS) as RegionLayerId[])
+    .filter((l) => a.includes(l) || b.includes(l));
 }
 
 /** True when some single saved region already covers this selection outright: its bounds
