@@ -229,6 +229,21 @@ async function handleTileError(
   }
 }
 
+/**
+ * The OSM data credit, contributed by every layer whose tiles are rendered from OSM data.
+ *
+ * Kept as one exact string on purpose: Leaflet's attribution control refcounts by literal
+ * text, so identical strings from several layers collapse to a single entry and the credit
+ * disappears only when the last contributing layer is removed. Embedding the same phrase
+ * inside each provider's string — "Maps © Thunderforest, Data © OpenStreetMap
+ * contributors" next to "© CyclOSM, OpenStreetMap contributors" — defeated that, and the
+ * default three-layer stack credited OpenStreetMap two or three times in one line.
+ *
+ * ODbL still requires the credit whenever OSM-derived tiles are shown; this changes how
+ * many times it is printed, not whether it appears.
+ */
+const OSM_DATA_ATTRIBUTION = '© OpenStreetMap contributors';
+
 export function createMap(): L.Map {
   const map = L.map('map', {
     zoomControl: false,
@@ -318,7 +333,7 @@ export function createMap(): L.Map {
   osmStreetsLayer = L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {
-      attribution: '© OpenStreetMap contributors',
+      attribution: OSM_DATA_ATTRIBUTION,
       ...stdConfig,
     },
   );
@@ -336,7 +351,10 @@ export function createMap(): L.Map {
     );
   }
   // Thunderforest terms require crediting both the map style and the OSM data (ODbL).
-  const tfAttribution = 'Maps © Thunderforest, Data © OpenStreetMap contributors';
+  // The style credit is theirs alone; the ODbL credit is the shared one every
+  // OSM-derived layer contributes, added separately so it is shown once rather than
+  // repeated inside each provider's string (see OSM_DERIVED_LAYERS below).
+  const tfAttribution = 'Maps © Thunderforest';
   cycleLayer = L.tileLayer(
     'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=' + tfKey,
     {
@@ -366,7 +384,7 @@ export function createMap(): L.Map {
   bikeInfraLayer = L.tileLayer(
     'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png',
     {
-      attribution: '© CyclOSM, OpenStreetMap contributors',
+      attribution: '© CyclOSM',
       ...stdConfig,
     },
   );
@@ -401,7 +419,7 @@ export function createMap(): L.Map {
   humanitarianLayer = L.tileLayer(
     'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
     {
-      attribution: '© OpenStreetMap contributors',
+      attribution: OSM_DATA_ATTRIBUTION,
       ...stdConfig,
     },
   );
@@ -463,6 +481,30 @@ export function createMap(): L.Map {
   // add/remove churn on a gesture that is already the latency-sensitive one.
   tileGridLayer = createTileGridLayer();
   tileGridLayer.addTo(map);
+
+  // Layers rendered from OSM data whose own attribution names only the style provider.
+  // Leaflet adds each layer's own attribution on add and removes it on remove; these
+  // contribute the shared ODbL credit the same way, so it shows once while any of them is
+  // on and vanishes with the last. Satellite (Esri) and hillshade (Mapzen/AWS Terrarium)
+  // are not OSM-derived and are deliberately absent.
+  // osmStreetsLayer and humanitarianLayer are absent because their OWN attribution is
+  // already this exact string — Leaflet adds it for them. Listing them here too would
+  // refcount it twice per add and twice per remove: balanced, but two bookkeepers for one
+  // fact is how they eventually disagree.
+  const osmDerivedLayers = [
+    cycleLayer, cycleBlendLayer, outdoorsLayer, bikeInfraLayer, hikingLayer, cyclingLayer,
+  ].filter((l): l is L.TileLayer => l !== null);
+
+  map.on('layeradd', (e: L.LayerEvent) => {
+    if (osmDerivedLayers.includes(e.layer as L.TileLayer)) {
+      map.attributionControl?.addAttribution(OSM_DATA_ATTRIBUTION);
+    }
+  });
+  map.on('layerremove', (e: L.LayerEvent) => {
+    if (osmDerivedLayers.includes(e.layer as L.TileLayer)) {
+      map.attributionControl?.removeAttribution(OSM_DATA_ATTRIBUTION);
+    }
+  });
 
   const container = map.getContainer();
   map.on('zoomstart', () => container.classList.add('map-zooming'));
