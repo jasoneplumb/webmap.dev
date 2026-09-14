@@ -1966,8 +1966,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   width: 100%;
   height: 100%;
   display: block;
+  /* No CSS transition: compass.ts eases this angle per frame now, and stacking a
+     0.12s interpolation on top of an easing loop only adds lag — the animation the
+     eye follows would be the CSS one chasing a value that is itself still moving.
+     Same arrangement as the position marker, which has always been JS-only. */
   transform: rotate(var(--heading-deg, 0deg));
-  transition: transform 0.12s linear;
 }
 .compass-rose--active { opacity: 1; cursor: default; }
 /* Keeps its 36px slot rather than display:none. The compass appears only after

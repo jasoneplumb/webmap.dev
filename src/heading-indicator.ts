@@ -15,7 +15,6 @@ import {
   smoothHeadingDeg,
 } from './heading';
 
-
 let lastUpdateMs: number | null = null;
 let rafHandle: number | null = null;
 
