@@ -304,4 +304,25 @@ describe('region manifest', () => {
     const loaded = loadRegions();
     expect(loaded.map((r) => r.name)).toEqual(['Keep']);
   });
+
+  it('does not claim coverage above a layer\u2019s native ceiling', () => {
+    // The slider said z10-18, but tileUrlsForLayer clamps hillshade to z15, so tiles above
+    // z15 were never fetched. Comparing against the stored range would over-claim them.
+    addRegion(makeRegion({
+      layers: ['hillshade'],
+      bounds: { south: 37, west: -123, north: 38, east: -122 },
+      zMin: 10,
+      zMax: 18,
+    }));
+    const x = lng2tile(-122.5, 14);
+    const y = lat2tile(37.5, 14);
+    expect(savedRegionCoversTile('hillshade', x, y, 14)).toBe(true);
+    expect(savedRegionCoversTile('hillshade', lng2tile(-122.5, 17), lat2tile(37.5, 17), 17))
+      .toBe(false);
+    const inner = { south: 37.2, west: -122.8, north: 37.6, east: -122.4 };
+    // A z16-18 hillshade request resolves to z15 alone, which this region holds.
+    expect(isCoveredBySavedRegion(inner, ['hillshade'], 16, 18)).toBe(true);
+    // Streets has no clamping (ceiling 18) and was never saved here.
+    expect(isCoveredBySavedRegion(inner, ['streets'], 16, 18)).toBe(false);
+  });
 });

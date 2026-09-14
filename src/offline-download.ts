@@ -671,17 +671,19 @@ async function startDownload(
   if (!_panelEl) return;
   setUiState(_panelEl, 'downloading');
 
-  // Ask the browser to protect this origin's storage BEFORE committing megabytes to
-  // it. Best-effort: a denial doesn't block the download, it just leaves the region
-  // subject to browser-initiated eviction under storage pressure.
-  const persisted = await requestPersistentStorage();
-
+  // Reject before asking for anything: a wrapped selection is not going to be downloaded,
+  // so it should not prompt a storage-persistence decision on the way out.
   const regionBounds = toRegionBounds(bounds);
   if (crossesAntimeridian(regionBounds)) {
     setUiState(_panelEl, 'selecting');
     showToast('Selection crosses the 180\u00b0 meridian — pan so it doesn\u2019t wrap and reselect.', 5000);
     return;
   }
+
+  // Ask the browser to protect this origin's storage BEFORE committing megabytes to
+  // it. Best-effort: a denial doesn't block the download, it just leaves the region
+  // subject to browser-initiated eviction under storage pressure.
+  const persisted = await requestPersistentStorage();
   const urls = layers.flatMap((layer) => tileUrlsForLayer(layer, regionBounds, zMin, zMax));
   const fillEl = _panelEl.querySelector('#offline-dl-fill') as HTMLElement | null;
   const textEl = _panelEl.querySelector('#offline-dl-progress-text') as HTMLElement | null;

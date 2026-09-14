@@ -48,6 +48,14 @@ export const BASEMAP_TILE_HOSTS = [
  * suffix: `evil-tile.thunderforest.com.example.com` must not match, which is why this
  * tests `endsWith('.' + host)` rather than `includes(host)`.
  */
+/** Terrarium elevation is the only basemap-route layer a saved region ever contains, so
+ *  it is the only one worth a region-cache lookup. Every other basemap host — Satellite,
+ *  Thunderforest, osm.fr, Waymarked — would pay an IndexedDB round-trip per tile on the
+ *  hot path to learn what this predicate already knows. */
+export function isRegionCacheableBasemapUrl(url: URL): boolean {
+  return url.hostname === 's3.amazonaws.com' && url.pathname.startsWith('/elevation-tiles-prod/');
+}
+
 export function isBasemapTileUrl(url: URL): boolean {
   if (url.hostname === 's3.amazonaws.com') {
     return url.pathname.startsWith('/elevation-tiles-prod/');

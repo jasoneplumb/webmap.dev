@@ -103,8 +103,17 @@ export function initOfflineTileFallback(
     // handleTileError awaits these inside a void-ed call, so a storage failure (private
     // browsing, blocked site data) would silently kill the parent-zoom fallback for the
     // passive cache too — a feature this cache has nothing to do with.
-    osmCachePromise = caches.open(OSM_TILE_CACHE_NAME).catch(() => null);
-    regionCachePromise = caches.open(REGION_TILE_CACHE_NAME).catch(() => null);
+    // Null on failure rather than a rejection, and the memo is cleared so a transient
+    // storage error at init does not disable the parent-zoom fallback for the rest of the
+    // page session — the same retry rule matchRegionTile follows in sw.ts.
+    osmCachePromise = caches.open(OSM_TILE_CACHE_NAME).catch(() => {
+      osmCachePromise = null;
+      return null;
+    });
+    regionCachePromise = caches.open(REGION_TILE_CACHE_NAME).catch(() => {
+      regionCachePromise = null;
+      return null;
+    });
   }
   for (const layer of layers) {
     layer.on('tileerror', (e: L.LeafletEvent) => {

@@ -17,6 +17,7 @@ import {
   BASEMAP_TILE_CACHE_NAME,
   REGION_TILE_CACHE_NAME,
   isBasemapTileUrl,
+  isRegionCacheableBasemapUrl,
   osmTileUrlVariants,
 } from './sw-constants';
 
@@ -154,9 +155,13 @@ registerRoute(
   // Region-first covers the hillshade offline: hillshade.ts fetches Terrarium
   // elevation through this route, so a saved region's elevation tiles serve from
   // region-tiles even after the passive LRU has moved on.
-  async ({ event, request }) => {
-    const regionHit = await matchRegionTile(request.url);
-    if (regionHit) return regionHit;
+  async ({ event, request, url }) => {
+    // Only Terrarium lands in region-tiles; skipping the lookup for every other basemap
+    // host keeps an IndexedDB round-trip off the hot path for Satellite and friends.
+    if (isRegionCacheableBasemapUrl(url)) {
+      const regionHit = await matchRegionTile(request.url);
+      if (regionHit) return regionHit;
+    }
     return basemapPassiveStrategy.handle({ event, request });
   },
 );

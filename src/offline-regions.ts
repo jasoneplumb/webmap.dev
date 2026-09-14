@@ -311,12 +311,16 @@ export function savedRegionCoversTile(
   // coverage worth pointing at, and the corner is the cheapest representative point.
   const lng = normalizeLng(tile2lng(x, z));
   const lat = tile2lat(y, z);
-  return regions.some((r) =>
-    r.layers.includes(layer) &&
-    r.zMin <= z && r.zMax >= z &&
-    normalizeLng(r.bounds.west) <= lng && normalizeLng(r.bounds.east) >= lng &&
-    r.bounds.south <= lat && r.bounds.north >= lat,
-  );
+  // Same clamping rule as isCoveredBySavedRegion: a hillshade region saved at z10-18 holds
+  // tiles through z15 only, so it cannot answer for z17 however the slider was set.
+  const ceiling = REGION_LAYERS[layer].maxNativeZoom;
+  return regions.some((r) => {
+    const held = clampZoomRange(r.zMin, r.zMax, ceiling);
+    return r.layers.includes(layer) &&
+      held.zMin <= Math.min(z, ceiling) && held.zMax >= Math.min(z, ceiling) && z <= ceiling &&
+      normalizeLng(r.bounds.west) <= lng && normalizeLng(r.bounds.east) >= lng &&
+      r.bounds.south <= lat && r.bounds.north >= lat;
+  });
 }
 
 /** True when any saved region includes the given layer — drives the layers-popover
@@ -343,8 +347,17 @@ export function isCoveredBySavedRegion(
   const west = normalizeLng(bounds.west);
   const east = normalizeLng(bounds.east);
   return regions.some((r) =>
-    layers.every((l) => r.layers.includes(l)) &&
-    r.zMin <= zMin && r.zMax >= zMax &&
+    // Per layer, against the zoom range that layer actually holds. The manifest stores the
+    // raw slider values, but tileUrlsForLayer clamps to each layer's native ceiling before
+    // fetching, so comparing the request to r.zMin/r.zMax unclamped claims hillshade
+    // coverage above z15 that was never downloaded.
+    layers.every((l) => {
+      if (!r.layers.includes(l)) return false;
+      const ceiling = REGION_LAYERS[l].maxNativeZoom;
+      const held = clampZoomRange(r.zMin, r.zMax, ceiling);
+      const want = clampZoomRange(zMin, zMax, ceiling);
+      return held.zMin <= want.zMin && held.zMax >= want.zMax;
+    }) &&
     normalizeLng(r.bounds.west) <= west && normalizeLng(r.bounds.east) >= east &&
     r.bounds.south <= bounds.south && r.bounds.north >= bounds.north,
   );
