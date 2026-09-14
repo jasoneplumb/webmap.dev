@@ -484,7 +484,7 @@ export interface RegionCoverage {
  *  every layer inner asks for, and per layer its zoom range spans inner's.
  *
  *  The single place coverage is compared — `isCoveredBySavedRegion` asks it one way and
- *  `isSameCoverage` asks it both ways — so the containment rule and its clamping cannot
+ *  `isSameFootprint` asks it both ways — so the containment rule and its clamping cannot
  *  drift between the "skip a redundant row" check and the "fold into the existing row"
  *  check. Those two disagreeing is precisely how a duplicate entry gets written. */
 export function coverageContains(outer: RegionCoverage, inner: RegionCoverage): boolean {
@@ -507,14 +507,6 @@ export function coverageContains(outer: RegionCoverage, inner: RegionCoverage): 
   );
 }
 
-function sameBounds(a: RegionBounds, b: RegionBounds): boolean {
-  // Longitudes normalized first: Leaflet reports west 190 after a pan past the dateline,
-  // which is the same meridian as -170 and generates byte-identical tile URLs.
-  return normalizeLng(a.west) === normalizeLng(b.west)
-    && normalizeLng(a.east) === normalizeLng(b.east)
-    && a.south === b.south && a.north === b.north;
-}
-
 /** True when two selections describe the same ground at the same zoom — the same rectangle,
  *  and the same clamped zoom range for every layer either one carries.
  *
@@ -531,13 +523,19 @@ function sameBounds(a: RegionBounds, b: RegionBounds): boolean {
  *  tileUrlsForLayer stops at the provider ceiling; the same two ranges are genuinely
  *  different footprints once streets is in play, and stay separate rows. */
 export function isSameFootprint(a: RegionCoverage, b: RegionCoverage): boolean {
-  if (!sameBounds(a.bounds, b.bounds)) return false;
-  return unionLayers(a.layers, b.layers).every((l) => {
-    const ceiling = REGION_LAYERS[l].maxNativeZoom;
-    const ra = clampZoomRange(a.zMin, a.zMax, ceiling);
-    const rb = clampZoomRange(b.zMin, b.zMax, ceiling);
-    return ra.zMin === rb.zMin && ra.zMax === rb.zMax;
-  });
+  // Ask coverageContains in both directions, with both sides widened to the union of their
+  // layer sets first. Containment each way over one shared layer list means equal bounds
+  // and, per layer, equal clamped zoom ranges — footprint identity — while the widening
+  // normalizes away the layer-set asymmetry that would otherwise make a streets-only row
+  // differ from a streets+hillshade one over the same rectangle. (Mutual containment on the
+  // raw layer sets is exactly that asymmetric test, which is why it cannot be used here.)
+  //
+  // Going through coverageContains rather than repeating the comparison is the point: the
+  // clamping rule has one definition, so the coverage check and the dedupe check cannot
+  // drift apart and start disagreeing about what "the same tiles" means.
+  const layers = unionLayers(a.layers, b.layers);
+  return coverageContains({ ...a, layers }, { ...b, layers })
+    && coverageContains({ ...b, layers }, { ...a, layers });
 }
 
 /** Both layer sets, deduped, in REGION_LAYERS declaration order so a merged row's layer
