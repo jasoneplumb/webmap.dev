@@ -94,11 +94,21 @@ rollback_nginx_conf() {
 
   if [ "$NGINX_CONF_BACKUP" = "none" ]; then
     echo "Removing nginx conf installed by this deploy..."
-    $SUDO rm -f "$NGINX_ENABLED" "$NGINX_AVAILABLE"
+    # Argument shape must match the sudoers example in docs/deployment.md.
+    if ! $SUDO rm -f "$NGINX_ENABLED" "$NGINX_AVAILABLE"; then
+      echo "ERROR: could not remove the conf this deploy installed (sudoers mismatch?)."
+      echo "       The bad conf is still on disk; nginx will NOT be reloaded."
+      return 1
+    fi
   else
     echo "Restoring previous nginx conf from: $NGINX_CONF_BACKUP"
     assert_safe_source "$NGINX_CONF_BACKUP" || return 1
-    $SUDO install -o root -g root -m 0644 "$NGINX_CONF_BACKUP" "$NGINX_AVAILABLE"
+    # Argument shape must match the sudoers example in docs/deployment.md.
+    if ! $SUDO install -o root -g root -m 0644 "$NGINX_CONF_BACKUP" "$NGINX_AVAILABLE"; then
+      echo "ERROR: could not restore the previous nginx conf (sudoers mismatch?)."
+      echo "       The bad conf is still on disk; nginx will NOT be reloaded."
+      return 1
+    fi
   fi
 
   # Never reload a config that does not validate — that would take down every
@@ -177,6 +187,7 @@ fi
 
 rm -rf "${WEB_ROOT:?}"/*
 tar -xzf - -C "$WEB_ROOT" || fail_and_rollback "could not extract the deployment tarball"
+# Argument shape must match the sudoers example in docs/deployment.md.
 $SUDO chown -R www-data:www-data "$WEB_ROOT" \
   || fail_and_rollback "could not chown the web root (missing sudoers entry?)"
 
@@ -220,9 +231,11 @@ else
   fi
 
   assert_safe_source "$NGINX_CONF_SRC" || fail_and_rollback "unsafe nginx conf source"
+  # Argument shape must match the sudoers example in docs/deployment.md.
   $SUDO install -o root -g root -m 0644 "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" \
     || fail_and_rollback "could not install the nginx conf (missing sudoers entry?)"
 
+  # Argument shape must match the sudoers example in docs/deployment.md.
   # Idempotent enable: ln -sfn replaces a stale symlink without nesting one
   # inside a directory the way `ln -s` into an existing symlink-to-dir would.
   $SUDO ln -sfn "$NGINX_AVAILABLE" "$NGINX_ENABLED" \

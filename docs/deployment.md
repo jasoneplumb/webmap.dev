@@ -113,11 +113,17 @@ Every rule pins its exact arguments, so the grant is "manage *this* vhost's conf
 
 Adjust binary paths to the host (`command -v nginx systemctl install ln chown rm`). `NGINX_BIN` and `SYSTEMCTL_BIN` can be overridden via the environment if they live elsewhere.
 
+Each rule pins an exact argument shape, so the sudoers file and `deploy-webmap.sh` must stay in step: changing an `install` flag, the backup filename pattern, or the staging path prefix makes sudo deny with a generic "not permitted" that points nowhere near this file. Every privileged call site in the script carries a comment saying so.
+
 The deploy checks `sudo -n true` up front, so a missing or misconfigured sudoers file aborts **before any content is touched** with a pointer to this section — rather than failing half-way and rolling back.
 
 ### Staging and source integrity
 
 The deploy script and the nginx conf are staged into a per-deploy directory created with `mkdir -m 700 /tmp/webmap-deploy-<32 hex chars>`, not a fixed `/tmp` path. `mkdir` without `-p` fails if the path already exists, so another local account cannot pre-create the directory, and the name is unguessable. The staging directory is removed after every deploy, success or failure.
+
+The staging step deliberately does **not** use `ssh_retry`. That helper reruns the *identical* command, and a non-idempotent `mkdir` would then fail deterministically whenever the SSH connection blipped after the remote `mkdir` had already succeeded — aborting a healthy release. Instead each of the three attempts generates a fresh random suffix, so a retry always targets a new path. A blip can leave one empty `0700` directory behind; that is harmless, and it is not removed because the runner cannot know the `mkdir` landed.
+
+The generated path is shape-checked against `^/tmp/webmap-deploy-[0-9a-f]{32}$` before use. `set -e` does not trip on a failed command substitution inside an assignment, so a missing or broken `openssl` would otherwise yield the predictable `/tmp/webmap-deploy-` and silently void the whole defense.
 
 Before anything is installed as root-owned nginx config — the staged conf on the way in, and a backup conf on the rollback path — `assert_safe_source()` requires it to be a regular file (never a symlink) owned by the deploy user or root. This is the check that actually holds: a planted file never reaches `install`, and so never reaches an nginx instance shared with other vhosts.
 

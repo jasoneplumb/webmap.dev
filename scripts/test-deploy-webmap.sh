@@ -365,6 +365,56 @@ EOF
   rm -rf "$root"
 }
 
+test_failed_conf_removal_is_reported_honestly() {
+  echo "a failed conf removal during rollback is reported as such"
+  setup; local root="$ROOT"
+  # No pre-existing conf, so the rollback path is "remove what we installed".
+  printf 'this is not valid nginx # NEW BAD\n' >"$root/incoming.conf"
+  cat >"$root/bin/nginx" <<EOF
+#!/usr/bin/env bash
+echo "nginx \$*" >> "\$STUB_LOG"
+grep -q 'NEW BAD' "$root/etc/nginx/sites-available/www.webmap.dev.conf" 2>/dev/null && exit 1
+exit 0
+EOF
+  # Fail only the nginx-conf removal; the web-root rm must keep working.
+  cat >"$root/bin/rm" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *sites-enabled*|*sites-available*)
+    echo "rm: Operation not permitted" >&2; exit 1 ;;
+esac
+exec /bin/rm "$@"
+EOF
+  chmod +x "$root/bin/nginx" "$root/bin/rm"
+
+  local out; out=$(run_deploy "$root"); local rc=$?
+
+  check "$rc" 1 "deploy fails"
+  check_contains "$out" "could not remove the conf this deploy installed" \
+        "the real cause is reported, not a misleading validation message"
+  check_not_contains "$(cat "$STUB_LOG")" "systemctl reload" "nginx was never reloaded"
+  rm -rf "$root"
+}
+
+test_workflow_stages_into_a_random_private_dir() {
+  echo "the deploy workflow stages into an unpredictable private directory"
+  local wf="$REPO_ROOT/.github/workflows/deploy.yml"
+  local body; body=$(cat "$wf")
+
+  check_contains "$body" "mkdir -m 700" "staging dir is created mode 0700"
+  check_contains "$body" "openssl rand -hex 16" "staging dir name is random"
+  check_contains "$body" 'webmap-deploy-[0-9a-f]{32}$' "the random shape is validated"
+  check_not_contains "$body" ':/tmp/deploy-webmap.sh' "no fixed /tmp script path"
+  check_not_contains "$body" ':/tmp/www.webmap.dev.conf' "no fixed /tmp conf path"
+  # ssh_retry reruns the identical command; a non-idempotent mkdir must not go
+  # through it, or a post-success connection blip aborts a healthy deploy.
+  case "$body" in
+    *'ssh_retry "ssh $SSH_OPTS $SSH_TARGET '"'"'mkdir'*)
+      bad "mkdir is not routed through ssh_retry" ;;
+    *) ok "mkdir is not routed through ssh_retry" ;;
+  esac
+}
+
 test_repo_conf_is_the_one_that_ships() {
   echo "the conf shipped is the repo's canonical conf"
   local conf="$REPO_ROOT/infrastructure/nginx/www.webmap.dev.conf"
@@ -387,6 +437,8 @@ test_install_failure_rolls_back_content
 test_chown_goes_through_sudo
 test_symlinked_conf_source_is_refused
 test_missing_passwordless_sudo_aborts_early
+test_failed_conf_removal_is_reported_honestly
+test_workflow_stages_into_a_random_private_dir
 test_repo_conf_is_the_one_that_ships
 
 echo
