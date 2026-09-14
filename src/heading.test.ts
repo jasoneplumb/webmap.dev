@@ -5,6 +5,7 @@ import {
   STATIONARY_SPEED_MS,
   selectHeading,
   smoothHeadingDeg,
+  easeUnwrappedDeg,
   unwrapHeadingDeg,
   type HeadingInputs,
 } from './heading';
@@ -199,5 +200,48 @@ describe('unwrapHeadingDeg', () => {
 
   it('holds still when the target has not moved', () => {
     expect(unwrapHeadingDeg(-359, 1)).toBeCloseTo(-359);
+  });
+});
+
+describe('easeUnwrappedDeg', () => {
+  it('moves a fraction of the way and does not normalize the result', () => {
+    // 359 -> 1 is +2 degrees of real rotation. Half of it lands at 360, NOT at 0:
+    // normalizing here is what puts a full-turn spin back into the CSS transition.
+    expect(easeUnwrappedDeg(359, 1, 0.5)).toBeCloseTo(360);
+  });
+
+  it('keeps accumulating past a full turn', () => {
+    expect(easeUnwrappedDeg(720, 10, 1)).toBeCloseTo(730);
+    expect(easeUnwrappedDeg(-359, 1, 1)).toBeCloseTo(-359);
+  });
+
+  it('clamps the factor so a long frame cannot overshoot the target', () => {
+    expect(easeUnwrappedDeg(0, 90, 4)).toBeCloseTo(90);
+    expect(easeUnwrappedDeg(0, 90, -2)).toBeCloseTo(0);
+  });
+
+  it('converges on the target when applied repeatedly across north', () => {
+    let deg = 350;
+    for (let n = 0; n < 200; n++) deg = easeUnwrappedDeg(deg, 10, 0.1);
+    expect(((deg % 360) + 360) % 360).toBeCloseTo(10, 3);
+  });
+
+  it('never steps further than the shortest arc', () => {
+    for (let prev = -400; prev <= 400; prev += 29) {
+      for (let target = 0; target < 360; target += 17) {
+        expect(Math.abs(easeUnwrappedDeg(prev, target, 1) - prev)).toBeLessThanOrEqual(180 + 1e-9);
+      }
+    }
+  });
+
+  it('is frame-rate independent for the same elapsed time', () => {
+    // The whole point of easing per second rather than per event: 60 small steps over a
+    // second must land in the same place as 10 larger ones.
+    const rate = 6;
+    let fast = 0;
+    for (let n = 0; n < 60; n++) fast = easeUnwrappedDeg(fast, 90, (1 / 60) * rate);
+    let slow = 0;
+    for (let n = 0; n < 10; n++) slow = easeUnwrappedDeg(slow, 90, (1 / 10) * rate);
+    expect(Math.abs(fast - slow)).toBeLessThan(5);
   });
 });
