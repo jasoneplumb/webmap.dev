@@ -176,6 +176,17 @@ export function formatBytes(bytes: number): string {
 
 const REGIONS_STORAGE_KEY = 'webmap-offline-regions';
 
+function isRegionBounds(value: unknown): value is RegionBounds {
+  if (typeof value !== 'object' || value === null) return false;
+  const b = value as Record<string, unknown>;
+  return (
+    typeof b['south'] === 'number' &&
+    typeof b['west'] === 'number' &&
+    typeof b['north'] === 'number' &&
+    typeof b['east'] === 'number'
+  );
+}
+
 function isSavedRegion(value: unknown): value is SavedRegion {
   if (typeof value !== 'object' || value === null) return false;
   const r = value as Record<string, unknown>;
@@ -185,7 +196,8 @@ function isSavedRegion(value: unknown): value is SavedRegion {
     typeof r['zMin'] === 'number' &&
     typeof r['zMax'] === 'number' &&
     Array.isArray(r['layers']) &&
-    typeof r['bounds'] === 'object' && r['bounds'] !== null
+    r['layers'].every((l) => typeof l === 'string' && l in REGION_LAYERS) &&
+    isRegionBounds(r['bounds'])
   );
 }
 

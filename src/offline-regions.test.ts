@@ -180,6 +180,18 @@ describe('region manifest', () => {
     expect(loadRegions()).toHaveLength(1);
   });
 
+  it('drops a structurally-valid entry with an unknown layer id', () => {
+    const stale = { ...makeRegion(), layers: ['terrain-legacy'] };
+    store.set('webmap-offline-regions', JSON.stringify([makeRegion(), stale]));
+    expect(loadRegions()).toHaveLength(1);
+  });
+
+  it('drops a structurally-valid entry with non-numeric bounds fields', () => {
+    const stale = { ...makeRegion(), bounds: { south: '0', west: 0, north: 1, east: 1 } };
+    store.set('webmap-offline-regions', JSON.stringify([makeRegion(), stale]));
+    expect(loadRegions()).toHaveLength(1);
+  });
+
   it('returns [] for corrupt JSON', () => {
     store.set('webmap-offline-regions', '{not json');
     expect(loadRegions()).toEqual([]);
