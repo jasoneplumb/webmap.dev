@@ -1887,6 +1887,7 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .app-dialog-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   padding: 16px 24px 20px;
 }
 
@@ -1908,6 +1909,41 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .app-dialog-ok:focus-visible {
   outline: 2px solid #1b4fa8;
   outline-offset: 2px;
+}
+
+/* Secondary action on a confirm dialog. */
+.app-dialog-cancel {
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+.app-dialog-cancel:hover {
+  background: #f2f2f2;
+}
+
+.app-dialog-cancel:focus-visible {
+  outline: 2px solid #1b4fa8;
+  outline-offset: 2px;
+}
+
+/* Destructive confirm (region delete). Same specificity as the base .app-dialog-ok
+   rules above, so these must stay after them to win. */
+.app-dialog-ok--destructive {
+  background: #dc2626;
+}
+
+.app-dialog-ok--destructive:hover {
+  background: #b91c1c;
+}
+
+.app-dialog-ok--destructive:focus-visible {
+  outline-color: #7f1d1d;
 }
 
 /* Device-orientation compass (bottom-left cluster). Muted until granted — normally by the

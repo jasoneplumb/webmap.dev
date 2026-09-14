@@ -3,10 +3,15 @@ import {
   REGION_LAYERS,
   TERRARIUM_MAX_ZOOM,
   type RegionBounds,
+  type RegionLayerId,
   type SavedRegion,
+  PARTIAL_SUFFIX,
   addRegion,
   clampZoomRange,
   countTiles,
+  coverageContains,
+  isSameCoverage,
+  mergeRegions,
   estimateLayers,
   formatBytes,
   getTileRange,
@@ -305,6 +310,90 @@ describe('region manifest', () => {
     expect(loaded.map((r) => r.name)).toEqual(['Keep']);
   });
 
+  describe('re-download dedupe', () => {
+    it('folds a re-download of the same area into the entry that already holds it', () => {
+      // Two rows for one area is the #318 defect: deleteRegion recomputes tile URLs from
+      // bounds/zoom/layers, so deleting either twin empties the tiles the other lists,
+      // and the survivor reads as fully saved until the user is offline on that ground.
+      addRegion(makeRegion({ id: 'first', name: 'Region 1' }));
+      addRegion(makeRegion({ id: 'second', name: 'Region 2' }));
+      expect(loadRegions()).toHaveLength(1);
+    });
+
+    it('keeps the original id and createdAt so the manager\u2019s Delete still resolves', () => {
+      addRegion(makeRegion({ id: 'first', createdAt: 1_000 }));
+      addRegion(makeRegion({ id: 'second', createdAt: 9_999 }));
+      const saved = loadRegions();
+      expect(saved).toHaveLength(1);
+      expect(saved[0]).toMatchObject({ id: 'first', name: 'Region 1', createdAt: 1_000 });
+    });
+
+    it('never lowers the recorded size on a re-download', () => {
+      addRegion(makeRegion({ tileCount: 400, bytes: 6_000_000 }));
+      // A re-run stopped early reports fewer succeeded tiles — but it removed nothing, so
+      // the row must not shrink to match it.
+      addRegion(makeRegion({ tileCount: 90, bytes: 1_350_000 }));
+      expect(loadRegions()[0]).toMatchObject({ tileCount: 400, bytes: 6_000_000 });
+      // A re-run that fills the gaps an earlier one left does raise it.
+      addRegion(makeRegion({ tileCount: 500, bytes: 7_500_000 }));
+      expect(loadRegions()[0]).toMatchObject({ tileCount: 500, bytes: 7_500_000 });
+    });
+
+    it('drops the "(partial)" marker once a re-download completes the region', () => {
+      addRegion(makeRegion({ name: 'Region 1' + PARTIAL_SUFFIX }));
+      addRegion(makeRegion({ name: 'Region 2' }));
+      expect(loadRegions().map((r) => r.name)).toEqual(['Region 1']);
+    });
+
+    it('does not re-mark a complete region partial when a later run is stopped early', () => {
+      // Stopping a re-run cannot un-download what the first, complete run already wrote.
+      addRegion(makeRegion({ name: 'Region 1' }));
+      addRegion(makeRegion({ name: 'Region 2' + PARTIAL_SUFFIX }));
+      expect(loadRegions().map((r) => r.name)).toEqual(['Region 1']);
+    });
+
+    it('merges zoom ranges that clamp to the same tiles', () => {
+      // Terrarium stops at z15, so a hillshade region saved z10-18 and one saved z10-15
+      // hold byte-identical tiles. Left as two rows, deleting either would empty the other.
+      addRegion(makeRegion({ id: 'wide', layers: ['hillshade'], zMin: 10, zMax: 18 }));
+      addRegion(makeRegion({ id: 'exact', layers: ['hillshade'], zMin: 10, zMax: 15 }));
+      const saved = loadRegions();
+      expect(saved).toHaveLength(1);
+      expect(saved[0]?.id).toBe('wide');
+    });
+
+    it('keeps genuinely different selections as separate entries', () => {
+      addRegion(makeRegion({ id: 'base' }));
+      addRegion(makeRegion({ id: 'deeper', zMax: 15 })); // holds tiles 'base' never fetched
+      addRegion(makeRegion({ id: 'two-layer', layers: ['streets', 'hillshade'] }));
+      addRegion(makeRegion({
+        id: 'tahoe',
+        bounds: { south: 39, west: -120.2, north: 39.2, east: -120 },
+      }));
+      expect(loadRegions().map((r) => r.id))
+        .toEqual(['base', 'deeper', 'two-layer', 'tahoe']);
+    });
+
+    it('does not swallow a smaller selection into the region that contains it', () => {
+      // Containment is not equality. The inner selection is a strict subset, so folding it
+      // in would claim the outer row covers ground the user asked for separately — and
+      // dropping it would leave those tiles listed nowhere once the outer row is deleted.
+      addRegion(makeRegion({
+        id: 'outer',
+        bounds: { south: 37, west: -123, north: 38, east: -122 },
+        zMin: 10,
+        zMax: 14,
+      }));
+      addRegion(makeRegion({
+        id: 'inner',
+        bounds: { south: 37.2, west: -122.8, north: 37.6, east: -122.4 },
+        zMin: 11,
+        zMax: 13,
+      }));
+      expect(loadRegions().map((r) => r.id)).toEqual(['outer', 'inner']);
+    });
+  });
+
   it('does not claim coverage above a layer\u2019s native ceiling', () => {
     // The slider said z10-18, but tileUrlsForLayer clamps hillshade to z15, so tiles above
     // z15 were never fetched. Comparing against the stored range would over-claim them.
@@ -324,5 +413,54 @@ describe('region manifest', () => {
     expect(isCoveredBySavedRegion(inner, ['hillshade'], 16, 18)).toBe(true);
     // Streets has no clamping (ceiling 18) and was never saved here.
     expect(isCoveredBySavedRegion(inner, ['streets'], 16, 18)).toBe(false);
+  });
+});
+
+describe('coverage comparison', () => {
+  const STREETS: RegionLayerId[] = ['streets'];
+  const base = { bounds: YOSEMITE, layers: STREETS, zMin: 12, zMax: 14 };
+
+  it('holds its own coverage', () => {
+    expect(coverageContains(base, base)).toBe(true);
+    expect(isSameCoverage(base, base)).toBe(true);
+  });
+
+  it('is directional — a wider region contains a narrower one, not the reverse', () => {
+    const wider = { ...base, zMin: 11, zMax: 15 };
+    expect(coverageContains(wider, base)).toBe(true);
+    expect(coverageContains(base, wider)).toBe(false);
+    expect(isSameCoverage(base, wider)).toBe(false);
+  });
+
+  it('treats unwrapped longitudes as the same ground', () => {
+    // Leaflet reports west 190 after a pan past the dateline; it is the same meridian as
+    // -170, and both selections generate byte-identical tile URLs. Comparing the raw
+    // numbers would file them as two regions that delete each other's tiles.
+    const wrapped = {
+      bounds: { south: 0, west: 190, north: 1, east: 191 },
+      layers: STREETS, zMin: 5, zMax: 6,
+    };
+    const plain = {
+      bounds: { south: 0, west: -170, north: 1, east: -169 },
+      layers: STREETS, zMin: 5, zMax: 6,
+    };
+    expect(isSameCoverage(wrapped, plain)).toBe(true);
+  });
+
+  it('requires the same layer set, not merely an overlapping one', () => {
+    const both = { ...base, layers: ['streets', 'hillshade'] as RegionLayerId[] };
+    expect(coverageContains(both, base)).toBe(true);
+    expect(coverageContains(base, both)).toBe(false);
+    expect(isSameCoverage(base, both)).toBe(false);
+  });
+
+  it('mergeRegions keeps the original identity and the larger estimate', () => {
+    const merged = mergeRegions(
+      makeRegion({ id: 'a', createdAt: 1_000, tileCount: 100, bytes: 1_500_000 }),
+      makeRegion({ id: 'b', createdAt: 2_000, tileCount: 20, bytes: 300_000 }),
+    );
+    expect(merged).toMatchObject({
+      id: 'a', createdAt: 1_000, tileCount: 100, bytes: 1_500_000,
+    });
   });
 });

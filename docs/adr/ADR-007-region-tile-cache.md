@@ -41,8 +41,15 @@ and they are exactly what the Hillshade overlay renders from.
 4. **A saved-region manifest** (`webmap-offline-regions` in localStorage) records
    bounds, zoom range, layers, and size per region. It drives the download panel's
    region manager (list + delete), the layers-popover offline badges, and the
-   offline tile-error toast copy.
-5. **`navigator.storage.persist()` is requested before each download** so the
+   offline tile-error toast copy. **It holds at most one entry per distinct
+   coverage**: re-downloading an area folds into the existing row rather than
+   appending a second one. Because delete recomputes tile URLs from
+   bounds/zoom/layers, two rows describing the same tiles would delete each
+   other's contents while both still claimed to hold them (#318).
+5. **Deleting a region is confirmed.** It is irreversible — this cache has no
+   expiry and no other reclamation path — and it can thin an overlapping region
+   too, so a single mis-tap in the mobile panel is not treated as consent.
+6. **`navigator.storage.persist()` is requested before each download** so the
    browser treats the origin's storage as non-evictable where supported; the result
    is surfaced in the completion toast when declined.
 

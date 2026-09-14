@@ -259,6 +259,10 @@ function saveRegions(regions: SavedRegion[]): void {
   }
 }
 
+/** Marks a region whose download was stopped before it finished. Dropped by mergeRegions
+ *  once a later run completes the same coverage. */
+export const PARTIAL_SUFFIX = ' (partial)';
+
 /** Next auto-name: "Region 1", "Region 2", … past the highest existing number.
  *  Matches the optional " (partial)" suffix too, so a region saved partial doesn't
  *  leave its number free for a later full download to collide with. */
@@ -271,8 +275,52 @@ export function nextRegionName(existing: SavedRegion[]): string {
   return `Region ${max + 1}`;
 }
 
+/** Fold a re-download into the entry that already holds the same tiles, keeping the row's
+ *  identity and the better of the two size estimates.
+ *
+ *  `bytes`/`tileCount` take the maximum rather than the newer value: both estimate the same
+ *  footprint, and the cache holds the union of the two runs. An aborted re-run of an
+ *  already-complete region reports fewer succeeded tiles than the region actually holds, and
+ *  writing that in would shrink the row for a download that removed nothing.
+ *
+ *  `id` and `createdAt` stay on the original — the coverage was created then, and the id is
+ *  the handle the manager's Delete button already carries. Only the "(partial)" marker
+ *  moves, and only off: a re-download that finishes fills in what a stopped run left, while
+ *  a run stopped early cannot un-download tiles an earlier complete run wrote. */
+export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): SavedRegion {
+  const completed = existing.name.endsWith(PARTIAL_SUFFIX)
+    && !incoming.name.endsWith(PARTIAL_SUFFIX);
+  return {
+    ...existing,
+    name: completed ? existing.name.slice(0, -PARTIAL_SUFFIX.length) : existing.name,
+    tileCount: Math.max(existing.tileCount, incoming.tileCount),
+    bytes: Math.max(existing.bytes, incoming.bytes),
+  };
+}
+
+/** Append a region to the manifest — or merge it into the entry that already covers exactly
+ *  the same tiles.
+ *
+ *  Re-downloading an area (to resume a stopped run, or to restore coverage a sibling's
+ *  delete took with it — ADR-007 tells users to do exactly that) used to append a second
+ *  entry under a fresh id. The duplicates are not cosmetic: deleteRegion recomputes tile
+ *  URLs from bounds/zoom/layers and deletes them from the shared region cache, so deleting
+ *  either twin empties the tiles the other still lists. The survivor goes on reading as
+ *  fully saved in the manager, and the gap surfaces only when the user is offline on that
+ *  ground with no way left to re-download it.
+ *
+ *  Limitation: matching is on bounds, not on the tile ranges they resolve to. Two
+ *  hand-drawn rectangles a hair apart can cover identical tiles and still be filed as two
+ *  regions. The path that actually produces duplicates — pressing Download again on the
+ *  selection still on screen — reuses the same bounds object, so it merges. Closing the
+ *  near-miss case means comparing per-zoom tile ranges instead; cheap enough, but it also
+ *  changes what isCoveredBySavedRegion means, so it is left for its own change. */
 export function addRegion(region: SavedRegion): SavedRegion[] {
-  const regions = [...loadRegions(), region];
+  const existing = loadRegions();
+  const idx = existing.findIndex((r) => isSameCoverage(r, region));
+  const regions = idx === -1
+    ? [...existing, region]
+    : existing.map((r, i) => (i === idx ? mergeRegions(r, region) : r));
   saveRegions(regions);
   return regions;
 }
@@ -329,6 +377,51 @@ export function hasSavedLayer(layer: RegionLayerId, regions = loadRegions()): bo
   return regions.some((r) => r.layers.includes(layer));
 }
 
+/** The fields that decide which tiles a region actually holds. `SavedRegion` satisfies it
+ *  structurally; a not-yet-saved selection can be described with the same shape. */
+export interface RegionCoverage {
+  bounds: RegionBounds;
+  layers: RegionLayerId[];
+  zMin: number;
+  zMax: number;
+}
+
+/** True when `outer` holds every tile `inner` needs: its bounds contain inner's, it carries
+ *  every layer inner asks for, and per layer its zoom range spans inner's.
+ *
+ *  The single place coverage is compared — `isCoveredBySavedRegion` asks it one way and
+ *  `isSameCoverage` asks it both ways — so the containment rule and its clamping cannot
+ *  drift between the "skip a redundant row" check and the "fold into the existing row"
+ *  check. Those two disagreeing is precisely how a duplicate entry gets written. */
+export function coverageContains(outer: RegionCoverage, inner: RegionCoverage): boolean {
+  const west = normalizeLng(inner.bounds.west);
+  const east = normalizeLng(inner.bounds.east);
+  return (
+    // Per layer, against the zoom range that layer actually holds. The manifest stores the
+    // raw slider values, but tileUrlsForLayer clamps to each layer's native ceiling before
+    // fetching, so comparing the request to the stored zMin/zMax unclamped claims hillshade
+    // coverage above z15 that was never downloaded.
+    inner.layers.every((l) => {
+      if (!outer.layers.includes(l)) return false;
+      const ceiling = REGION_LAYERS[l].maxNativeZoom;
+      const held = clampZoomRange(outer.zMin, outer.zMax, ceiling);
+      const want = clampZoomRange(inner.zMin, inner.zMax, ceiling);
+      return held.zMin <= want.zMin && held.zMax >= want.zMax;
+    }) &&
+    normalizeLng(outer.bounds.west) <= west && normalizeLng(outer.bounds.east) >= east &&
+    outer.bounds.south <= inner.bounds.south && outer.bounds.north >= inner.bounds.north
+  );
+}
+
+/** True when two selections resolve to the same set of tiles — containment both ways.
+ *
+ *  Deliberately not field equality. A hillshade region saved z10-18 and one saved z10-15
+ *  both hold z15 and below, because tileUrlsForLayer clamps to the provider ceiling; they
+ *  are one region wearing two slider settings, and deleting either empties the other. */
+export function isSameCoverage(a: RegionCoverage, b: RegionCoverage): boolean {
+  return coverageContains(a, b) && coverageContains(b, a);
+}
+
 /** True when some single saved region already covers this selection outright: its bounds
  *  contain it, it carries every requested layer, and its zoom range spans the request.
  *
@@ -344,23 +437,7 @@ export function isCoveredBySavedRegion(
   zMax: number,
   regions = loadRegions(),
 ): boolean {
-  const west = normalizeLng(bounds.west);
-  const east = normalizeLng(bounds.east);
-  return regions.some((r) =>
-    // Per layer, against the zoom range that layer actually holds. The manifest stores the
-    // raw slider values, but tileUrlsForLayer clamps to each layer's native ceiling before
-    // fetching, so comparing the request to r.zMin/r.zMax unclamped claims hillshade
-    // coverage above z15 that was never downloaded.
-    layers.every((l) => {
-      if (!r.layers.includes(l)) return false;
-      const ceiling = REGION_LAYERS[l].maxNativeZoom;
-      const held = clampZoomRange(r.zMin, r.zMax, ceiling);
-      const want = clampZoomRange(zMin, zMax, ceiling);
-      return held.zMin <= want.zMin && held.zMax >= want.zMax;
-    }) &&
-    normalizeLng(r.bounds.west) <= west && normalizeLng(r.bounds.east) >= east &&
-    r.bounds.south <= bounds.south && r.bounds.north >= bounds.north,
-  );
+  return regions.some((r) => coverageContains(r, { bounds, layers, zMin, zMax }));
 }
 
 // ── Storage persistence / estimate ───────────────────────────────────────────
