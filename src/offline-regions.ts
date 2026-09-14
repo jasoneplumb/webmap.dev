@@ -263,13 +263,19 @@ function saveRegions(regions: SavedRegion[]): void {
  *  once a later run completes the same coverage. */
 export const PARTIAL_SUFFIX = ' (partial)';
 
+function stripPartial(name: string): string {
+  return name.endsWith(PARTIAL_SUFFIX) ? name.slice(0, -PARTIAL_SUFFIX.length) : name;
+}
+
 /** Next auto-name: "Region 1", "Region 2", … past the highest existing number.
  *  Matches the optional " (partial)" suffix too, so a region saved partial doesn't
  *  leave its number free for a later full download to collide with. */
 export function nextRegionName(existing: SavedRegion[]): string {
   let max = 0;
   for (const r of existing) {
-    const m = /^Region (\d+)(?: \(partial\))?$/.exec(r.name);
+    // Strip the marker rather than encoding it in the pattern, so PARTIAL_SUFFIX stays the
+    // one definition of that string.
+    const m = /^Region (\d+)$/.exec(stripPartial(r.name));
     if (m?.[1]) max = Math.max(max, parseInt(m[1], 10));
   }
   return `Region ${max + 1}`;
@@ -309,9 +315,7 @@ export function mergeRegions(existing: SavedRegion, incoming: SavedRegion): Save
     if (inExisting && inIncoming) return existingPartial && incomingPartial;
     return inExisting ? existingPartial : incomingPartial;
   });
-  const base = existingPartial
-    ? existing.name.slice(0, -PARTIAL_SUFFIX.length)
-    : existing.name;
+  const base = stripPartial(existing.name);
   return {
     // Keeping existing's raw zMin/zMax is safe because isSameFootprint has already checked
     // that it clamps to the same per-layer range as incoming's, for every layer either side

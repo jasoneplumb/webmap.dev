@@ -109,8 +109,9 @@ function showDialog(
         // Focus trap: cycle Tab / Shift+Tab across the dialog's own buttons to honour
         // aria-modal. With a single button this pins focus on it, as it always did.
         // indexOf is -1 when focus sits outside the tracked buttons; the modulo below
-        // lands that on the first (or last, shifted) button, which is what we want. It
-        // stays correct for any button count as long as step remains +/-1.
+        // lands that on the first button either way (for two buttons, Shift+Tab from -1
+        // gives (-1-1+2)%2 = 0 as well). Unreachable while the trap holds, and a sane
+        // landing if it ever does not. Correct for any button count while step is +/-1.
         e.preventDefault();
         const current = buttonEls.indexOf(document.activeElement as HTMLButtonElement);
         const step = e.shiftKey ? -1 : 1;
