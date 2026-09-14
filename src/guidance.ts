@@ -1,4 +1,24 @@
-// Routed-guidance state machine + bottom-left pill UI.
+// Routed-guidance state machine + top banner UI.
+
+let bannerEl: HTMLElement | null = null;
+let bannerTapHandler: (() => void) | null = null;
+
+/**
+ * Register what a tap on the guidance banner does — re-centering, in practice.
+ *
+ * Kept as an injected callback rather than a guidance.ts import of the locate state:
+ * guidance owns a banner, not the map's follow mode, and wiring it the other way would
+ * make the routing module depend on locate internals to deliver one gesture.
+ *
+ * The banner content is aria-hidden (it repaints on every GPS fix; the live region
+ * announces instead), so this tap target is deliberately NOT the accessible path to
+ * re-centering — the locate button in the bottom-left cluster is, and it is always
+ * present, whereas the banner exists only while a route is running.
+ */
+export function setGuidanceBannerTapHandler(handler: () => void): void {
+  bannerTapHandler = handler;
+  bannerEl?.classList.add('guidance-banner--tappable');
+}
 // Feeds off the GPS stream from location.ts via updateGuidance(); fetches
 // routes from routing.ts; renders maneuvers / off-route / arrived states.
 
@@ -138,6 +158,15 @@ export function addGuidanceControl(
 
   const banner = document.createElement('div');
   banner.className = 'guidance-banner';
+  bannerEl = banner;
+  // Order-independent with setGuidanceBannerTapHandler: whichever runs second applies
+  // the class. main.ts registers the handler after addGuidanceControl today, but a
+  // affordance that silently depends on call order is a trap for the next edit.
+  if (bannerTapHandler !== null) banner.classList.add('guidance-banner--tappable');
+  // Tap-to-recenter. The listener sits on the container, not on rendered content:
+  // renderBanner replaces innerHTML on every fix, so anything bound inside would be
+  // discarded within the second.
+  banner.addEventListener('click', () => { bannerTapHandler?.(); });
   // Hidden from assistive tech: it repaints on every GPS fix, and the live
   // region below is what announces. Without this the banner's own text would
   // be read again on each repaint.

@@ -503,9 +503,10 @@ export function addDrawZoneControl(
     }
     drawing = true;
     map.getContainer().style.cursor = 'crosshair';
-    // No doubleClickZoom.disable()/enable() here — geocoding.ts already disables it for the
-    // app's lifetime (dblclick drops a reverse-geocode pin instead), so toggling it per draw
-    // session would re-enable map-zoom-on-dblclick and silently break that feature.
+    // Double-click zoom is on for the app's lifetime now (#296), and drawing does not
+    // need it off: a vertex is placed on a single click, and the no-dblclick-to-finish
+    // note above is why a stray double-click cannot close a zone by accident. It will
+    // zoom, which is the same thing it does everywhere else on the map.
     map.on('click', onMapClick);
     document.addEventListener('keydown', onKeyDown);
     toolbar.classList.add('visible');

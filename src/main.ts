@@ -32,7 +32,7 @@ import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
-import { addGuidanceControl } from './guidance';
+import { addGuidanceControl, setGuidanceBannerTapHandler } from './guidance';
 import { addCompassControl } from './compass';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
@@ -342,25 +342,16 @@ map.on('dragstart', () => dropToPassive(true));
 // passive: true — we observe only; Leaflet owns wheel-zoom mechanics.
 map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passive: true });
 
-// Double-tap on the map re-activates locate (mobile) — when the user has panned
-// away (active → passive), a double-tap snaps back to their position without
-// requiring them to reach the locate button.
-// Intercepted at capture phase so e.preventDefault() suppresses the browser's
-// synthesized dblclick event (which would zoom instead of re-centering).
-{
-  let lastTouchEnd = 0;
-  map.getContainer().addEventListener('touchend', (e: TouchEvent) => {
-    if (e.touches.length !== 0 || e.changedTouches.length !== 1) return; // multi-touch
-    const now = Date.now();
-    if (state.locateState === 'passive' && now - lastTouchEnd < 300) {
-      e.preventDefault(); // suppress synthesized dblclick → prevents zoom-in
-      reactivateLocate();
-      lastTouchEnd = 0;   // reset so a third tap starts a fresh sequence
-    } else {
-      lastTouchEnd = now;
-    }
-  }, { capture: true, passive: false });
-}
+// Re-centering used to live on a map double-tap, which cost the gesture its
+// universal meaning — every other map zooms in on double-tap, and this one
+// silently did not while locate was passive. Double-tap is back to zoom (see
+// geocoding.ts); tapping the guidance banner re-centers instead, which is
+// where a rider's attention already is while following a route. The locate
+// button in the bottom-left cluster remains the general affordance, and the
+// only one when no route is running.
+setGuidanceBannerTapHandler(() => {
+  if (state.locateState === 'passive') reactivateLocate();
+});
 
 // Initialize custom layers control with free OSM tile sources
 const tileLayers = getTileLayers();

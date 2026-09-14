@@ -1070,8 +1070,10 @@ export function addReverseGeocoding(
     }
   });
 
-  // Disable double-click zoom so dblclick can drop a pin instead
-  map.doubleClickZoom.disable();
+  // Double-click zoom stays ENABLED: zooming in on the double-tapped point is what
+  // every other map does, and overriding it cost more than the shortcut was worth.
+  // Pin drop keeps its two unambiguous gestures — right-click on desktop, long-press
+  // on touch — both handled below.
 
   /** Human-readable coordinates — shown immediately, and kept if the geocoder
    *  has nothing better to offer. */
@@ -1155,11 +1157,6 @@ export function addReverseGeocoding(
       }, 300);
     });
   }
-
-  // Double-click: drop pin (existing behavior)
-  map.on('dblclick', (e: L.LeafletMouseEvent) => {
-    dropPin(e.latlng);
-  });
 
   // Right-click (desktop) and long-press (mobile) both fire contextmenu.
   // A second contextmenu handler below sets contextmenuFired=true so the iOS
