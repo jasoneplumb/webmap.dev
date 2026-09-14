@@ -64,3 +64,51 @@ export function pointToSegmentMeters(p: L.LatLng, a: L.LatLng, b: L.LatLng): num
   const projLng = a.lng + t * (b.lng - a.lng);
   return haversineDistance(p.lat, p.lng, projLat, projLng);
 }
+
+// ── Tap pairing (pure) ────────────────────────────────────────────────────────
+
+/** One touch sample: where it happened and when. */
+export interface TapSample {
+  x: number;
+  y: number;
+  t: number;
+}
+
+/** How far apart two taps may land and still count as the same spot (px). */
+export const DOUBLE_TAP_SLOP_PX = 32;
+/** Longest gap between two taps that still reads as one gesture (ms). */
+export const DOUBLE_TAP_GAP_MS = 320;
+/** Furthest a single touch may travel and still be a tap rather than a drag (px). */
+export const TAP_MOVE_PX = 10;
+/** Longest a single touch may be held and still be a tap rather than a press (ms). */
+export const TAP_HOLD_MS = 500;
+
+/**
+ * Did one touch stay still enough, and end soon enough, to be a tap at all?
+ *
+ * Without this a pan qualifies: the finger that dragged the map across the screen still
+ * produces a touchend, and pairing that with an ordinary tap nearby a moment later
+ * zooms the map the user never asked to zoom. Drag-then-tap is an everyday sequence on
+ * a map, so the release point of a drag must never become half of a double-tap.
+ */
+export function isTapCandidate(
+  start: TapSample,
+  end: TapSample,
+  maxMovePx = TAP_MOVE_PX,
+  maxHoldMs = TAP_HOLD_MS,
+): boolean {
+  return Math.hypot(end.x - start.x, end.y - start.y) <= maxMovePx
+    && end.t - start.t <= maxHoldMs;
+}
+
+/** Are two taps close enough in time and space to be one double-tap? */
+export function isDoubleTap(
+  previous: TapSample | null,
+  current: TapSample,
+  maxGapMs = DOUBLE_TAP_GAP_MS,
+  maxSlopPx = DOUBLE_TAP_SLOP_PX,
+): boolean {
+  if (previous === null) return false;
+  return current.t - previous.t <= maxGapMs
+    && Math.hypot(current.x - previous.x, current.y - previous.y) <= maxSlopPx;
+}

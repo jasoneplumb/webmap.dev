@@ -244,7 +244,7 @@ Subscribes to `navigator.getBattery()` events and populates `state.batteryLevel`
 
 ### `src/map.ts` — Leaflet Initialization
 
-- Creates the map with `preferCanvas: true`, `zoomSnap: 0.5`, `zoomDelta: 0.5`, `maxZoom: 18`.
+- Creates the map with `preferCanvas: true`, `zoomSnap: 0.5` (pinch settles on half levels), `zoomDelta: 1` (double-tap, +/- buttons and keyboard move a whole level), `maxZoom: 19`.
 - Adds tile-loading spinner, scale, and zoom controls (all in the bottom-left cluster).
 - Defines the four base layers (CyclOSM, OSM Streets, OpenTopo, Humanitarian) and the Esri hillshade overlay (with `className: 'hillshade-blend'` for the multiply blend).
 - Wires `initOfflineTileFallback()` — on `tileerror`, looks up the parent-zoom tile in the OSM cache (up to 3 zoom levels above) and crops it onto a 256×256 canvas. Toast notifies the user with a 10-second cooldown.
