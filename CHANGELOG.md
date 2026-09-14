@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.52.2 (2026-09-14)
+
+### Fixed
+
+- **Double-tap zooms in one level on the point you tapped.** Two faults were stacked. The map set its discrete zoom step to half a level, so on desktop a double-tap moved so little it looked like nothing happened — that step controls the +/- buttons and keyboard too, and all three now move a whole level while pinch keeps its smooth half-steps. On iPhone the gesture never arrived at all: Leaflet pairs two taps within 200 ms, tighter than an ordinary thumb, and iOS does not reliably report a double-tap on a map that has already claimed the touch for dragging. The app now recognises the gesture itself, with a window wide enough for a real hand, and rejects a pan's release so dragging the map and then tapping no longer zooms by accident (#296)
+
 ## v0.52.1 (2026-09-14)
 
 No user-facing change. Two internal measurements were lying.
