@@ -6,7 +6,7 @@
 import L from 'leaflet';
 import type { AppState } from './types';
 import { requestOrientationPermission, subscribeOrientation, type OrientationPermission } from './orientation';
-import { smoothHeadingDeg } from './heading';
+import { smoothHeadingDeg, unwrapHeadingDeg } from './heading';
 import { scheduleHeadingIndicatorUpdate } from './heading-indicator';
 
 const COMPASS_HTML = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -34,6 +34,13 @@ export interface CompassControl {
 export function addCompassControl(map: L.Map, state: AppState): CompassControl {
   let unsubscribe: (() => void) | null = null;
   let button: HTMLButtonElement | null = null;
+  /**
+   * The angle actually written to CSS, kept unwrapped rather than normalized. See
+   * unwrapHeadingDeg: the rose's `transition: transform` interpolates whatever number it is
+   * given, so a normalized heading turns every pass through north into a full spin the wrong
+   * way. Null until the first reading, which lands without easing.
+   */
+  let roseDeg: number | null = null;
 
   /** Button presentation only — the caller owns state.compassPermission. */
   function markUnavailable(title: string): void {
@@ -58,7 +65,9 @@ export function addCompassControl(map: L.Map, state: AppState): CompassControl {
         ? heading
         : smoothHeadingDeg(state.compassHeadingDeg, heading, COMPASS_SMOOTH_FACTOR);
       // Negated: rotating the rose the other way is what keeps N pointing at true north.
-      button?.style.setProperty('--heading-deg', `${-state.compassHeadingDeg}deg`);
+      const target = -state.compassHeadingDeg;
+      roseDeg = roseDeg === null ? target : unwrapHeadingDeg(roseDeg, target);
+      button?.style.setProperty('--heading-deg', `${roseDeg}deg`);
       scheduleHeadingIndicatorUpdate(state);
     });
   }
@@ -108,6 +117,9 @@ export function addCompassControl(map: L.Map, state: AppState): CompassControl {
         unsubscribe();
         unsubscribe = null;
       }
+      // Drop the accumulator with the button it was driving, so a later remount starts from
+      // the first reading instead of unwinding from a stale angle.
+      roseDeg = null;
       button = null;
     },
   });

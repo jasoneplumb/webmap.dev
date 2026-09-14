@@ -5,6 +5,7 @@ import {
   STATIONARY_SPEED_MS,
   selectHeading,
   smoothHeadingDeg,
+  unwrapHeadingDeg,
   type HeadingInputs,
 } from './heading';
 
@@ -161,5 +162,42 @@ describe('smoothHeadingDeg', () => {
     let h = 355;
     for (let n = 0; n < 60; n++) h = smoothHeadingDeg(h, 5, 0.2);
     expect(h).toBeCloseTo(5, 3);
+  });
+});
+
+describe('unwrapHeadingDeg', () => {
+  it('takes the short way across north instead of winding back through 358 degrees', () => {
+    // The bug this exists to prevent: CSS interpolates the number it is handed, so a
+    // normalized 359 -> 1 animates a full spin. Unwrapped, the step is +2.
+    expect(unwrapHeadingDeg(359, 1)).toBeCloseTo(361);
+  });
+
+  it('takes the short way across north in the other direction', () => {
+    expect(unwrapHeadingDeg(1, 359)).toBeCloseTo(-1);
+  });
+
+  it('never steps more than 180 degrees', () => {
+    for (let prev = -720; prev <= 720; prev += 37) {
+      for (let target = 0; target < 360; target += 13) {
+        expect(Math.abs(unwrapHeadingDeg(prev, target) - prev)).toBeLessThanOrEqual(180 + 1e-9);
+      }
+    }
+  });
+
+  it('always lands on an angle congruent to the target', () => {
+    for (const [prev, target] of [[359, 1], [1, 359], [-5, 350], [1080, 90]] as const) {
+      const got = unwrapHeadingDeg(prev, target);
+      expect(((got % 360) + 360) % 360).toBeCloseTo(((target % 360) + 360) % 360);
+    }
+  });
+
+  it('accumulates past a full turn rather than wrapping, so continuous rotation stays smooth', () => {
+    let deg = 0;
+    for (const target of [90, 180, 270, 0, 90, 180, 270, 0]) deg = unwrapHeadingDeg(deg, target);
+    expect(deg).toBeCloseTo(720);
+  });
+
+  it('holds still when the target has not moved', () => {
+    expect(unwrapHeadingDeg(-359, 1)).toBeCloseTo(-359);
   });
 });
