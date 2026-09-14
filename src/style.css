@@ -1054,6 +1054,20 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 .leaflet-bottom.leaflet-left #version-badge          { order: 9; }
 .leaflet-bottom.leaflet-left .leaflet-control-attribution { order: 10; }
 
+/* Show every credit, always. Attribution is a licence obligation, not chrome, so it
+   must not depend on the reader noticing that a clipped line can be opened.
+   The column is align-items:flex-start, so this control takes its natural
+   single-line width — with five providers joined by Leaflet into one string that
+   runs past the right edge of a phone, and the tail carries the OSM and
+   Thunderforest credits. Cap it to the viewport and let it wrap instead. */
+.leaflet-bottom.leaflet-left .leaflet-control-attribution {
+  white-space: normal;
+  max-width: min(calc(100vw - 20px), 420px);
+  /* The column scrolls vertically and a wrapped attribution is taller than a line,
+     so give it room rather than letting it be the thing that scrolls out of reach. */
+  flex: 0 0 auto;
+}
+
 /* Breathing room between the search pair and the readouts below it, separating
    the things you act on from the things you only read. Applied to the scale's
    top rather than the search's bottom so the gap survives the results toggle
