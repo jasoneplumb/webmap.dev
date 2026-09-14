@@ -463,6 +463,10 @@ export function addDrawZoneControl(
     for (const marker of vertexMarkers) map.removeLayer(marker);
     vertexMarkers = [];
     map.getContainer().style.cursor = '';
+    // Restore the app-wide default (#296). Unconditional: teardown runs on cancel,
+    // finish, and control-toggle alike, and leaving it disabled would silently strip
+    // double-tap zoom from the rest of the session.
+    map.doubleClickZoom.enable();
     map.off('click', onMapClick);
     document.removeEventListener('keydown', onKeyDown);
     toolbar.classList.remove('visible');
@@ -503,9 +507,12 @@ export function addDrawZoneControl(
     }
     drawing = true;
     map.getContainer().style.cursor = 'crosshair';
-    // No doubleClickZoom.disable()/enable() here — geocoding.ts already disables it for the
-    // app's lifetime (dblclick drops a reverse-geocode pin instead), so toggling it per draw
-    // session would re-enable map-zoom-on-dblclick and silently break that feature.
+    // Double-click zoom is on for the app's lifetime now (#296), but a draw session is
+    // the one place it actively fights the user: a vertex lands on every single click,
+    // so two placed in quick succession — an ordinary way to trace a corner — also fire
+    // the browser's dblclick and would zoom the view out from under the next click.
+    // Off for the session, restored in teardown.
+    map.doubleClickZoom.disable();
     map.on('click', onMapClick);
     document.addEventListener('keydown', onKeyDown);
     toolbar.classList.add('visible');
