@@ -39,6 +39,10 @@
     "workbox-routing": "^7.4.0",
     "workbox-strategies": "^7.4.0"
   },
+  "comment:overrides": "@babel/core reaches us only through vite-plugin-pwa -> workbox-build, which pins a range that resolves to 7.29.0 — the last version affected by GHSA-4x5r-pxfx-6jf8 (arbitrary file read via sourceMappingURL). Build-time only and not in any shipped bundle, but the override costs nothing. Remove it once workbox-build resolves past 7.29.0 on its own.",
+  "overrides": {
+    "@babel/core": "^7.29.7"
+  },
   "size-limit": [
     {
       "path": "dist/assets/index-*.js",
