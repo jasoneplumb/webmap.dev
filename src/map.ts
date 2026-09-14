@@ -5,6 +5,7 @@
  * Future: Tile layer config (tokens, URLs, zoom limits) is hardcoded; no runtime layer switching beyond the built-in layer control
  */
 import L from 'leaflet';
+import { isDoubleTap, isTapCandidate, type TapSample } from './geo';
 import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid';
 import { OSM_TILE_CACHE_NAME, REGION_TILE_CACHE_NAME } from './sw-constants';
@@ -525,42 +526,61 @@ export function createMap(): L.Map {
   // preventDefault on the second tap suppresses any dblclick the browser does go on to
   // synthesize, so the zoom happens once rather than twice. Capture phase for the same
   // reason the old recenter handler used it: to get there before Leaflet does.
+  //
+  // The pairing rules live in geo.ts and are unit-tested; what stays here is the DOM
+  // plumbing that cannot be.
   {
-    const DOUBLE_TAP_MS = 320;   // a relaxed human double-tap, not Leaflet's 200
-    const SLOP_PX = 32;          // thumbs do not land twice on the same pixel
-    let lastEndMs = 0;
-    let lastX = 0;
-    let lastY = 0;
+    let touchStart: TapSample | null = null;
+    let previousTap: TapSample | null = null;
+
+    container.addEventListener('touchstart', (e: TouchEvent) => {
+      // A second finger means a pinch. Drop both the in-flight touch and any earlier
+      // tap, so neither finger's release can pair with something from before the pinch.
+      if (e.touches.length !== 1) {
+        touchStart = null;
+        previousTap = null;
+        return;
+      }
+      const touch = e.touches[0];
+      touchStart = touch ? { x: touch.clientX, y: touch.clientY, t: Date.now() } : null;
+    }, { capture: true, passive: true });
 
     container.addEventListener('touchend', (e: TouchEvent) => {
+      const start = touchStart;
+      touchStart = null;
+
       // Respect whoever turned the gesture off — custom-zones disables it for the
       // duration of a draw session, where every tap places a vertex.
       if (!map.doubleClickZoom.enabled()) return;
-      // Multi-touch is a pinch, and a tap on a control belongs to the control.
       if (e.touches.length !== 0 || e.changedTouches.length !== 1) return;
       if ((e.target as HTMLElement | null)?.closest('.leaflet-control')) return;
 
       const touch = e.changedTouches[0];
-      if (!touch) return;
-      const now = Date.now();
-      const near = Math.hypot(touch.clientX - lastX, touch.clientY - lastY) <= SLOP_PX;
+      if (!touch || start === null) return;
+      const current: TapSample = { x: touch.clientX, y: touch.clientY, t: Date.now() };
 
-      if (now - lastEndMs <= DOUBLE_TAP_MS && near) {
+      // A pan ends in a touchend too. Without this check its release point becomes half
+      // of a double-tap, and the ordinary sequence "drag the map, then tap something"
+      // zooms unbidden.
+      if (!isTapCandidate(start, current)) {
+        previousTap = null;
+        return;
+      }
+
+      if (isDoubleTap(previousTap, current)) {
         e.preventDefault();
         const rect = container.getBoundingClientRect();
-        const point = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
-        // setZoomAround keeps the tapped coordinate under the finger, which is what
-        // makes a double-tap feel like "zoom in HERE" rather than "zoom in somewhere".
+        const point = L.point(current.x - rect.left, current.y - rect.top);
         // ?? 1 only satisfies the optional type: zoomDelta is set explicitly above, and
         // reading it here rather than hard-coding 1 keeps this gesture tied to the same
         // step the buttons and keyboard use.
         const delta = map.options.zoomDelta ?? 1;
+        // setZoomAround keeps the tapped coordinate under the finger, which is what
+        // makes a double-tap feel like "zoom in HERE" rather than "zoom in somewhere".
         map.setZoomAround(map.containerPointToLatLng(point), map.getZoom() + delta);
-        lastEndMs = 0; // a third tap starts a fresh pair rather than chaining
+        previousTap = null; // a third tap starts a fresh pair rather than chaining
       } else {
-        lastEndMs = now;
-        lastX = touch.clientX;
-        lastY = touch.clientY;
+        previousTap = current;
       }
     }, { capture: true, passive: false });
   }

@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import L from 'leaflet';
-import { bearingDeg, normalizeDeg, pointToSegmentMeters, shortestArcDeg } from './geo';
+import {
+  DOUBLE_TAP_GAP_MS,
+  TAP_MOVE_PX,
+  bearingDeg,
+  isDoubleTap,
+  isTapCandidate,
+  normalizeDeg,
+  pointToSegmentMeters,
+  shortestArcDeg,
+} from './geo';
 
 describe('bearingDeg', () => {
   it('returns ~0 for due north', () => {
@@ -120,5 +129,43 @@ describe('shortestArcDeg', () => {
   it('lands on the target when added to the start', () => {
     expect(normalizeDeg(350 + shortestArcDeg(350, 10))).toBeCloseTo(10);
     expect(normalizeDeg(10 + shortestArcDeg(10, 350))).toBeCloseTo(350);
+  });
+});
+
+describe('tap pairing', () => {
+  const at = (x: number, y: number, t: number) => ({ x, y, t });
+
+  it('accepts a still, brief touch as a tap', () => {
+    expect(isTapCandidate(at(100, 100, 0), at(102, 101, 80))).toBe(true);
+  });
+
+  it('rejects a touch that travelled — that is a pan, not a tap', () => {
+    // The bug this prevents: a pan ends in a touchend too, and pairing its release
+    // point with a later tap zoomed the map on the everyday "drag, then tap" sequence.
+    expect(isTapCandidate(at(100, 100, 0), at(100 + TAP_MOVE_PX + 1, 100, 80))).toBe(false);
+  });
+
+  it('rejects a touch held long enough to be a press', () => {
+    expect(isTapCandidate(at(100, 100, 0), at(100, 100, 900))).toBe(false);
+  });
+
+  it('pairs two taps close in time and space', () => {
+    expect(isDoubleTap(at(100, 100, 0), at(110, 105, 200))).toBe(true);
+  });
+
+  it('does not pair taps too far apart in time', () => {
+    expect(isDoubleTap(at(100, 100, 0), at(100, 100, DOUBLE_TAP_GAP_MS + 1))).toBe(false);
+  });
+
+  it('does not pair taps too far apart on screen', () => {
+    expect(isDoubleTap(at(100, 100, 0), at(200, 100, 100))).toBe(false);
+  });
+
+  it('never pairs against nothing', () => {
+    expect(isDoubleTap(null, at(100, 100, 0))).toBe(false);
+  });
+
+  it('uses a gap wider than Leaflet\u2019s 200ms, which is what missed iOS double-taps', () => {
+    expect(isDoubleTap(at(0, 0, 0), at(0, 0, 250))).toBe(true);
   });
 });
