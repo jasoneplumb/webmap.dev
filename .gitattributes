@@ -1,2 +1,9 @@
 # Force LF line endings for shell scripts (prevents CRLF breakage in CI)
 *.sh text eol=lf
+
+# package.json and the lockfile are rewritten by npm, which preserves whatever line
+# endings it finds. One CRLF write (#319) made every later edit look like a full-file
+# rewrite — a one-line version bump showed as 55 changed lines, and a real change would
+# have been unreviewable inside it. Pin them so the format cannot drift again.
+package.json text eol=lf
+package-lock.json text eol=lf
