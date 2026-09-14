@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.52.0 (2026-09-14)
+
+Three corrections to things the map was doing wrong in plain sight: a compass that shivered, credits that were cut off and printed twice, and a double-tap that refused to zoom.
+
+### Changed
+
+- **Double-tap zooms in, like every other map.** It used to re-centre on your position instead — but only while location following was paused, so the same gesture did different things depending on state you could not see, and the standard zoom was actively suppressed. Re-centring moves to a tap on the guidance banner at the top of the screen, where your attention already is while following a route. The locate button remains the way to re-centre at any other time (#296)
+
+### Fixed
+
+- **The compass rose no longer shivers when you stand still.** The position marker was filtered twice — once for sensor noise, once for animation — and the rose only once, so it drew raw magnetometer jitter. Made worse by the filter being applied per sensor reading rather than per unit time: on a phone reporting at 60 Hz it converged within a frame and smoothed nothing. The rose now eases the same way the marker does, and a leftover CSS transition that was fighting the new easing is gone (#323)
+- **Every map credit is visible, and OpenStreetMap is credited once.** The attribution line ran past the right edge of a phone screen and its tail — carrying the OpenStreetMap and Thunderforest credits — was simply cut off. It now wraps. Separately, the same OpenStreetMap phrase was embedded in three different provider strings, so the default layer stack printed it two or three times over; the shared credit is now contributed once by whichever layers use OpenStreetMap data, and disappears when the last of them is switched off
+
+### Internal
+
+- Drawing a custom zone temporarily disables double-tap zoom: a vertex lands on every click, so tracing a corner quickly would otherwise zoom the view out from under the next one (#296)
+
 ## v0.51.0 (2026-09-14)
 
 Offline maps stop being one base layer you hope survives eviction: you choose which layers to save, the tiles land in a cache nothing else can evict, and the app shows you what you have. The position marker also learned which way you are facing while standing still.
