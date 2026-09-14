@@ -726,6 +726,17 @@ async function startDownload(
 
   if (!_panelEl) return; // panel was closed during download
 
+  // A cancelled run must not land in the success tail. The cancel handler already put the
+  // panel back to 'selecting' and told the user; this promise resolves a moment later and
+  // used to overwrite all of it — flipping the panel to "Done", toasting a success
+  // message for the download they just stopped, and drawing the cached overlay across the
+  // WHOLE selection when only part of it was fetched. The partial region is still
+  // recorded above, deliberately, so those tiles stay deletable.
+  if (aborted) {
+    setUiState(_panelEl, 'selecting');
+    return;
+  }
+
   setUiState(_panelEl, 'done');
 
   // Show cached region overlay on map
