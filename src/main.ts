@@ -323,7 +323,10 @@ function dropToPassive(showTouchHint: boolean): void {
 
   if (showTouchHint && navigator.maxTouchPoints > 0 && !sessionStorage.getItem('locate-hint-shown')) {
     sessionStorage.setItem('locate-hint-shown', '1');
-    showToast('Double-tap map to re-center', 2500);
+    // Names the control, not a gesture: double-tap zooms now (#296), and the banner
+    // shortcut only exists while a route is running, so the button is the one answer
+    // that is always true.
+    showToast('Tap the locate button to re-center', 2500);
   }
 
   const locateImg = document.getElementById('locate');

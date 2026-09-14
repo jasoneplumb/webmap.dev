@@ -121,8 +121,8 @@ function deactivatePolling(): void {
 - **off → active** — synchronous within the click handler so iOS Safari shows the permission prompt; calls `activatePolling()`.
 - **active → off** — `deactivatePolling()`, clear the blue dot and accuracy circle.
 - **passive → active** — `flyTo()` the last known position; no refcount change (already polling).
-- **active → passive** — automatic on `dragstart` or first wheel-zoom; a one-shot toast tells touch users to "Double-tap map to re-center".
-- **passive → active (touch)** — a double-tap on the map at capture-phase calls `reactivateLocate()` and `preventDefault()`s the synthesized `dblclick` so the browser doesn't zoom in.
+- **active → passive** — automatic on `dragstart` or first wheel-zoom; a one-shot toast points touch users at the locate button.
+- **passive → active (touch)** — a tap on the guidance banner calls `reactivateLocate()` (#296). Double-tap is plain Leaflet zoom everywhere, as it is on every other map; the banner only exists while a route is running, so the locate button remains the affordance that is always present.
 
 GPS errors with `code === 1` (PERMISSION_DENIED) are debounced: a 3-second timer waits for a fix to arrive, since iOS Safari sometimes fires a spurious permission-denied right before the first valid `locationfound`. If the fix arrives the timer is cancelled; otherwise the state collapses to `off` and a sticky toast explains how to re-grant permission.
 

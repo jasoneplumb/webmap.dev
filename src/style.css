@@ -394,6 +394,11 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    re-centering is the locate button, which is always present; this banner exists
    only while a route is running and its contents are aria-hidden. */
 .guidance-banner--tappable {
+  /* The base rule sets pointer-events:none so a read-only banner never swallows a
+     tap meant for the map. Opting back in is therefore load-bearing, not cosmetic:
+     without it the click listener never fires and the whole feature is a no-op that
+     tests cannot catch, because the banner is Leaflet/DOM wiring. */
+  pointer-events: auto;
   cursor: pointer;
   -webkit-tap-highlight-color: rgba(255, 255, 255, 0.12);
 }
