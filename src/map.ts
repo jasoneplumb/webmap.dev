@@ -250,7 +250,13 @@ export function createMap(): L.Map {
     preferCanvas: true,
     // constraint: fractional zoom (0.5 steps) required for smooth pinch-to-zoom on mobile; integer steps feel jarring
     zoomSnap: 0.5,
-    zoomDelta: 0.5,
+    // zoomSnap is what makes pinch smooth — it is the grid a gesture settles onto.
+    // zoomDelta is something else: the step a DISCRETE control takes, and Leaflet uses
+    // it for double-click (_onDoubleClick), the +/- buttons and the keyboard. At 0.5 a
+    // double-tap moved half a level, which reads as "double-tap does nothing" because
+    // half a level barely changes the picture. Discrete actions move a whole level, as
+    // they do on every other map; the pinch gesture keeps its half steps. (#296)
+    zoomDelta: 1,
     // Past each layer's maxNativeZoom Leaflet scales the native tiles, so the
     // last levels render progressively blurrier rather than fetching new tiles.
     maxZoom: 19,
