@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.52.1 (2026-09-14)
+
+No user-facing change. Two internal measurements were lying.
+
+### Internal
+
+- **`npm test` no longer counts the same tests several times.** `clones/` holds git worktrees of this repo, so every test file existed once per worktree and the local run reported a multiple of the real count — 926 "passing" against 391 actual. CI checks out clean and was always right, so the two disagreed with nothing failing, and the inflated figure reached PR descriptions. Vitest's own default exclusions are preserved rather than replaced
+- **`package.json` is pinned to LF.** A single npm write left it CRLF, and npm preserves whatever endings it finds, so it stuck: every later edit rendered as a full-file rewrite, and a one-line version bump showed as 55 changed lines with the real change buried inside. Normalized and pinned in `.gitattributes` alongside the lockfile
+
 ## v0.52.0 (2026-09-14)
 
 Three corrections to things the map was doing wrong in plain sight: a compass that shivered, credits that were cut off and printed twice, and a double-tap that refused to zoom.
