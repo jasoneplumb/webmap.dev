@@ -14,6 +14,7 @@
  */
 import L from 'leaflet';
 import { setupCollapsibleLabel } from './controls';
+import { escapeHtml } from './html';
 import { REGION_TILE_CACHE_NAME } from './sw-constants';
 import {
   REGION_LAYERS,
@@ -37,15 +38,6 @@ const SAFARI_QUOTA_BYTES = 50 * 1024 * 1024; // ~50MB Safari cache quota
 const CONCURRENT_FETCHES = 6; // max parallel tile fetches (browser limit per domain is 6)
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 18;
-
-// Region names are auto-generated today, but the manifest lives in localStorage —
-// writable by anything on the origin — so treat names as data, not markup.
-function escapeHtml(s: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  };
-  return s.replace(/[&<>"']/g, (c) => map[c] ?? c);
-}
 
 function toRegionBounds(bounds: L.LatLngBounds): RegionBounds {
   return {
@@ -75,6 +67,15 @@ interface DownloadProgress {
 }
 
 type ProgressCallback = (progress: DownloadProgress) => void;
+
+/** Whether a completed (or aborted) download actually cached tiles worth keeping as
+ *  a saved region. Guards the case where every tile request fails (provider outage,
+ *  rate limiting, a captive portal returning error pages instead of throwing) —
+ *  `done` reaches `total` with nothing newly fetched, which must NOT count as a
+ *  successful, non-aborted download. */
+export function shouldSaveDownloadedRegion(result: DownloadProgress): boolean {
+  return result.done - result.failed - result.cached > 0;
+}
 
 let _abortController: AbortController | null = null;
 
@@ -555,6 +556,14 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       box.disabled = disabled;
     });
   };
+  // Deleting a region while it's mid-download can race deleteRegion's cache.delete()
+  // against the in-flight download's cache.put() for the same tile URLs — freeze
+  // deletion alongside the other controls for the duration.
+  const setDeleteButtons = (disabled: boolean): void => {
+    panel.querySelectorAll<HTMLButtonElement>('.offline-dl-regions__delete').forEach((btn) => {
+      btn.disabled = disabled;
+    });
+  };
 
   switch (state) {
     case 'selecting':
@@ -564,6 +573,7 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       if (zminInput) zminInput.disabled = false;
       if (zmaxInput) zmaxInput.disabled = false;
       setLayerBoxes(false);
+      setDeleteButtons(false);
       break;
     case 'downloading':
       if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'Downloading...'; }
@@ -572,6 +582,7 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       if (zminInput) zminInput.disabled = true;
       if (zmaxInput) zmaxInput.disabled = true;
       setLayerBoxes(true);
+      setDeleteButtons(true);
       break;
     case 'done':
       if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'Done'; }
@@ -579,6 +590,7 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       if (zminInput) zminInput.disabled = true;
       if (zmaxInput) zmaxInput.disabled = true;
       setLayerBoxes(true);
+      setDeleteButtons(false);
       break;
   }
 }
@@ -616,8 +628,7 @@ async function startDownload(
   // here would orphan those tiles with no reclamation path at all — region-tiles
   // has no ExpirationPlugin by design (ADR-007).
   const aborted = result.done < result.total;
-  const newlyFetched = result.done - result.failed - result.cached;
-  if (!aborted || newlyFetched > 0) {
+  if (shouldSaveDownloadedRegion(result)) {
     // Failed tiles are missing coverage, not a failed region — re-running the
     // same download skips what's cached and fills the gaps.
     const existing = loadRegions();

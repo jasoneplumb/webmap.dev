@@ -204,6 +204,10 @@ describe('region manifest', () => {
     expect(nextRegionName([makeRegion({ name: 'Yosemite trip' })])).toBe('Region 1');
   });
 
+  it('recognizes its own "(partial)" suffix so a later full download does not collide', () => {
+    expect(nextRegionName([makeRegion({ name: 'Region 3 (partial)' })])).toBe('Region 4');
+  });
+
   it('hasSavedLayer reports per-layer coverage', () => {
     addRegion(makeRegion({ layers: ['hillshade'] }));
     expect(hasSavedLayer('hillshade')).toBe(true);

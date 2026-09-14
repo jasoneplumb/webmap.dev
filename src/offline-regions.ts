@@ -222,11 +222,13 @@ function saveRegions(regions: SavedRegion[]): void {
   }
 }
 
-/** Next auto-name: "Region 1", "Region 2", … past the highest existing number. */
+/** Next auto-name: "Region 1", "Region 2", … past the highest existing number.
+ *  Matches the optional " (partial)" suffix too, so a region saved partial doesn't
+ *  leave its number free for a later full download to collide with. */
 export function nextRegionName(existing: SavedRegion[]): string {
   let max = 0;
   for (const r of existing) {
-    const m = /^Region (\d+)$/.exec(r.name);
+    const m = /^Region (\d+)(?: \(partial\))?$/.exec(r.name);
     if (m?.[1]) max = Math.max(max, parseInt(m[1], 10));
   }
   return `Region ${max + 1}`;
