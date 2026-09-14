@@ -39,6 +39,10 @@
     "workbox-routing": "^7.4.0",
     "workbox-strategies": "^7.4.0"
   },
+  "comment:overrides": "GHSA-4x5r-pxfx-6jf8 via vite-plugin-pwa -> workbox-build; drop when it resolves past 7.29.0 (see issue #320)",
+  "overrides": {
+    "@babel/core": "^7.29.7"
+  },
   "size-limit": [
     {
       "path": "dist/assets/index-*.js",
