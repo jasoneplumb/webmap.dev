@@ -77,13 +77,42 @@ export interface TileRange {
   yMax: number;
 }
 
+/** Wrap a longitude into [-180, 180].
+ *
+ *  Leaflet's `getBounds()` reports unwrapped longitudes once the user has panned across the
+ *  antimeridian — west can read -181, or east 190. Feeding those straight to lng2tile is
+ *  how a rectangle the size of a town becomes a download of every tile column on Earth:
+ *  lng2tile(-181) is negative, Math.max(0, …) snaps xMin to 0, and the range runs from the
+ *  left edge of the world to wherever east lands. The mirror case (west 190) produces
+ *  xMin > xMax, a negative tile count, a negative size estimate, and a "successful"
+ *  download that fetches nothing at all. */
+export function normalizeLng(lng: number): number {
+  return ((((lng + 180) % 360) + 360) % 360) - 180;
+}
+
+/** Whether a selection spans the antimeridian once its longitudes are wrapped.
+ *
+ *  A single x-range cannot express that span — it would have to be two ranges, one either
+ *  side of 180. Rather than guess which half the user meant, or sweep the whole world,
+ *  callers refuse the selection and say why. */
+export function crossesAntimeridian(bounds: RegionBounds): boolean {
+  return normalizeLng(bounds.west) > normalizeLng(bounds.east);
+}
+
 export function getTileRange(bounds: RegionBounds, z: number): TileRange {
   const maxTile = Math.pow(2, z) - 1;
+  const west = normalizeLng(bounds.west);
+  const east = normalizeLng(bounds.east);
+  const clamp = (v: number): number => Math.max(0, Math.min(maxTile, v));
+  // A crossing selection is rejected upstream (crossesAntimeridian); clamping here keeps
+  // the range coherent — empty rather than world-sized — if one ever reaches this far.
+  const xMin = clamp(lng2tile(west, z));
+  const xMax = clamp(lng2tile(east, z));
   return {
-    xMin: Math.max(0, lng2tile(bounds.west, z)),
-    xMax: Math.min(maxTile, lng2tile(bounds.east, z)),
-    yMin: Math.max(0, lat2tile(bounds.north, z)), // north edge has the smaller y
-    yMax: Math.min(maxTile, lat2tile(bounds.south, z)),
+    xMin,
+    xMax: Math.max(xMin - 1, xMax), // xMin-1 encodes "no columns" for countTiles
+    yMin: clamp(lat2tile(bounds.north, z)), // north edge has the smaller y
+    yMax: clamp(lat2tile(bounds.south, z)),
   };
 }
 
@@ -102,7 +131,9 @@ export function countTiles(bounds: RegionBounds, zMin: number, zMax: number): nu
   let total = 0;
   for (let z = zMin; z <= zMax; z++) {
     const r = getTileRange(bounds, z);
-    total += (r.xMax - r.xMin + 1) * (r.yMax - r.yMin + 1);
+    // max(0, …): an empty range must contribute nothing rather than a negative count that
+    // silently cancels out other zoom levels in the estimate.
+    total += Math.max(0, r.xMax - r.xMin + 1) * Math.max(0, r.yMax - r.yMin + 1);
   }
   return total;
 }
@@ -246,10 +277,71 @@ export function removeRegion(id: string): SavedRegion[] {
   return regions;
 }
 
+/** Inverse of lng2tile / lat2tile: the north-west corner of a tile, in degrees. */
+export function tile2lng(x: number, z: number): number {
+  return (x / Math.pow(2, z)) * 360 - 180;
+}
+
+export function tile2lat(y: number, z: number): number {
+  const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+/** True when a saved region carrying `layer` actually contains this tile.
+ *
+ *  hasSavedLayer only answers "is that layer saved anywhere", which is the wrong question
+ *  for the offline tile-error toast: someone who saved Yosemite and then rides in Tahoe was
+ *  told their saved regions covered the area, switched base layers on that promise, and
+ *  found nothing. The manifest has the bounds, so the toast can check where the user
+ *  actually is. */
+export function savedRegionCoversTile(
+  layer: RegionLayerId,
+  x: number,
+  y: number,
+  z: number,
+  regions = loadRegions(),
+): boolean {
+  // The tile's north-west corner is enough: a region containing any part of the tile is
+  // coverage worth pointing at, and the corner is the cheapest representative point.
+  const lng = normalizeLng(tile2lng(x, z));
+  const lat = tile2lat(y, z);
+  return regions.some((r) =>
+    r.layers.includes(layer) &&
+    r.zMin <= z && r.zMax >= z &&
+    normalizeLng(r.bounds.west) <= lng && normalizeLng(r.bounds.east) >= lng &&
+    r.bounds.south <= lat && r.bounds.north >= lat,
+  );
+}
+
 /** True when any saved region includes the given layer — drives the layers-popover
  *  offline badges and the offline tile-error toast copy. */
 export function hasSavedLayer(layer: RegionLayerId, regions = loadRegions()): boolean {
   return regions.some((r) => r.layers.includes(layer));
+}
+
+/** True when some single saved region already covers this selection outright: its bounds
+ *  contain it, it carries every requested layer, and its zoom range spans the request.
+ *
+ *  Used to tell two zero-new-tile downloads apart. Re-downloading inside an existing region
+ *  should not mint a redundant row; downloading tiles that are in the protected cache but
+ *  listed nowhere — localStorage cleared while region-tiles survived — must record one, or
+ *  the tiles are invisible in the manager and can never be deleted (ADR-007: this cache has
+ *  no expiry, so the manifest entry is the only handle on them). */
+export function isCoveredBySavedRegion(
+  bounds: RegionBounds,
+  layers: RegionLayerId[],
+  zMin: number,
+  zMax: number,
+  regions = loadRegions(),
+): boolean {
+  const west = normalizeLng(bounds.west);
+  const east = normalizeLng(bounds.east);
+  return regions.some((r) =>
+    layers.every((l) => r.layers.includes(l)) &&
+    r.zMin <= zMin && r.zMax >= zMax &&
+    normalizeLng(r.bounds.west) <= west && normalizeLng(r.bounds.east) >= east &&
+    r.bounds.south <= bounds.south && r.bounds.north >= bounds.north,
+  );
 }
 
 // ── Storage persistence / estimate ───────────────────────────────────────────

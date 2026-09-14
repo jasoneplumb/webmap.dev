@@ -22,6 +22,9 @@ import {
   type RegionLayerId,
   type SavedRegion,
   addRegion,
+  clampZoomRange,
+  crossesAntimeridian,
+  isCoveredBySavedRegion,
   estimateLayers,
   formatBytes,
   getStorageEstimate,
@@ -68,13 +71,34 @@ interface DownloadProgress {
 
 type ProgressCallback = (progress: DownloadProgress) => void;
 
-/** Whether a completed (or aborted) download actually cached tiles worth keeping as
- *  a saved region. Guards the case where every tile request fails (provider outage,
- *  rate limiting, a captive portal returning error pages instead of throwing) —
- *  `done` reaches `total` with nothing newly fetched, which must NOT count as a
- *  successful, non-aborted download. */
-export function shouldSaveDownloadedRegion(result: DownloadProgress): boolean {
-  return result.done - result.failed - result.cached > 0;
+/** Whether a download left coverage worth recording as a saved region.
+ *
+ *  Two cases must be kept apart, and "did we fetch anything new" cannot tell them apart:
+ *
+ *  - Every request failed (provider outage, rate limiting, a captive portal answering with
+ *    error pages instead of throwing). `done` reaches `total`, nothing was fetched, nothing
+ *    is cached. Not a region.
+ *  - Every tile was already cached, because the selection sits inside a region that was
+ *    downloaded earlier, or because localStorage was cleared while region-tiles survived.
+ *    Also fetches nothing new — but the coverage is real and protected, and without a
+ *    manifest entry it is invisible in "Saved regions" and impossible to delete. Those
+ *    tiles would be stranded exactly as in deleteRegion's failure path.
+ *
+ *  So: record when new tiles arrived, or when the run completed with coverage in hand. An
+ *  aborted run that fetched nothing stays unrecorded — the user stopped it, and a partial
+ *  row nobody asked for is worse than none.
+ *
+ *  `alreadyListed` separates the two zero-new-tile cases: a saved region already covers this
+ *  selection (skip, it would be a redundant row) versus nothing in the manifest does (record,
+ *  or the tiles are stranded). */
+export function shouldSaveDownloadedRegion(
+  result: DownloadProgress,
+  alreadyListed = false,
+): boolean {
+  const newlyFetched = result.done - result.failed - result.cached;
+  if (newlyFetched > 0) return true;
+  const completed = result.done >= result.total;
+  return completed && result.cached > 0 && !alreadyListed;
 }
 
 let _abortController: AbortController | null = null;
@@ -367,15 +391,23 @@ function buildPanel(
       if (sizeEl && est) sizeEl.textContent = `~${formatBytes(est.bytes)}`;
     }
 
+    // A selection made after panning across the antimeridian arrives with unwrapped
+    // longitudes and cannot be expressed as one tile range. Say so and disable the
+    // download rather than quietly fetching the wrong thing (or the whole world).
+    const wrapped = crossesAntimeridian(bounds);
+    startBtn.disabled = wrapped || layers.length === 0;
+
     const estimates = estimateLayers(layers, bounds, zMin, zMax);
     const tiles = estimates.reduce((sum, e) => sum + e.tiles, 0);
     const estimatedBytes = estimates.reduce((sum, e) => sum + e.bytes, 0);
     const estimateEl = panel.querySelector('#offline-dl-estimate');
     const warningEl = panel.querySelector('#offline-dl-warning');
     if (estimateEl) {
-      estimateEl.textContent = layers.length === 0
-        ? 'Select at least one layer to save'
-        : `~${tiles.toLocaleString()} tiles (${formatBytes(estimatedBytes)})`;
+      estimateEl.textContent = wrapped
+        ? 'Selection crosses the 180° meridian — pan the map so it doesn\u2019t wrap, then reselect'
+        : layers.length === 0
+          ? 'Select at least one layer to save'
+          : `~${tiles.toLocaleString()} tiles (${formatBytes(estimatedBytes)})`;
     }
     // Only manage the button while selecting — mid-download it belongs to setUiState.
     if (startBtn && _downloadState === 'selecting') startBtn.disabled = layers.length === 0;
@@ -410,12 +442,25 @@ function buildPanel(
     if (regions.length === 0) { listEl.innerHTML = ''; return; }
     listEl.innerHTML =
       '<div class="offline-dl-regions__title">Saved regions</div>' +
+      // Sizes are estimates of each region's own footprint. Overlapping regions share the
+      // same cached tiles, so these do not sum to what the origin actually uses — the live
+      // storage line above is the real number. Saying so beats printing figures that
+      // visibly contradict it.
+      '<div class="offline-dl-regions__note">Estimated; overlapping regions share tiles</div>' +
       regions.map((r) => {
-        const layerNames = r.layers.map((l) => REGION_LAYERS[l].label).join(', ');
+        // Per layer, not per region: the stored zMin/zMax are what the user asked for, but
+        // tileUrlsForLayer clamps a layer to its native ceiling, so a hillshade region saved
+        // at z16-18 actually holds z15 alone. Printing the raw range claims coverage that
+        // was never fetched, and makes two identical regions look different.
+        const layerNames = r.layers.map((l) => {
+          const z = clampZoomRange(r.zMin, r.zMax, REGION_LAYERS[l].maxNativeZoom);
+          const range = z.zMin === z.zMax ? `z${z.zMin}` : `z${z.zMin}\u2013${z.zMax}`;
+          return `${REGION_LAYERS[l].label} ${range}`;
+        }).join(', ');
         return (
           '<div class="offline-dl-regions__row">' +
           `  <span class="offline-dl-regions__name">${escapeHtml(r.name)}` +
-          `    <small>${layerNames} &middot; z${r.zMin}&ndash;${r.zMax} &middot; ${formatBytes(r.bytes)}</small></span>` +
+          `    <small>${layerNames} &middot; ~${formatBytes(r.bytes)}</small></span>` +
           `  <button class="offline-dl-regions__delete" data-region-id="${r.id}">Delete</button>` +
           '</div>'
         );
@@ -535,8 +580,13 @@ async function deleteRegion(
       await Promise.all(urls.map((url) => cache.delete(url)));
     }
   } catch {
-    // Cache API unavailable or delete failed — still drop the manifest entry so the
-    // list reflects intent; orphaned tiles are harmless and bounded.
+    // Keep the manifest entry. It is the ONLY handle on these tiles: region-tiles has no
+    // ExpirationPlugin and no purgeOnQuotaError by design (ADR-007), so nothing else will
+    // ever reclaim them. Dropping the row to "reflect intent" would strand the bytes for
+    // good — a multi-zoom region is tens of megabytes the user cannot get back short of
+    // clearing site data. Leave the region listed so the delete can be retried.
+    showToast(`Couldn't delete ${region.name} — storage error. Still listed; try again.`, 5000);
+    return;
   }
   removeRegion(id);
   showToast(`Deleted ${region.name}`, 3000);
@@ -612,6 +662,11 @@ async function startDownload(
   const persisted = await requestPersistentStorage();
 
   const regionBounds = toRegionBounds(bounds);
+  if (crossesAntimeridian(regionBounds)) {
+    setUiState(_panelEl, 'selecting');
+    showToast('Selection crosses the 180\u00b0 meridian — pan so it doesn\u2019t wrap and reselect.', 5000);
+    return;
+  }
   const urls = layers.flatMap((layer) => tileUrlsForLayer(layer, regionBounds, zMin, zMax));
   const fillEl = _panelEl.querySelector('#offline-dl-fill') as HTMLElement | null;
   const textEl = _panelEl.querySelector('#offline-dl-progress-text') as HTMLElement | null;
@@ -628,7 +683,10 @@ async function startDownload(
   // here would orphan those tiles with no reclamation path at all — region-tiles
   // has no ExpirationPlugin by design (ADR-007).
   const aborted = result.done < result.total;
-  if (shouldSaveDownloadedRegion(result)) {
+  if (shouldSaveDownloadedRegion(
+    result,
+    isCoveredBySavedRegion(regionBounds, layers, zMin, zMax),
+  )) {
     // Failed tiles are missing coverage, not a failed region — re-running the
     // same download skips what's cached and fills the gaps.
     const existing = loadRegions();

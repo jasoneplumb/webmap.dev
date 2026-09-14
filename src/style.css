@@ -2242,6 +2242,12 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   margin-top: 12px;
 }
 
+.offline-dl-regions__note {
+  font-size: 11px;
+  color: #777;
+  margin: -2px 0 6px;
+}
+
 .offline-dl-regions__title {
   font-size: 12px;
   font-weight: 600;

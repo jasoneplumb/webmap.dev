@@ -57,14 +57,35 @@ registerRoute(
 // saved regions are the last thing the user wants sacrificed.
 let regionCachePromise: Promise<Cache> | null = null;
 
+/**
+ * Look up a tile in the protected region cache, or undefined if it is not there.
+ *
+ * Never throws. This runs ahead of the network on BOTH tile routes, so a rejection here
+ * would fail the whole `respondWith` and take out every map tile — online, with a working
+ * network, for the entire service-worker lifetime, because the rejected promise would stay
+ * memoized. `caches.open` does reject in the wild: Safari private browsing, Firefox with
+ * site data blocked, and storage errors all surface here. A miss is recoverable; a throw is
+ * a black map.
+ */
 async function matchRegionTile(url: string): Promise<Response | undefined> {
-  if (!regionCachePromise) regionCachePromise = caches.open(REGION_TILE_CACHE_NAME);
-  const cache = await regionCachePromise;
-  for (const variant of osmTileUrlVariants(url)) {
-    const hit = await cache.match(variant);
-    if (hit) return hit;
+  if (!regionCachePromise) {
+    regionCachePromise = caches.open(REGION_TILE_CACHE_NAME).catch((err: unknown) => {
+      // Drop the rejected promise so a later request can retry rather than inheriting
+      // this failure forever.
+      regionCachePromise = null;
+      throw err;
+    });
   }
-  return undefined;
+  try {
+    const cache = await regionCachePromise;
+    // Parallel, not sequential: the variants are a guess at which subdomain Leaflet will
+    // ask for, and on a miss — the common case, since most users save no regions — three
+    // serialized cache lookups sat in front of every single tile request.
+    const hits = await Promise.all(osmTileUrlVariants(url).map((v) => cache.match(v)));
+    return hits.find((hit) => hit !== undefined);
+  } catch {
+    return undefined;
+  }
 }
 
 // ── Map tiles ──────────────────────────────────────────────────────────────────

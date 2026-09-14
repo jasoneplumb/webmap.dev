@@ -10,13 +10,17 @@ import {
   estimateLayers,
   formatBytes,
   getTileRange,
+  crossesAntimeridian,
   hasSavedLayer,
   lat2tile,
   lng2tile,
   loadRegions,
   nextRegionName,
+  normalizeLng,
   osmTileUrl,
   removeRegion,
+  savedRegionCoversTile,
+  isCoveredBySavedRegion,
   terrariumTileUrl,
   tileUrlsForLayer,
 } from './offline-regions';
@@ -212,5 +216,82 @@ describe('region manifest', () => {
     addRegion(makeRegion({ layers: ['hillshade'] }));
     expect(hasSavedLayer('hillshade')).toBe(true);
     expect(hasSavedLayer('streets')).toBe(false);
+  });
+
+  describe('antimeridian handling', () => {
+    it('wraps longitudes that Leaflet reports unwrapped after panning past 180', () => {
+      expect(normalizeLng(-181)).toBeCloseTo(179);
+      expect(normalizeLng(190)).toBeCloseTo(-170);
+      expect(normalizeLng(0)).toBeCloseTo(0);
+      expect(normalizeLng(180)).toBeCloseTo(-180); // canonical form; same meridian
+    });
+
+    it('detects a selection that spans the 180 meridian once wrapped', () => {
+      expect(crossesAntimeridian({ south: 0, west: 179, north: 1, east: -179 })).toBe(true);
+      expect(crossesAntimeridian({ south: 0, west: -181, north: 1, east: -179 })).toBe(true);
+      expect(crossesAntimeridian({ south: 37, west: -123, north: 38, east: -122 })).toBe(false);
+    });
+
+    it('does not turn a small unwrapped selection into a world-wide tile sweep', () => {
+      // west -181 / east -179 is two degrees near the dateline. Before longitudes were
+      // normalized, lng2tile(-181) went negative, xMin clamped to 0, and the range ran
+      // from the left edge of the world — a multi-gigabyte "small" region.
+      const wrapped: RegionBounds = { south: 0, west: -181, north: 1, east: -179 };
+      const plain: RegionBounds = { south: 0, west: 179, north: 1, east: 180 };
+      expect(countTiles(wrapped, 1, 10)).toBeLessThanOrEqual(countTiles(plain, 1, 10) * 2);
+    });
+
+    it('never reports a negative tile count for a selection wrapped the other way', () => {
+      // west 190 normalizes to -170 and east 191 to -169: a valid, ordinary range.
+      // The old math left xMin > xMax, which made countTiles go negative and the size
+      // estimate read as a negative number of bytes.
+      expect(countTiles({ south: 0, west: 190, north: 1, east: 191 }, 1, 12)).toBeGreaterThan(0);
+      for (let z = 1; z <= 14; z++) {
+        const r = getTileRange({ south: 0, west: 179.5, north: 1, east: -179.5 }, z);
+        expect(Math.max(0, r.xMax - r.xMin + 1)).toBeGreaterThanOrEqual(0);
+      }
+      expect(countTiles({ south: 0, west: 179.5, north: 1, east: -179.5 }, 1, 14))
+        .toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('coverage queries', () => {
+    it('savedRegionCoversTile distinguishes a tile inside a region from one outside it', () => {
+      // Yosemite-ish box; the tile-error toast must not promise this covers Tahoe.
+      addRegion(makeRegion({
+        layers: ['streets'],
+        bounds: { south: 37.6, west: -119.8, north: 37.9, east: -119.4 },
+        zMin: 10,
+        zMax: 14,
+      }));
+      const inside = { x: lng2tile(-119.6, 12), y: lat2tile(37.75, 12), z: 12 };
+      const outside = { x: lng2tile(-120.05, 12), y: lat2tile(39.1, 12), z: 12 };
+      expect(savedRegionCoversTile('streets', inside.x, inside.y, inside.z)).toBe(true);
+      expect(savedRegionCoversTile('streets', outside.x, outside.y, outside.z)).toBe(false);
+      // Right place, layer never saved.
+      expect(savedRegionCoversTile('hillshade', inside.x, inside.y, inside.z)).toBe(false);
+      // Right place, zoom outside the saved range.
+      expect(savedRegionCoversTile('streets', inside.x, inside.y, 17)).toBe(false);
+    });
+
+    it('isCoveredBySavedRegion requires bounds, layers and zoom all to be contained', () => {
+      const region = makeRegion({
+        layers: ['streets', 'hillshade'],
+        bounds: { south: 37, west: -123, north: 38, east: -122 },
+        zMin: 10,
+        zMax: 15,
+      });
+      addRegion(region);
+      const inner = { south: 37.2, west: -122.8, north: 37.6, east: -122.4 };
+      expect(isCoveredBySavedRegion(inner, ['streets'], 11, 14)).toBe(true);
+      // Same box, a zoom level deeper than anything saved.
+      expect(isCoveredBySavedRegion(inner, ['streets'], 11, 16)).toBe(false);
+      // Straddles the western edge.
+      expect(isCoveredBySavedRegion(
+        { south: 37.2, west: -123.5, north: 37.6, east: -122.4 }, ['streets'], 11, 14,
+      )).toBe(false);
+      // No region carries this combination across a single entry.
+      expect(isCoveredBySavedRegion(inner, ['streets'], 9, 14)).toBe(false);
+    });
   });
 });

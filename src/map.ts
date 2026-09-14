@@ -8,7 +8,7 @@ import L from 'leaflet';
 import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid';
 import { OSM_TILE_CACHE_NAME, REGION_TILE_CACHE_NAME } from './sw-constants';
-import { hasSavedLayer } from './offline-regions';
+import { hasSavedLayer, savedRegionCoversTile } from './offline-regions';
 
 /** Leaflet grid-layer internals that @types/leaflet doesn't declare.
  *
@@ -77,8 +77,8 @@ let tileWarnCooldown = false;
 // Opened once on first use; reused for every subsequent tile error lookup.
 // The region cache is searched before the passive OSM cache — a deliberately saved
 // region should revive tiles even after passive browsing has evicted its own copies.
-let osmCachePromise: Promise<Cache> | null = null;
-let regionCachePromise: Promise<Cache> | null = null;
+let osmCachePromise: Promise<Cache | null> | null = null;
+let regionCachePromise: Promise<Cache | null> | null = null;
 
 /** Wire up offline tile warnings and canvas-based lower-zoom fallback.
  *  Must be called after createMap(). Attaches tileerror handlers to the base/overlay
@@ -99,8 +99,12 @@ export function initOfflineTileFallback(
     return;
   }
   if ('caches' in window) {
-    osmCachePromise = caches.open(OSM_TILE_CACHE_NAME);
-    regionCachePromise = caches.open(REGION_TILE_CACHE_NAME);
+    // Resolve to null rather than rejecting. An unhandled rejection here is not just noise:
+    // handleTileError awaits these inside a void-ed call, so a storage failure (private
+    // browsing, blocked site data) would silently kill the parent-zoom fallback for the
+    // passive cache too — a feature this cache has nothing to do with.
+    osmCachePromise = caches.open(OSM_TILE_CACHE_NAME).catch(() => null);
+    regionCachePromise = caches.open(REGION_TILE_CACHE_NAME).catch(() => null);
   }
   for (const layer of layers) {
     layer.on('tileerror', (e: L.LeafletEvent) => {
@@ -118,9 +122,14 @@ async function handleTileError(
     tileWarnCooldown = true;
     // Point at coverage that actually exists: a saved region beats generic advice,
     // and the base the pre-download saves is Streets.
-    const savedHint = hasSavedLayer('streets')
-      ? 'switch to the Streets base in Layers \u2014 your saved regions cover it offline.'
-      : 'switch to the Streets base in Layers for the best offline coverage.';
+    // Containment, not mere existence: promising coverage the user has to discover is
+    // absent — after switching layers, offline, mid-ride — is worse than generic advice.
+    const coveredHere = savedRegionCoversTile('streets', e.coords.x, e.coords.y, e.coords.z);
+    const savedHint = coveredHere
+      ? 'switch to the Streets base in Layers \u2014 your saved region covers this area offline.'
+      : hasSavedLayer('streets')
+        ? 'switch to the Streets base in Layers \u2014 your saved regions are elsewhere, but it caches as you browse.'
+        : 'switch to the Streets base in Layers for the best offline coverage.';
     // "Streets" (in savedHint above) has to match the label in the layers control
     // (main.ts, id 'osm-streets'), or this sends the user looking for a layer that is
     // not in the picker. It is also the right layer to name: osmStreetsLayer is the
@@ -138,10 +147,15 @@ async function handleTileError(
   if (!isOsmLayer || !(tile instanceof HTMLImageElement) || navigator.onLine ||
       osmCachePromise === null || tile.src.startsWith('data:')) return;
   const coords = e.coords;
-  const tileCaches = [
-    ...(regionCachePromise ? [await regionCachePromise] : []),
-    await osmCachePromise,
-  ];
+  // A cache that failed to open resolves null (see initOfflineTileFallback) — drop it and
+  // keep searching the others rather than abandoning the fallback.
+  const tileCaches = (
+    await Promise.all([
+      regionCachePromise ?? Promise.resolve(null),
+      osmCachePromise,
+    ])
+  ).filter((c): c is Cache => c !== null);
+  if (tileCaches.length === 0) return;
 
   for (let dz = 1; dz <= 3; dz++) {
     const parentZ = coords.z - dz;
