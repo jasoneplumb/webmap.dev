@@ -111,3 +111,21 @@ export function smoothHeadingDeg(current: number, target: number, factor: number
   const k = Math.max(0, Math.min(1, factor));
   return normalizeDeg(current + shortestArcDeg(normalizeDeg(current), normalizeDeg(target)) * k);
 }
+
+/**
+ * Advance a continuously-unwrapped display angle toward a normalized target by the shortest
+ * arc, returning a value that may run past 360 or below 0 and is meant to.
+ *
+ * Needed wherever CSS animates the rotation. `transition: transform` interpolates the raw
+ * number it is handed, so feeding it normalized angles makes every crossing of north a
+ * 358-degree spin: 359deg to 1deg is two degrees of heading and 358 degrees of animation.
+ * Keeping an unwrapped accumulator means consecutive writes never differ by more than 180,
+ * so the short way round is the only way the browser can go.
+ *
+ * The accumulator drifts away from zero over a long session — a rider circling clockwise for
+ * an hour can pass several thousand degrees — which is harmless: rotate() is defined for any
+ * angle, and f64 holds far more revolutions than a phone battery does.
+ */
+export function unwrapHeadingDeg(previousUnwrapped: number, target: number): number {
+  return previousUnwrapped + shortestArcDeg(normalizeDeg(previousUnwrapped), normalizeDeg(target));
+}
