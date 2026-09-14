@@ -134,8 +134,62 @@ jobs:
 
           source "$GITHUB_WORKSPACE/scripts/ssh-retry.sh"
 
-          ssh_retry "scp $SSH_OPTS scripts/deploy-webmap.sh $SSH_TARGET:/tmp/deploy-webmap.sh"
-          ssh_retry "cat webmap-deploy.tar.gz | ssh $SSH_OPTS $SSH_TARGET 'DEPLOY_SHA=$DEPLOY_SHA DEPLOY_VERSION=$VERSION bash /tmp/deploy-webmap.sh'"
+          # Stage into a private, unpredictable directory rather than a fixed
+          # /tmp path. The nginx conf is installed as root and loaded into an
+          # nginx instance shared with other vhosts, so another local account
+          # must not be able to pre-create the path and plant a file there.
+          # `mkdir` (no -p) fails if the path already exists, and the name
+          # carries 128 bits of randomness, so this fails closed.
+          #
+          # This deliberately does NOT use ssh_retry: that retries the *same*
+          # command, and a non-idempotent mkdir would then fail deterministically
+          # whenever the connection blips after the remote mkdir already
+          # succeeded — aborting an otherwise healthy release. Each attempt gets
+          # a fresh random suffix instead, so a retry always targets a new path.
+          # A blip can leave behind one empty 0700 dir; harmless, and we cannot
+          # safely remove it because we do not know the mkdir landed.
+          STAGE=""
+          STAGE_DELAYS=(5 15 30)
+          for attempt in 1 2 3; do
+            # `set -e` does not trip on a failed substitution inside an
+            # assignment, so validate the shape rather than trusting openssl.
+            CANDIDATE="/tmp/webmap-deploy-$(openssl rand -hex 16 || true)"
+            if [[ ! "$CANDIDATE" =~ ^/tmp/webmap-deploy-[0-9a-f]{32}$ ]]; then
+              echo "::error::could not generate a random staging path (openssl failed?)"
+              exit 1
+            fi
+            echo "Staging dir attempt $attempt/3..."
+            if ssh $SSH_OPTS "$SSH_TARGET" "mkdir -m 700 '$CANDIDATE'"; then
+              STAGE="$CANDIDATE"
+              break
+            fi
+            # Not `[ ... ] && sleep` — that returns 1 on the last attempt and
+            # would trip `set -e` as the final command in the loop body.
+            if [ "$attempt" -lt 3 ]; then
+              sleep "${STAGE_DELAYS[$((attempt - 1))]}"
+            fi
+          done
+          if [ -z "$STAGE" ]; then
+            echo "::error::could not create a staging directory after 3 attempts"
+            exit 1
+          fi
+
+          ssh_retry "scp $SSH_OPTS scripts/deploy-webmap.sh $SSH_TARGET:$STAGE/deploy-webmap.sh"
+          # Ship the repo's nginx conf alongside the content so the host can
+          # never drift from what is checked in. deploy-webmap.sh validates it
+          # with `nginx -t` and only reloads when it changed and passes.
+          ssh_retry "scp $SSH_OPTS infrastructure/nginx/www.webmap.dev.conf $SSH_TARGET:$STAGE/www.webmap.dev.conf"
+
+          set +e
+          ssh_retry "cat webmap-deploy.tar.gz | ssh $SSH_OPTS $SSH_TARGET 'DEPLOY_SHA=$DEPLOY_SHA DEPLOY_VERSION=$VERSION NGINX_CONF_SRC=$STAGE/www.webmap.dev.conf bash $STAGE/deploy-webmap.sh'"
+          DEPLOY_RC=$?
+          set -e
+
+          # Always clear the staging dir, success or failure — it holds nothing
+          # secret, but leaving predictable-lifetime dirs around is untidy.
+          ssh_retry "ssh $SSH_OPTS $SSH_TARGET 'rm -rf \"$STAGE\"'" || true
+
+          exit $DEPLOY_RC
 
       - name: Cleanup SSH key
         if: always()

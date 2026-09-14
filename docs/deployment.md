@@ -17,7 +17,7 @@ Runs on every push and pull request. Validates that the test suite passes.
 1. `actions/checkout@v4`
 2. `actions/setup-node@v4` with Node.js 22 (npm cache enabled)
 3. `npm ci`
-4. `npm test` — the full vitest suite
+4. `npm test` — the full vitest suite plus `scripts/test-deploy-webmap.sh` (deploy-script end-to-end tests)
 
 **Concurrency.** `group: ci-${{ github.ref }}` with `cancel-in-progress: true` — pushes to the same ref cancel the previous run.
 
@@ -54,10 +54,101 @@ Runs **only for releases** — never on plain pushes to `mainline`.
 2. Setup Node.js 22 + npm cache
 3. `npm ci`
 4. Full CI quality gate against the release tag's code: `npm test`, type-check, lint, build, build-output verification, bundle-size check — deploy proceeds only if every gate passes
-5. Push `dist/` to the production server over SSH with **strict host-key checking** — the server's identity is verified against the pinned `DEPLOY_KNOWN_HOSTS` secret (no `ssh-keyscan` / trust-on-first-use at deploy time)
-6. nginx serves the new code on the next request (no reload required because all paths are `try_files` against `dist/`)
+5. Push `dist/` **and `infrastructure/nginx/www.webmap.dev.conf`** to the production server over SSH with **strict host-key checking** — the server's identity is verified against the pinned `DEPLOY_KNOWN_HOSTS` secret (no `ssh-keyscan` / trust-on-first-use at deploy time)
+6. `scripts/deploy-webmap.sh` extracts the content, then applies the nginx config (see [Applying the nginx config](#applying-the-nginx-config)) and reloads nginx only if the config actually changed and passes `nginx -t`
+7. A health check against the live vhost validates the new content *and* the new config together; failure rolls back both
+
+The content backup is a hard precondition: if it cannot be written, the deploy aborts **before** the web root is cleared rather than replacing the live site with no way back.
 
 **Server.** `www.webmap.dev` — nginx reverse proxy serving from `/var/www/webmap/web/dist/`.
+
+## Applying the nginx config
+
+The nginx config is **applied by the deploy**, not by hand. `infrastructure/nginx/www.webmap.dev.conf` is the single source of truth: a change to it takes effect on the next production deploy with no manual step.
+
+This closes the drift that caused and prolonged the blank-page outage (#209 / #210) — the `/sw.js` immutable-cache bug could not be fixed by a repo change alone, because the host's nginx config had been edited by hand and no longer matched the repo.
+
+### What the deploy does
+
+`scripts/deploy-webmap.sh` runs on the host and, for the nginx step:
+
+1. **Preflight** — runs `nginx -t` *before touching anything*. If the host's existing config is already invalid, the deploy aborts immediately and changes nothing. Reloading in that state would activate someone else's breakage.
+2. **Short-circuit** — if the repo conf is byte-identical to `/etc/nginx/sites-available/www.webmap.dev.conf` and the `sites-enabled` symlink already points at it, nothing happens and **no reload is issued**. Deploys that don't touch nginx cause zero live-config churn.
+3. **Backup** — copies the current conf to `/var/www/webmap/.backups/webmap-nginx-backup-<ts>.conf` (mode 0700, last 5 retained).
+4. **Install** — `install -m 0644` into `sites-available`, then `ln -sfn` the `sites-enabled` symlink (idempotent).
+5. **Validate** — `nginx -t`. **On failure the previous conf is restored and nginx is never reloaded**, so the running config is untouched.
+6. **Reload** — `systemctl reload nginx` (reload, not restart — no dropped connections).
+7. **Health check** — if the post-reload health check fails, both the conf *and* the content are rolled back and nginx is reloaded again with the previous conf.
+
+If `NGINX_CONF_SRC` is unset the nginx step is skipped entirely and only content is deployed. If it is *set* but the file is missing, the deploy **fails** — that means the scp did not land, and silently skipping would be the drift this change exists to prevent.
+
+### Blast radius
+
+The VPS serves other sites from the same nginx instance, so `systemctl reload nginx` affects all of them. Two properties bound the risk:
+
+- **A config that fails `nginx -t` is never activated.** Validation happens against the on-disk config *before* any reload, and the previous conf is restored on failure. nginx keeps serving its last-loaded config.
+- **The reload is skipped entirely when the conf is unchanged**, so the common case (an app-only release) never touches the running nginx.
+
+The residual risk is a config that passes `nginx -t` but is semantically wrong. That is caught by the health check, which rolls the conf back and reloads. A config that breaks a *different* vhost while leaving webmap healthy would not be caught — review `infrastructure/nginx/*.conf` changes with that in mind.
+
+### Required host privileges
+
+The deploy runs the privileged steps as root directly if the SSH user is root; otherwise it uses `sudo -n` (non-interactive, so a missing rule fails fast instead of hanging on a password prompt). For a non-root deploy user, grant a **tightly scoped** sudoers entry — never broad sudo:
+
+```sudoers
+# /etc/sudoers.d/webmap-deploy  (mode 0440, validate with `visudo -c -f <file>`)
+Cmnd_Alias WEBMAP_NGINX = /usr/sbin/nginx -t, \
+                          /usr/bin/systemctl reload nginx, \
+                          /usr/bin/install -o root -g root -m 0644 /tmp/webmap-deploy-*/www.webmap.dev.conf /etc/nginx/sites-available/www.webmap.dev.conf, \
+                          /usr/bin/install -o root -g root -m 0644 /var/www/webmap/.backups/webmap-nginx-backup-*.conf /etc/nginx/sites-available/www.webmap.dev.conf, \
+                          /usr/bin/ln -sfn /etc/nginx/sites-available/www.webmap.dev.conf /etc/nginx/sites-enabled/www.webmap.dev.conf, \
+                          /usr/bin/rm -f /etc/nginx/sites-enabled/www.webmap.dev.conf /etc/nginx/sites-available/www.webmap.dev.conf
+
+Cmnd_Alias WEBMAP_CONTENT = /usr/bin/chown -R www-data\:www-data /var/www/webmap/web
+
+deploy ALL=(root) NOPASSWD: WEBMAP_NGINX, WEBMAP_CONTENT
+```
+
+`chown` is in the list because the deploy hands the extracted tree to `www-data`, and changing ownership to a *different* user requires root — an unprivileged account cannot do it even for files it owns. Without this rule every deploy fails at that step, before nginx is reached.
+
+Every rule pins its exact arguments, so the grant is "manage *this* vhost's conf and reload nginx" — not arbitrary file writes. Backing up the current conf needs no rule: it is mode 0644 in a world-traversable directory, so the deploy user reads it directly.
+
+Adjust binary paths to the host (`command -v nginx systemctl install ln chown rm`). `NGINX_BIN` and `SYSTEMCTL_BIN` can be overridden via the environment if they live elsewhere.
+
+Each rule pins an exact argument shape, so the sudoers file and `deploy-webmap.sh` must stay in step: changing an `install` flag, the backup filename pattern, or the staging path prefix makes sudo deny with a generic "not permitted" that points nowhere near this file. Every privileged call site in the script carries a comment saying so.
+
+The deploy checks `sudo -n true` up front, so a missing or misconfigured sudoers file aborts **before any content is touched** with a pointer to this section — rather than failing half-way and rolling back.
+
+### Staging and source integrity
+
+The deploy script and the nginx conf are staged into a per-deploy directory created with `mkdir -m 700 /tmp/webmap-deploy-<32 hex chars>`, not a fixed `/tmp` path. `mkdir` without `-p` fails if the path already exists, so another local account cannot pre-create the directory, and the name is unguessable. The staging directory is removed after every deploy, success or failure.
+
+The staging step deliberately does **not** use `ssh_retry`. That helper reruns the *identical* command, and a non-idempotent `mkdir` would then fail deterministically whenever the SSH connection blipped after the remote `mkdir` had already succeeded — aborting a healthy release. Instead each of the three attempts generates a fresh random suffix, so a retry always targets a new path. A blip can leave one empty `0700` directory behind; that is harmless, and it is not removed because the runner cannot know the `mkdir` landed.
+
+The generated path is shape-checked against `^/tmp/webmap-deploy-[0-9a-f]{32}$` before use. `set -e` does not trip on a failed command substitution inside an assignment, so a missing or broken `openssl` would otherwise yield the predictable `/tmp/webmap-deploy-` and silently void the whole defense.
+
+Before anything is installed as root-owned nginx config — the staged conf on the way in, and a backup conf on the rollback path — `assert_safe_source()` requires it to be a regular file (never a symlink) owned by the deploy user or root. This is the check that actually holds: a planted file never reaches `install`, and so never reaches an nginx instance shared with other vhosts.
+
+Content and conf backups live in `/var/www/webmap/.backups` (mode 0700), not `/tmp`, for the same reason: a rollback reads from there and installs the result as root-owned config.
+
+### One-time migration check
+
+Before the first deploy that carries this change, confirm the live config matches the repo — the host was hand-edited during the #209 fix, and this deploy will **overwrite** the live conf with the repo's version:
+
+```bash
+ssh <deploy-user>@<host> 'cat /etc/nginx/sites-available/www.webmap.dev.conf' \
+  | diff - infrastructure/nginx/www.webmap.dev.conf
+```
+
+Any hand-applied change not reflected in the repo must be committed to `infrastructure/nginx/www.webmap.dev.conf` first, or it will be lost.
+
+### Testing the deploy script
+
+`scripts/test-deploy-webmap.sh` runs the real `deploy-webmap.sh` against a throwaway prefix with stubbed privileged binaries, asserting the fail-closed behaviour (invalid config never activated, previous config restored, no reload when unchanged). It runs as part of `npm test`, or standalone. Note this makes `npm test` require `bash`; that is a given on the CI runner, macOS, and Linux, but Windows contributors need WSL or Git Bash. Run `npx vitest run` alone to skip it:
+
+```bash
+npm run test:deploy-script
+```
 
 ## Environment Variables (Production)
 
@@ -86,7 +177,7 @@ The four base maps (CyclOSM, OSM Streets, OpenTopo, Humanitarian) and the Esri h
 
 ## nginx Configuration Highlights
 
-The full canonical config lives in `infrastructure/nginx/www.webmap.dev.conf`. Key patterns:
+The full canonical config lives in `infrastructure/nginx/www.webmap.dev.conf` and is applied automatically by the deploy — see [Applying the nginx config](#applying-the-nginx-config). Key patterns:
 
 ### Routing & SPA Fallback
 
