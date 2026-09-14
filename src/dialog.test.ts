@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { showAlertDialog } from './dialog';
+import { showAlertDialog, showConfirmDialog } from './dialog';
 
 describe('showAlertDialog', () => {
   afterEach(() => {
@@ -70,5 +70,87 @@ describe('showAlertDialog', () => {
     okBtn.blur();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
     expect(document.activeElement).toBe(okBtn);
+  });
+});
+
+describe('showConfirmDialog', () => {
+  afterEach(() => {
+    document.getElementById('app-dialog-overlay')?.remove();
+  });
+
+  const cancelBtn = (): HTMLButtonElement =>
+    document.querySelector('.app-dialog-cancel') as HTMLButtonElement;
+  const confirmBtn = (): HTMLButtonElement =>
+    document.querySelector('.app-dialog-ok') as HTMLButtonElement;
+
+  it('resolves true when the confirm button is pressed', async () => {
+    const decision = showConfirmDialog({ title: 'Delete Region 1?', message: 'Frees 12 MB' });
+    confirmBtn().click();
+    await expect(decision).resolves.toBe(true);
+    expect(document.getElementById('app-dialog-overlay')).toBeNull();
+  });
+
+  it('resolves false on Cancel', async () => {
+    const decision = showConfirmDialog({ title: 'T', message: 'M' });
+    cancelBtn().click();
+    await expect(decision).resolves.toBe(false);
+    expect(document.getElementById('app-dialog-overlay')).toBeNull();
+  });
+
+  it('resolves false on Escape', async () => {
+    const decision = showConfirmDialog({ title: 'T', message: 'M' });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await expect(decision).resolves.toBe(false);
+  });
+
+  it('resolves false on a backdrop tap', async () => {
+    const decision = showConfirmDialog({ title: 'T', message: 'M' });
+    document.getElementById('app-dialog-overlay')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await expect(decision).resolves.toBe(false);
+  });
+
+  it('resolves a pending confirmation when another dialog replaces it', async () => {
+    // Otherwise the caller awaits forever on a dialog that is no longer on screen — for
+    // the region manager, a Delete button left disabled for the life of the panel.
+    const decision = showConfirmDialog({ title: 'T', message: 'M' });
+    showAlertDialog({ title: 'Something else', message: 'M' });
+    await expect(decision).resolves.toBe(false);
+  });
+
+  it('opens a destructive confirm on Cancel so a stray Enter cannot destroy', () => {
+    void showConfirmDialog({ title: 'T', message: 'M', destructive: true, confirmLabel: 'Delete' });
+    expect(document.activeElement).toBe(cancelBtn());
+    expect(confirmBtn().classList.contains('app-dialog-ok--destructive')).toBe(true);
+  });
+
+  it('opens an ordinary confirm on the confirm button', () => {
+    void showConfirmDialog({ title: 'T', message: 'M' });
+    expect(document.activeElement).toBe(confirmBtn());
+    expect(confirmBtn().classList.contains('app-dialog-ok--destructive')).toBe(false);
+  });
+
+  it('cycles Tab and Shift+Tab between the two buttons', () => {
+    void showConfirmDialog({ title: 'T', message: 'M', destructive: true });
+    expect(document.activeElement).toBe(cancelBtn());
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+    expect(document.activeElement).toBe(confirmBtn());
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+    expect(document.activeElement).toBe(cancelBtn());
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true }));
+    expect(document.activeElement).toBe(confirmBtn());
+  });
+
+  it('puts Cancel before the confirm button, and defaults the labels', () => {
+    void showConfirmDialog({ title: 'T', message: 'M' });
+    const labels = Array.from(document.querySelectorAll('.app-dialog-actions button'))
+      .map((b) => b.textContent);
+    expect(labels).toEqual(['Cancel', 'OK']);
+  });
+
+  it('uses custom labels when given', () => {
+    void showConfirmDialog({ title: 'T', message: 'M', confirmLabel: 'Delete', cancelLabel: 'Keep' });
+    expect(confirmBtn().textContent).toBe('Delete');
+    expect(cancelBtn().textContent).toBe('Keep');
   });
 });

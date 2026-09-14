@@ -14,9 +14,11 @@
  */
 import L from 'leaflet';
 import { setupCollapsibleLabel } from './controls';
+import { showConfirmDialog } from './dialog';
 import { escapeHtml } from './html';
 import { REGION_TILE_CACHE_NAME } from './sw-constants';
 import {
+  PARTIAL_SUFFIX,
   REGION_LAYERS,
   type RegionBounds,
   type RegionLayerId,
@@ -476,11 +478,40 @@ function buildPanel(
     listEl.querySelectorAll<HTMLButtonElement>('.offline-dl-regions__delete').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.dataset['regionId'];
-        if (!id) return;
+        const region = regions.find((r) => r.id === id);
+        if (!id || !region) return;
+        // region.name goes in unescaped on purpose: showConfirmDialog writes it with
+        // textContent, not innerHTML. The list row above needs escapeHtml because it
+        // builds markup as a string — both are safe, for different reasons.
+        //
+        // Confirm first. Deletion is irreversible — region-tiles has no expiry and no
+        // other reclamation path (ADR-007), so the only way back is downloading the whole
+        // region again, which needs a connection the user may not have. It can also reach
+        // past this row: overlapping regions share tile URLs, so this delete thins theirs
+        // too. One mis-tap on a panel this small is not consent for tens of megabytes.
         btn.disabled = true;
-        void deleteRegion(id, showToast).then(() => {
-          renderRegions();
-          updateStorageLine();
+        void showConfirmDialog({
+          title: `Delete ${region.name}?`,
+          message:
+            `Removes about ${formatBytes(region.bytes)} of saved tiles. Overlapping regions ` +
+            'share tiles, so this can leave gaps in them too. Downloading it again needs a ' +
+            'connection.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        }).then((confirmed) => {
+          // No _downloadState check on the confirm path, unlike the cancel path below: the
+          // dialog overlay covers the panel while it is open and renderRegions never runs
+          // mid-download, so a download cannot start behind an open confirm.
+          if (!confirmed) {
+            // Re-arm — unless a download started behind the dialog, which freezes deletion
+            // for its duration (see setUiState).
+            btn.disabled = _downloadState === 'downloading';
+            return;
+          }
+          return deleteRegion(id, showToast).then(() => {
+            renderRegions();
+            updateStorageLine();
+          });
         });
       });
     });
@@ -712,7 +743,7 @@ async function startDownload(
     const avgBytes = estimates.reduce((sum, e) => sum + e.bytes, 0) / Math.max(1, result.total);
     const region: SavedRegion = {
       id: `region-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-      name: nextRegionName(existing) + (aborted ? ' (partial)' : ''),
+      name: nextRegionName(existing) + (aborted ? PARTIAL_SUFFIX : ''),
       bounds: regionBounds,
       zMin,
       zMax,
