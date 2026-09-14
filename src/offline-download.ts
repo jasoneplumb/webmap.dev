@@ -1,93 +1,63 @@
 /**
- * Intent: Region pre-download for offline tile coverage — lets users select a bounding box and zoom range to pre-cache tiles
- * Context: Existing offline strategy caches only previously-viewed tiles; this adds proactive bulk caching via the Cache API
- * Pattern: User selects region via draggable rectangle + zoom slider, estimates tile count, then fetches/caches tiles in background chunks
- * Future: Only PRE-downloads OSM tiles. Every provider is now passively SW-cached once
- *         viewed (see sw.ts), so the other layers do survive offline for ground already
- *         browsed — they just can't be saved ahead of time from here. Extending this to
- *         them is gated on provider terms, not on code: Thunderforest prohibits
- *         pre-caching without a paid plan, and the OSM policy prohibits pre-emptive
- *         fetching outright.
+ * Intent: Region pre-download for offline tile coverage — lets users select a bounding
+ *         box, zoom range, and layer set to save ahead of a trip, and manage what's saved
+ * Context: Passive SW caching covers only previously-viewed tiles and is subject to LRU
+ *          eviction; downloads here land in the protected region-tiles cache the SW
+ *          serves first (ADR-007, #303). Tile math, URL builders, and the saved-region
+ *          manifest live in offline-regions.ts.
+ * Pattern: User selects region via draggable rectangle + zoom sliders + layer checkboxes,
+ *          sees per-layer estimates, then fetches/caches tiles in parallel chunks
+ * Future: Only layers whose provider terms allow bulk download are offered — OSM Streets
+ *         and Terrarium elevation (AWS Open Data) for Hillshade. The rest stay
+ *         passive-only: Thunderforest prohibits pre-caching without a paid plan, and
+ *         Esri/osm.fr/Waymarked terms similarly gate bulk fetching.
  */
 import L from 'leaflet';
 import { setupCollapsibleLabel } from './controls';
-import { OSM_TILE_CACHE_NAME } from './sw-constants';
+import { escapeHtml } from './html';
+import { REGION_TILE_CACHE_NAME } from './sw-constants';
+import {
+  REGION_LAYERS,
+  type RegionBounds,
+  type RegionLayerId,
+  type SavedRegion,
+  addRegion,
+  clampZoomRange,
+  crossesAntimeridian,
+  isCoveredBySavedRegion,
+  estimateLayers,
+  formatBytes,
+  getStorageEstimate,
+  loadRegions,
+  nextRegionName,
+  removeRegion,
+  requestPersistentStorage,
+  tileUrlsForLayer,
+} from './offline-regions';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const AVG_TILE_BYTES = 15_000; // ~15KB average OSM tile size
 const SAFARI_QUOTA_BYTES = 50 * 1024 * 1024; // ~50MB Safari cache quota
 const CONCURRENT_FETCHES = 6; // max parallel tile fetches (browser limit per domain is 6)
-const OSM_SUBDOMAINS = ['a', 'b', 'c'] as const;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 18;
 
-// ── Tile coordinate math ─────────────────────────────────────────────────────
-
-function lng2tile(lng: number, z: number): number {
-  return Math.floor(((lng + 180) / 360) * Math.pow(2, z));
-}
-
-function lat2tile(lat: number, z: number): number {
-  const latRad = (lat * Math.PI) / 180;
-  return Math.floor(
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
-      Math.pow(2, z),
-  );
-}
-
-interface TileRange {
-  xMin: number;
-  xMax: number;
-  yMin: number;
-  yMax: number;
-}
-
-function getTileRange(bounds: L.LatLngBounds, z: number): TileRange {
-  const maxTile = Math.pow(2, z) - 1;
-  const ne = bounds.getNorthEast();
-  const sw = bounds.getSouthWest();
+function toRegionBounds(bounds: L.LatLngBounds): RegionBounds {
   return {
-    xMin: Math.max(0, lng2tile(sw.lng, z)),
-    xMax: Math.min(maxTile, lng2tile(ne.lng, z)),
-    yMin: Math.max(0, lat2tile(ne.lat, z)), // NE has smaller y (top of map)
-    yMax: Math.min(maxTile, lat2tile(sw.lat, z)),
+    south: bounds.getSouth(),
+    west: bounds.getWest(),
+    north: bounds.getNorth(),
+    east: bounds.getEast(),
   };
 }
 
-function countTiles(bounds: L.LatLngBounds, zMin: number, zMax: number): number {
-  let total = 0;
-  for (let z = zMin; z <= zMax; z++) {
-    const r = getTileRange(bounds, z);
-    total += (r.xMax - r.xMin + 1) * (r.yMax - r.yMin + 1);
+function selectedLayerIds(panel: HTMLElement): RegionLayerId[] {
+  const ids: RegionLayerId[] = [];
+  for (const id of Object.keys(REGION_LAYERS) as RegionLayerId[]) {
+    const box = panel.querySelector<HTMLInputElement>(`#offline-dl-layer-${id}`);
+    if (box?.checked) ids.push(id);
   }
-  return total;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// ── Tile URL generation ──────────────────────────────────────────────────────
-
-function tileUrl(x: number, y: number, z: number): string {
-  const sub = OSM_SUBDOMAINS[(x + y + z) % OSM_SUBDOMAINS.length];
-  return `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`;
-}
-
-function generateTileUrls(bounds: L.LatLngBounds, zMin: number, zMax: number): string[] {
-  const urls: string[] = [];
-  for (let z = zMin; z <= zMax; z++) {
-    const r = getTileRange(bounds, z);
-    for (let x = r.xMin; x <= r.xMax; x++) {
-      for (let y = r.yMin; y <= r.yMax; y++) {
-        urls.push(tileUrl(x, y, z));
-      }
-    }
-  }
-  return urls;
+  return ids;
 }
 
 // ── Download engine ──────────────────────────────────────────────────────────
@@ -101,6 +71,36 @@ interface DownloadProgress {
 
 type ProgressCallback = (progress: DownloadProgress) => void;
 
+/** Whether a download left coverage worth recording as a saved region.
+ *
+ *  Two cases must be kept apart, and "did we fetch anything new" cannot tell them apart:
+ *
+ *  - Every request failed (provider outage, rate limiting, a captive portal answering with
+ *    error pages instead of throwing). `done` reaches `total`, nothing was fetched, nothing
+ *    is cached. Not a region.
+ *  - Every tile was already cached, because the selection sits inside a region that was
+ *    downloaded earlier, or because localStorage was cleared while region-tiles survived.
+ *    Also fetches nothing new — but the coverage is real and protected, and without a
+ *    manifest entry it is invisible in "Saved regions" and impossible to delete. Those
+ *    tiles would be stranded exactly as in deleteRegion's failure path.
+ *
+ *  So: record when new tiles arrived, or when the run completed with coverage in hand. An
+ *  aborted run that fetched nothing stays unrecorded — the user stopped it, and a partial
+ *  row nobody asked for is worse than none.
+ *
+ *  `alreadyListed` separates the two zero-new-tile cases: a saved region already covers this
+ *  selection (skip, it would be a redundant row) versus nothing in the manifest does (record,
+ *  or the tiles are stranded). */
+export function shouldSaveDownloadedRegion(
+  result: DownloadProgress,
+  alreadyListed = false,
+): boolean {
+  const newlyFetched = result.done - result.failed - result.cached;
+  if (newlyFetched > 0) return true;
+  const completed = result.done >= result.total;
+  return completed && result.cached > 0 && !alreadyListed;
+}
+
 let _abortController: AbortController | null = null;
 
 async function downloadTiles(
@@ -109,7 +109,9 @@ async function downloadTiles(
 ): Promise<DownloadProgress> {
   _abortController = new AbortController();
   const signal = _abortController.signal;
-  const cache = await caches.open(OSM_TILE_CACHE_NAME);
+  // The protected region cache — served by the SW ahead of the passive strategies
+  // and exempt from their expiration. See ADR-007.
+  const cache = await caches.open(REGION_TILE_CACHE_NAME);
 
   const progress: DownloadProgress = {
     total: urls.length,
@@ -294,6 +296,10 @@ function createSelectionRect(
 type DownloadState = 'selecting' | 'downloading' | 'done';
 
 let _panelEl: HTMLElement | null = null;
+/** The live panel's updateEstimate. setUiState is module-level and cannot see that
+ *  closure, but every return to the selecting state has to recompute whether Download is
+ *  usable — the answer depends on the current selection, not on the state transition. */
+let _refreshEstimate: (() => void) | null = null;
 // The control that opens the panel. Module-level rather than closure-held because
 // openOfflineDownloadPanel/closePanel are module functions and also reachable from
 // other entry points — they mark the control blue for as long as the panel is up (#289).
@@ -335,7 +341,22 @@ function buildPanel(
     '    <label for="offline-dl-zmax">Max zoom: <span id="offline-dl-zmax-val">' + defaultMaxZoom + '</span></label>' +
     '    <input type="range" id="offline-dl-zmax" min="' + MIN_ZOOM + '" max="' + MAX_ZOOM + '" value="' + defaultMaxZoom + '">' +
     '  </div>' +
+    '  <fieldset class="offline-dl-layers">' +
+    '    <legend>Layers to save</legend>' +
+    '    <label class="offline-dl-layers__row">' +
+    '      <input type="checkbox" id="offline-dl-layer-streets" checked>' +
+    '      <span>' + REGION_LAYERS.streets.label + '</span>' +
+    '      <span class="offline-dl-layers__size" id="offline-dl-size-streets"></span>' +
+    '    </label>' +
+    '    <label class="offline-dl-layers__row">' +
+    '      <input type="checkbox" id="offline-dl-layer-hillshade" checked>' +
+    '      <span>' + REGION_LAYERS.hillshade.label + '</span>' +
+    '      <span class="offline-dl-layers__size" id="offline-dl-size-hillshade"></span>' +
+    '    </label>' +
+    '    <p class="offline-dl-note">Other layers save automatically as you browse them &mdash; their providers don&rsquo;t allow bulk download.</p>' +
+    '  </fieldset>' +
     '  <div class="offline-dl-estimate" id="offline-dl-estimate">--</div>' +
+    '  <div class="offline-dl-storage" id="offline-dl-storage"></div>' +
     '  <div class="offline-dl-warning" id="offline-dl-warning"></div>' +
     '  <div class="offline-dl-progress" id="offline-dl-progress" style="display:none">' +
     '    <div class="offline-dl-progress__bar">' +
@@ -347,6 +368,7 @@ function buildPanel(
     '    <button class="offline-dl-btn offline-dl-btn--primary" id="offline-dl-start">Download</button>' +
     '    <button class="offline-dl-btn offline-dl-btn--secondary" id="offline-dl-cancel">Cancel</button>' +
     '  </div>' +
+    '  <div class="offline-dl-regions" id="offline-dl-regions"></div>' +
     '</div>';
 
   // Wire up controls
@@ -362,12 +384,40 @@ function buildPanel(
     if (!_selectedBounds) return;
     const zMin = parseInt(zminInput.value, 10);
     const zMax = parseInt(zmaxInput.value, 10);
-    const tiles = countTiles(_selectedBounds, zMin, zMax);
-    const estimatedBytes = tiles * AVG_TILE_BYTES;
+    const bounds = toRegionBounds(_selectedBounds);
+    const layers = selectedLayerIds(panel);
+
+    // Per-layer sizes beside each checkbox — computed for every offered layer so an
+    // unchecked row still shows what checking it would cost.
+    for (const id of Object.keys(REGION_LAYERS) as RegionLayerId[]) {
+      const sizeEl = panel.querySelector(`#offline-dl-size-${id}`);
+      const [est] = estimateLayers([id], bounds, zMin, zMax);
+      if (sizeEl && est) sizeEl.textContent = `~${formatBytes(est.bytes)}`;
+    }
+
+    // A selection made after panning across the antimeridian arrives with unwrapped
+    // longitudes and cannot be expressed as one tile range. Say so and disable the
+    // download rather than quietly fetching the wrong thing (or the whole world).
+    const wrapped = crossesAntimeridian(bounds);
+
+    const estimates = estimateLayers(layers, bounds, zMin, zMax);
+    const tiles = estimates.reduce((sum, e) => sum + e.tiles, 0);
+    const estimatedBytes = estimates.reduce((sum, e) => sum + e.bytes, 0);
     const estimateEl = panel.querySelector('#offline-dl-estimate');
     const warningEl = panel.querySelector('#offline-dl-warning');
     if (estimateEl) {
-      estimateEl.textContent = `~${tiles.toLocaleString()} tiles (${formatBytes(estimatedBytes)})`;
+      estimateEl.textContent = wrapped
+        ? 'Selection crosses the 180° meridian — pan the map so it doesn\u2019t wrap, then reselect'
+        : layers.length === 0
+          ? 'Select at least one layer to save'
+          : `~${tiles.toLocaleString()} tiles (${formatBytes(estimatedBytes)})`;
+    }
+    // Only manage the button while selecting — mid-download it belongs to setUiState.
+    // This is the single writer for the selecting state: an earlier assignment here was
+    // overwritten by this line within the same call, so a wrapped selection showed its
+    // warning next to a live Download button.
+    if (startBtn && _downloadState === 'selecting') {
+      startBtn.disabled = wrapped || layers.length === 0;
     }
     if (warningEl) {
       if (estimatedBytes > SAFARI_QUOTA_BYTES) {
@@ -378,6 +428,62 @@ function buildPanel(
         (warningEl as HTMLElement).style.display = 'none';
       }
     }
+  }
+
+  // Live storage line: what the origin uses now, against the browser's quota.
+  // Best-effort — hidden where the Storage API is unavailable.
+  function updateStorageLine(): void {
+    void getStorageEstimate().then((est) => {
+      const el = panel.querySelector('#offline-dl-storage') as HTMLElement | null;
+      if (!el) return;
+      if (!est) { el.style.display = 'none'; return; }
+      el.style.display = 'block';
+      el.textContent = `Storage: ${formatBytes(est.usage)} used of ~${formatBytes(est.quota)}`;
+    });
+  }
+
+  // Saved-regions manager — list with per-region layers/size and a delete action.
+  function renderRegions(): void {
+    const listEl = panel.querySelector('#offline-dl-regions') as HTMLElement | null;
+    if (!listEl) return;
+    const regions = loadRegions();
+    if (regions.length === 0) { listEl.innerHTML = ''; return; }
+    listEl.innerHTML =
+      '<div class="offline-dl-regions__title">Saved regions</div>' +
+      // Sizes are estimates of each region's own footprint. Overlapping regions share the
+      // same cached tiles, so these do not sum to what the origin actually uses — the live
+      // storage line above is the real number. Saying so beats printing figures that
+      // visibly contradict it.
+      '<div class="offline-dl-regions__note">Estimated; overlapping regions share tiles</div>' +
+      regions.map((r) => {
+        // Per layer, not per region: the stored zMin/zMax are what the user asked for, but
+        // tileUrlsForLayer clamps a layer to its native ceiling, so a hillshade region saved
+        // at z16-18 actually holds z15 alone. Printing the raw range claims coverage that
+        // was never fetched, and makes two identical regions look different.
+        const layerNames = r.layers.map((l) => {
+          const z = clampZoomRange(r.zMin, r.zMax, REGION_LAYERS[l].maxNativeZoom);
+          const range = z.zMin === z.zMax ? `z${z.zMin}` : `z${z.zMin}\u2013${z.zMax}`;
+          return `${REGION_LAYERS[l].label} ${range}`;
+        }).join(', ');
+        return (
+          '<div class="offline-dl-regions__row">' +
+          `  <span class="offline-dl-regions__name">${escapeHtml(r.name)}` +
+          `    <small>${layerNames} &middot; ~${formatBytes(r.bytes)}</small></span>` +
+          `  <button class="offline-dl-regions__delete" data-region-id="${r.id}">Delete</button>` +
+          '</div>'
+        );
+      }).join('');
+    listEl.querySelectorAll<HTMLButtonElement>('.offline-dl-regions__delete').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset['regionId'];
+        if (!id) return;
+        btn.disabled = true;
+        void deleteRegion(id, showToast).then(() => {
+          renderRegions();
+          updateStorageLine();
+        });
+      });
+    });
   }
 
   zminInput.addEventListener('input', () => {
@@ -415,11 +521,20 @@ function buildPanel(
     panel.classList.toggle('offline-dl-panel--collapsed');
   });
 
+  // Re-estimate when the layer set changes.
+  for (const id of Object.keys(REGION_LAYERS)) {
+    panel.querySelector(`#offline-dl-layer-${id}`)
+      ?.addEventListener('change', updateEstimate);
+  }
+
   startBtn.addEventListener('click', () => {
     if (_downloadState !== 'selecting' || !_selectedBounds) return;
     const zMin = parseInt(zminInput.value, 10);
     const zMax = parseInt(zmaxInput.value, 10);
-    void startDownload(map, _selectedBounds, zMin, zMax, showToast);
+    const layers = selectedLayerIds(panel);
+    if (layers.length === 0) return;
+    void startDownload(map, _selectedBounds, zMin, zMax, layers, showToast)
+      .then(() => { renderRegions(); updateStorageLine(); });
   });
 
   cancelBtn.addEventListener('click', () => {
@@ -447,10 +562,44 @@ function buildPanel(
     updateEstimate();
   });
 
-  // Initial estimate
-  setTimeout(updateEstimate, 0);
+  _refreshEstimate = updateEstimate;
+
+  // Initial estimate + saved-regions list + storage line
+  setTimeout(() => {
+    updateEstimate();
+    renderRegions();
+    updateStorageLine();
+  }, 0);
 
   return panel;
+}
+
+/** Remove a saved region: delete its tiles from the region cache, then its manifest
+ *  entry. Overlapping regions share tile URLs, so deleting one may remove tiles
+ *  another region also covers (documented in ADR-007) — re-download to restore. */
+async function deleteRegion(
+  id: string,
+  showToast: (msg: string, durationMs?: number) => void,
+): Promise<void> {
+  const region = loadRegions().find((r) => r.id === id);
+  if (!region) return;
+  try {
+    const cache = await caches.open(REGION_TILE_CACHE_NAME);
+    for (const layer of region.layers) {
+      const urls = tileUrlsForLayer(layer, region.bounds, region.zMin, region.zMax);
+      await Promise.all(urls.map((url) => cache.delete(url)));
+    }
+  } catch {
+    // Keep the manifest entry. It is the ONLY handle on these tiles: region-tiles has no
+    // ExpirationPlugin and no purgeOnQuotaError by design (ADR-007), so nothing else will
+    // ever reclaim them. Dropping the row to "reflect intent" would strand the bytes for
+    // good — a multi-zoom region is tens of megabytes the user cannot get back short of
+    // clearing site data. Leave the region listed so the delete can be retried.
+    showToast(`Couldn't delete ${region.name} — storage error. Still listed; try again.`, 5000);
+    return;
+  }
+  removeRegion(id);
+  showToast(`Deleted ${region.name}`, 3000);
 }
 
 function setUiState(panel: HTMLElement, state: DownloadState): void {
@@ -460,14 +609,36 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
   const progressEl = panel.querySelector('#offline-dl-progress') as HTMLElement | null;
   const zminInput = panel.querySelector('#offline-dl-zmin') as HTMLInputElement | null;
   const zmaxInput = panel.querySelector('#offline-dl-zmax') as HTMLInputElement | null;
+  // The layer checkboxes freeze with the sliders — the selection is part of the
+  // in-flight download's definition.
+  const setLayerBoxes = (disabled: boolean): void => {
+    panel.querySelectorAll<HTMLInputElement>('.offline-dl-layers input').forEach((box) => {
+      box.disabled = disabled;
+    });
+  };
+  // Deleting a region while it's mid-download can race deleteRegion's cache.delete()
+  // against the in-flight download's cache.put() for the same tile URLs — freeze
+  // deletion alongside the other controls for the duration.
+  const setDeleteButtons = (disabled: boolean): void => {
+    panel.querySelectorAll<HTMLButtonElement>('.offline-dl-regions__delete').forEach((btn) => {
+      btn.disabled = disabled;
+    });
+  };
 
   switch (state) {
     case 'selecting':
-      if (startBtn) { startBtn.disabled = false; startBtn.textContent = 'Download'; }
+      // Text only: whether the button is usable depends on the current selection, and
+      // updateEstimate owns that. Forcing it enabled here re-armed Download for exactly
+      // the selection startDownload had just refused; leaving it untouched would strand
+      // it disabled after a cancel. So ask the one writer instead.
+      if (startBtn) startBtn.textContent = 'Download';
+      _refreshEstimate?.();
       if (cancelBtn) cancelBtn.textContent = 'Cancel';
       if (progressEl) progressEl.style.display = 'none';
       if (zminInput) zminInput.disabled = false;
       if (zmaxInput) zmaxInput.disabled = false;
+      setLayerBoxes(false);
+      setDeleteButtons(false);
       break;
     case 'downloading':
       if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'Downloading...'; }
@@ -475,12 +646,16 @@ function setUiState(panel: HTMLElement, state: DownloadState): void {
       if (progressEl) progressEl.style.display = 'flex';
       if (zminInput) zminInput.disabled = true;
       if (zmaxInput) zmaxInput.disabled = true;
+      setLayerBoxes(true);
+      setDeleteButtons(true);
       break;
     case 'done':
       if (startBtn) { startBtn.disabled = true; startBtn.textContent = 'Done'; }
       if (cancelBtn) cancelBtn.textContent = 'Close';
       if (zminInput) zminInput.disabled = true;
       if (zmaxInput) zmaxInput.disabled = true;
+      setLayerBoxes(true);
+      setDeleteButtons(false);
       break;
   }
 }
@@ -490,12 +665,26 @@ async function startDownload(
   bounds: L.LatLngBounds,
   zMin: number,
   zMax: number,
+  layers: RegionLayerId[],
   showToast: (msg: string, durationMs?: number) => void,
 ): Promise<void> {
   if (!_panelEl) return;
   setUiState(_panelEl, 'downloading');
 
-  const urls = generateTileUrls(bounds, zMin, zMax);
+  // Reject before asking for anything: a wrapped selection is not going to be downloaded,
+  // so it should not prompt a storage-persistence decision on the way out.
+  const regionBounds = toRegionBounds(bounds);
+  if (crossesAntimeridian(regionBounds)) {
+    setUiState(_panelEl, 'selecting');
+    showToast('Selection crosses the 180\u00b0 meridian — pan so it doesn\u2019t wrap and reselect.', 5000);
+    return;
+  }
+
+  // Ask the browser to protect this origin's storage BEFORE committing megabytes to
+  // it. Best-effort: a denial doesn't block the download, it just leaves the region
+  // subject to browser-initiated eviction under storage pressure.
+  const persisted = await requestPersistentStorage();
+  const urls = layers.flatMap((layer) => tileUrlsForLayer(layer, regionBounds, zMin, zMax));
   const fillEl = _panelEl.querySelector('#offline-dl-fill') as HTMLElement | null;
   const textEl = _panelEl.querySelector('#offline-dl-progress-text') as HTMLElement | null;
 
@@ -505,16 +694,58 @@ async function startDownload(
     if (textEl) textEl.textContent = `${pct}% (${p.done}/${p.total})`;
   });
 
+  // Record coverage BEFORE any panel guard, and even for an aborted download:
+  // every tile already written lives in the eviction-exempt region cache, so it
+  // must appear in the region manager to stay deletable. Skipping the manifest
+  // here would orphan those tiles with no reclamation path at all — region-tiles
+  // has no ExpirationPlugin by design (ADR-007).
+  const aborted = result.done < result.total;
+  if (shouldSaveDownloadedRegion(
+    result,
+    isCoveredBySavedRegion(regionBounds, layers, zMin, zMax),
+  )) {
+    // Failed tiles are missing coverage, not a failed region — re-running the
+    // same download skips what's cached and fills the gaps.
+    const existing = loadRegions();
+    const succeeded = result.done - result.failed;
+    const estimates = estimateLayers(layers, regionBounds, zMin, zMax);
+    const avgBytes = estimates.reduce((sum, e) => sum + e.bytes, 0) / Math.max(1, result.total);
+    const region: SavedRegion = {
+      id: `region-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+      name: nextRegionName(existing) + (aborted ? ' (partial)' : ''),
+      bounds: regionBounds,
+      zMin,
+      zMax,
+      layers,
+      tileCount: succeeded,
+      bytes: Math.round(succeeded * avgBytes),
+      createdAt: Date.now(),
+    };
+    addRegion(region);
+  }
+
   if (!_panelEl) return; // panel was closed during download
+
+  // A cancelled run must not land in the success tail. The cancel handler already put the
+  // panel back to 'selecting' and told the user; this promise resolves a moment later and
+  // used to overwrite all of it — flipping the panel to "Done", toasting a success
+  // message for the download they just stopped, and drawing the cached overlay across the
+  // WHOLE selection when only part of it was fetched. The partial region is still
+  // recorded above, deliberately, so those tiles stay deletable.
+  if (aborted) {
+    setUiState(_panelEl, 'selecting');
+    return;
+  }
 
   setUiState(_panelEl, 'done');
 
   // Show cached region overlay on map
   showCachedOverlay(map, bounds);
 
+  const persistNote = persisted ? '' : ' Storage persistence was declined — the browser may still evict under pressure.';
   const msg = result.failed > 0
-    ? `Downloaded ${result.done - result.failed - result.cached} tiles (${result.cached} already cached, ${result.failed} failed)`
-    : `Downloaded ${result.done - result.cached} new tiles (${result.cached} already cached)`;
+    ? `Downloaded ${result.done - result.failed - result.cached} tiles (${result.cached} already cached, ${result.failed} failed).${persistNote}`
+    : `Downloaded ${result.done - result.cached} new tiles (${result.cached} already cached).${persistNote}`;
   showToast(msg, 5000);
 }
 
@@ -546,6 +777,9 @@ function closePanel(map: L.Map): void {
     _panelEl = null;
   }
   _controlEl?.classList.remove(CONTROL_ACTIVE_CLASS);
+  // The closure belongs to the panel that just went away; holding it would let a later
+  // setUiState call into a dead DOM.
+  _refreshEstimate = null;
   _selectedBounds = null;
   _downloadState = 'selecting';
   // Keep cached overlay visible after close — intentional so user can see what's cached

@@ -23,6 +23,7 @@ Each ADR follows a consistent template:
 4. [ADR-004: Local-Only Data](ADR-004-local-only-data.md) — Why all data stays in the browser with no server-side storage
 5. [ADR-005: Two-Tier Offline Tile Strategy](ADR-005-offline-tile-strategy.md) — Why offline uses Workbox passive caching plus Cache API pre-download
 6. [ADR-006: Routed Turn-by-Turn Guidance](ADR-006-routed-guidance.md) — Why recording was replaced with Valhalla-powered guidance and a heading-cone wedge instead of map rotation
+7. [ADR-007: Protected Region Cache for Multi-Layer Pre-Downloads](ADR-007-region-tile-cache.md) — Why deliberately saved regions live in their own eviction-exempt cache and which layers may be bulk-downloaded
 
 ## References
 
