@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.51.0 (2026-09-14)
+
+Offline maps stop being one base layer you hope survives eviction: you choose which layers to save, the tiles land in a cache nothing else can evict, and the app shows you what you have. The position marker also learned which way you are facing while standing still.
+
+### Added
+
+- **Save a region for offline use across multiple layers, in a cache that cannot be evicted out from under you.** Pre-downloaded tiles used to share the passive cache, whose LRU could quietly discard the region you deliberately saved — and only the one base map was saved at all, so switching layers offline showed nothing. Downloads now cover every provider whose terms allow bulk fetching (OSM Streets plus Terrarium hillshade), land in their own protected cache with no expiry, and are listed in a manager showing each region's layers, zoom range and size, with per-layer offline badges in the layers picker (#304)
+- **The position marker shows which way you are facing, not just which way you are moving.** GPS course is `NaN` below walking pace, so the direction indicator vanished whenever you stopped. The marker now falls back to the device compass while stationary and draws it in a different colour — facing and travelling are different claims and are no longer made in the same voice (#311)
+- **Deploys apply the nginx config from the repo instead of trusting whatever is on the host.** The config was applied by hand, so the repo copy could drift from what was actually serving — drift that caused and prolonged the blank-page outage, where a repo-only fix could not take effect. The config is now shipped and validated on every deploy, and a config that fails `nginx -t` is never activated (#211, #321)
+
+### Fixed
+
+- **Re-downloading an area no longer creates a second entry that silently empties the first.** Each download minted a fresh manifest id, and because deleting a region recomputes its tile URLs from the area and zoom range, deleting either twin removed the tiles the other still listed. The survivor went on reading as fully saved and the gap appeared only when you were offline. Re-downloads now update the existing entry in place (#318, #322)
+- **Deleting a saved region asks first.** Deletion is irreversible and was one mis-tap away on a small mobile panel (#318, #322)
+- **The compass rose no longer spins a full turn backwards every time you pass north.** The rose animates its rotation, and it was handed a wrapped angle, so 359° to 1° — two degrees of real movement — was drawn as a 358° spin the wrong way (#317)
+- **The position marker's parts are centred on your actual position.** The dot sat two pixels off the fix it marks, the ring and its arrowhead each centred somewhere different, and the arrowhead orbited the marker's corner rather than its centre, so how far off it looked depended on which way you faced (#313)
+- **The offline tile warning names a layer that exists.** It advised switching to "Structures", which has never been one of the bases, and it now only claims your saved regions cover the area when a region actually contains the tile that failed (#308, #309, #304)
+- **The Cycle base is no longer multiplied by itself.** The base and its blend overlay requested the identical tile, so stacking them applied a gamma-2.0 curve — crushed midtones and oversaturated colour — from a single fetch (#305, #306)
+
+### Security
+
+- **`@babel/core` is pinned past a build-time advisory.** GHSA-4x5r-pxfx-6jf8 (arbitrary file read via a `sourceMappingURL` comment) reached the tree through `vite-plugin-pwa`, which resolved to the last affected version. Build-time only and never in a shipped bundle; `npm audit` now reports zero (#319, #320)
+
+### Internal
+
+- Bundle size is reported as a measurement rather than a stale budget: the main JS chunk measures 131 kB gzipped against a 150 kB CI-enforced ceiling, and the docs no longer quote the two interchangeably (#307)
+- Development dependency updates: js-yaml, sharp, baseline-browser-mapping, browserslist, @humanfs/node (#294, #295, #297, #298, #302)
+
 ## v0.50.0 (2026-09-12)
 
 First stable release — the `-beta` postfix is retired. The app has been serving production traffic at [webmap.dev](https://www.webmap.dev) through 49 minor releases; the version now says so.

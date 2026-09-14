@@ -1,6 +1,6 @@
 {
   "name": "webmap-dev",
-  "version": "0.50.0",
+  "version": "0.51.0",
   "type": "module",
   "comment:test": "`test` shells out to bash for the deploy-script suite; `npm test` therefore needs bash (CI, macOS, Linux all have it — Windows needs WSL/Git Bash). Run `npx vitest run` alone to skip it. See docs/deployment.md.",
   "scripts": {
