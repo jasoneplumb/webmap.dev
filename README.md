@@ -7,7 +7,7 @@
 
 > A mobile-first Progressive Web App for live GPS navigation and offline map exploration.
 
-## Evidence
+## Results
 
 | | |
 | --- | --- |
@@ -37,27 +37,27 @@
 
 ## Features
 
-- **Live GPS Tracking** — Blue dot with accuracy circle and a heading ring that follows GPS course while moving and the device compass while stopped; three-state locate button (off / active-following / passive)
-- **Turn-by-Turn Navigation** — Tap "Navigate here" on any search result or dropped pin to fetch a route from FOSSGIS Valhalla (driving / cycling / walking) with maneuver pill, ETA, off-route recalculation, and arrival detection
-- **Device-Orientation Compass** — Compass rose that rotates so true north stays up while the device is moved, and feeds the heading ring so a stationary user still sees a direction; enabled by default on mobile from the first-run consent tap (iOS-13+ permission gate handled)
-- **Address Search** — Find places using ESRI ArcGIS geocoding with autocomplete, numbered result markers, and a "Navigate here" action
-- **Reverse Geocoding** — Double-click or long-press to drop a pin and look up the address; bottom geocode bar exposes Copy and Navigate actions
-- **Layer Switching** — Custom popover for base maps (Cycle, Outdoors, Streets, Parks &amp; POIs, Satellite) and independent overlays: client-side hillshade, Cycle blend, Waymarked hiking and cycling routes, CyclOSM bike infrastructure, and GeoJSON files from your own device
-- **Offline Support** — OSM tiles cached via service worker (StaleWhileRevalidate, 30 days, 500 entries) plus proactive region pre-download into the Cache API
-- **Background-GPS Keepalive** — Wake Lock + silent-audio loop while navigating so iOS Safari keeps GPS fixes flowing with the screen off
-- **Adaptive GPS Accuracy** — Automatically downgrades to coarse fixes after 5 stationary samples and restores high-accuracy on movement to save battery
-- **Consent Dialog** — First-run privacy / terms modal with sticky header and footer; consent version forces re-acceptance when third-party services change
-- **Changelog** — Tap the version badge in the bottom-left cluster to read the full release history inline
-- **Adaptive Controls** — Locate, Layers, and Download buttons collapse to icon-only after first use, with collapse persisted to `localStorage`
+- **Live GPS Tracking** - Blue dot with accuracy circle and a heading ring that follows GPS course while moving and the device compass while stopped; three-state locate button (off / active-following / passive)
+- **Turn-by-Turn Navigation** - Tap "Navigate here" on any search result or dropped pin to fetch a route from FOSSGIS Valhalla (driving / cycling / walking) with maneuver pill, ETA, off-route recalculation, and arrival detection
+- **Device-Orientation Compass** - Compass rose that rotates so true north stays up while the device is moved, and feeds the heading ring so a stationary user still sees a direction; enabled by default on mobile from the first-run consent tap (iOS-13+ permission gate handled)
+- **Address Search** - Find places using ESRI ArcGIS geocoding with autocomplete, numbered result markers, and a "Navigate here" action
+- **Reverse Geocoding** - Double-click or long-press to drop a pin and look up the address; bottom geocode bar exposes Copy and Navigate actions
+- **Layer Switching** - Custom popover for base maps (Cycle, Outdoors, Streets, Parks &amp; POIs, Satellite) and independent overlays: client-side hillshade, Cycle blend, Waymarked hiking and cycling routes, CyclOSM bike infrastructure, and GeoJSON files from your own device
+- **Offline Support** - OSM tiles cached via service worker (StaleWhileRevalidate, 30 days, 500 entries) plus proactive region pre-download into the Cache API
+- **Background-GPS Keepalive** - Wake Lock + silent-audio loop while navigating so iOS Safari keeps GPS fixes flowing with the screen off
+- **Adaptive GPS Accuracy** - Automatically downgrades to coarse fixes after 5 stationary samples and restores high-accuracy on movement to save battery
+- **Consent Dialog** - First-run privacy / terms modal with sticky header and footer; consent version forces re-acceptance when third-party services change
+- **Changelog** - Tap the version badge in the bottom-left cluster to read the full release history inline
+- **Adaptive Controls** - Locate, Layers, and Download buttons collapse to icon-only after first use, with collapse persisted to `localStorage`
 
 ## Design Principles
 
-- **Offline-first** — Map tiles, app code, and reverse-geocode results survive without connectivity; routing requires the user's explicit "Navigate here" tap
-- **Local-only by default** — No accounts, no telemetry, no server storage; the only outbound traffic is tiles, ESRI geocoding, and Valhalla routing on user action ([ADR-004](docs/adr/ADR-004-local-only-data.md), [ADR-006](docs/adr/ADR-006-routed-guidance.md))
-- **Progressive enhancement** — Search and routing degrade to clear error toasts when offline; reverse geocoding is silenced
-- **Mobile-native UX** — Bottom sheets, peek-state geocode bar, safe-area insets, and a thumb-reach bottom-left control cluster
-- **Minimal dependencies** — No framework, no CSS library, no state management — Leaflet, esri-leaflet, esri-leaflet-geocoder, and a single mutable `AppState`
-- **Transparent architecture** — One `AppState` object threaded by reference through every module ([ADR-001](docs/adr/ADR-001-single-mutable-state.md))
+- **Offline-first** - Map tiles, app code, and reverse-geocode results survive without connectivity; routing requires the user's explicit "Navigate here" tap
+- **Local-only by default** - No accounts, no telemetry, no server storage; the only outbound traffic is tiles, ESRI geocoding, and Valhalla routing on user action ([ADR-004](docs/adr/ADR-004-local-only-data.md), [ADR-006](docs/adr/ADR-006-routed-guidance.md))
+- **Progressive enhancement** - Search and routing degrade to clear error toasts when offline; reverse geocoding is silenced
+- **Mobile-native UX** - Bottom sheets, peek-state geocode bar, safe-area insets, and a thumb-reach bottom-left control cluster
+- **Minimal dependencies** - No framework, no CSS library, no state management: Leaflet, esri-leaflet, esri-leaflet-geocoder, and a single mutable `AppState`
+- **Transparent architecture** - One `AppState` object threaded by reference through every module ([ADR-001](docs/adr/ADR-001-single-mutable-state.md))
 
 ## Tech Stack
 
@@ -67,12 +67,12 @@
 | **Map** | Leaflet 1.9 + esri-leaflet 3 + esri-leaflet-geocoder 3 |
 | **Tiles** | Free OSM-derived: CyclOSM, OpenStreetMap, OpenTopoMap, Humanitarian; Esri hillshade overlay |
 | **Geocoding** | ESRI ArcGIS (forward + reverse) |
-| **Routing** | FOSSGIS Valhalla — single endpoint serves `auto`, `pedestrian`, and `bicycle` |
+| **Routing** | FOSSGIS Valhalla: single endpoint serves `auto`, `pedestrian`, and `bicycle` |
 | **Offline** | Workbox 7 (StaleWhileRevalidate for OSM tiles) + Cache API (proactive region pre-download) |
 | **PWA** | vite-plugin-pwa (manifest, install prompts, maskable icons) |
 | **Tests** | vitest (pure-function unit tests for `geo`, `routing`, `guidance`, `geocoding`, `location`, `orientation`, `bottom-sheet`) |
 | **Server** | nginx (HSTS, SPA fallback, 1-year asset cache, never-cache HTML) |
-| **CI/CD** | GitHub Actions — `npm test` on every push / PR; deploy on version-tag (`v*`) push or manual release dispatch |
+| **CI/CD** | GitHub Actions: `npm test` on every push / PR; deploy on version-tag (`v*`) push or manual release dispatch |
 
 ## Getting Started
 
@@ -116,7 +116,7 @@ npm run screenshots  # Regenerate the preview screenshots in docs/images/
 
 ## Architecture
 
-webmap.dev uses a **single shared AppState object** threaded through all modules. No event bus, no Redux, no observable graph — just a mutable state object passed by reference. GPS polling is shared between the locate button and turn-by-turn guidance through an integer **refcount** so each consumer can request and release the watch without stepping on the other.
+webmap.dev uses a **single shared AppState object** threaded through all modules. No event bus, no Redux, no observable graph, just a mutable state object passed by reference. GPS polling is shared between the locate button and turn-by-turn guidance through an integer **refcount** so each consumer can request and release the watch without stepping on the other.
 
 See **[docs/architecture.md](docs/architecture.md)** for a deep-dive on:
 
@@ -127,10 +127,10 @@ See **[docs/architecture.md](docs/architecture.md)** for a deep-dive on:
 5. Routed-Guidance State Machine (`guidance.ts` + `routing.ts`)
 6. Device-Orientation Compass (`compass.ts` + `orientation.ts`)
 7. Background-GPS Keepalive (`keepalive.ts`)
-8. Bottom Sheet / Side Panel (iOS Safari `offsetHeight` trick — [ADR-003](docs/adr/ADR-003-offsetheight-ios-safari.md))
+8. Bottom Sheet / Side Panel (iOS Safari `offsetHeight` trick, [ADR-003](docs/adr/ADR-003-offsetheight-ios-safari.md))
 9. Consent Modal with sticky header/footer
 10. Layers Control (custom popover) + Adaptive Control Labels
-11. Offline Tile Strategy (passive Workbox + proactive Cache API — [ADR-005](docs/adr/ADR-005-offline-tile-strategy.md))
+11. Offline Tile Strategy (passive Workbox + proactive Cache API, [ADR-005](docs/adr/ADR-005-offline-tile-strategy.md))
 12. nginx Infrastructure
 
 ## Project Structure
