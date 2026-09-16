@@ -1,6 +1,6 @@
 # Architecture
 
-webmap.dev is built around a **single shared `AppState` object** that flows through all modules by reference. No event emitters, no Redux, no observable chains — just TypeScript and mutable state. This document covers the patterns that make that work.
+webmap.dev is built around a **single shared `AppState` object** that flows through all modules by reference. No event emitters, no Redux, no observable chains, just TypeScript and mutable state. This document covers the patterns that make that work.
 
 ## 1. Single Shared State (`types.ts`)
 
@@ -100,7 +100,7 @@ function deactivatePolling(): void {
 }
 ```
 
-`startWatching()` calls `map.locate({ watch: true, enableHighAccuracy: true })`; `stopWatching()` calls `map.stopLocate()`. There is no internal polling loop — Leaflet's watch dispatches `locationfound` events directly.
+`startWatching()` calls `map.locate({ watch: true, enableHighAccuracy: true })`; `stopWatching()` calls `map.stopLocate()`. There is no internal polling loop; Leaflet's watch dispatches `locationfound` events directly.
 
 **Adaptive accuracy.** `setWatchAccuracy(map, false)` re-runs `map.locate()` with `enableHighAccuracy: false` and `maximumAge: 5000` after the fix-handler observes 5+ consecutive stationary samples (`speed < 0.5 m/s`). On movement it restores high-accuracy. This trades brief gaps for meaningful battery savings during long stops.
 
@@ -113,16 +113,16 @@ function deactivatePolling(): void {
 | State | Icon | Behavior |
 |-------|------|----------|
 | **off** | Lines (gray outline) | No polling; no markers |
-| **active** | Color (blue arrow) | Following — map pans on each fix |
+| **active** | Color (blue arrow) | Following; map pans on each fix |
 | **passive** | B&W (gray arrow) | Dot visible, map free; tap to re-center |
 
 **Transitions** (in `main.ts`):
 
-- **off → active** — synchronous within the click handler so iOS Safari shows the permission prompt; calls `activatePolling()`.
-- **active → off** — `deactivatePolling()`, clear the blue dot and accuracy circle.
-- **passive → active** — `flyTo()` the last known position; no refcount change (already polling).
-- **active → passive** — automatic on `dragstart` or first wheel-zoom; a one-shot toast points touch users at the locate button.
-- **passive → active (touch)** — a tap on the guidance banner calls `reactivateLocate()` (#296). Double-tap is plain Leaflet zoom everywhere, as it is on every other map; the banner only exists while a route is running, so the locate button remains the affordance that is always present.
+- **off → active** - synchronous within the click handler so iOS Safari shows the permission prompt; calls `activatePolling()`.
+- **active → off** - `deactivatePolling()`, clear the blue dot and accuracy circle.
+- **passive → active** - `flyTo()` the last known position; no refcount change (already polling).
+- **active → passive** - automatic on `dragstart` or first wheel-zoom; a one-shot toast points touch users at the locate button.
+- **passive → active (touch)** - a tap on the guidance banner calls `reactivateLocate()` (#296). Double-tap is plain Leaflet zoom everywhere, as it is on every other map; the banner only exists while a route is running, so the locate button remains the affordance that is always present.
 
 GPS errors with `code === 1` (PERMISSION_DENIED) are debounced: a 3-second timer waits for a fix to arrive, since iOS Safari sometimes fires a spurious permission-denied right before the first valid `locationfound`. If the fix arrives the timer is cancelled; otherwise the state collapses to `off` and a sticky toast explains how to re-grant permission.
 
@@ -141,22 +141,22 @@ if (e.accuracy < state.prior || dist > e.accuracy / 2) {
 }
 ```
 
-- If accuracy improved (15 m → 10 m), accept — the dot becomes more precise.
-- If we moved farther than half the accuracy radius, accept — real motion.
+- If accuracy improved (15 m → 10 m), accept: the dot becomes more precise.
+- If we moved farther than half the accuracy radius, accept: real motion.
 - Otherwise drop the fix.
 
 The pure haversine, bearing, and point-to-segment helpers live in `src/geo.ts` and are independently unit-tested.
 
-**Heading ring.** A ring around the blue dot — faint bezel, bright arc, arrowhead — shows one heading, whose source follows motion state. See [ADR-007](adr/ADR-007-heading-source-selection.md).
+**Heading ring.** A ring around the blue dot (faint bezel, bright arc, arrowhead) shows one heading, whose source follows motion state. See [ADR-007](adr/ADR-007-heading-source-selection.md).
 
 Four implementation details matter:
 
-1. **Source selection** lives in `selectHeading()` (`heading.ts`): GPS course at or above 0.5 m/s, device compass below it, a course held for 10 s only where no compass exists, otherwise nothing. Drawing nothing is deliberate — a stale bearing is worse than an absent one.
+1. **Source selection** lives in `selectHeading()` (`heading.ts`): GPS course at or above 0.5 m/s, device compass below it, a course held for 10 s only where no compass exists, otherwise nothing. Drawing nothing is deliberate: a stale bearing is worse than an absent one.
 2. **`--heading-deg` CSS custom property** drives a `conic-gradient` masked by a `radial-gradient` into an annulus, plus a rotated arrowhead.
 3. **Two clocks, one element.** Fixes arrive around 1 Hz and orientation events around 60 Hz, so `heading-indicator.ts` owns the drawing and coalesces orientation-driven writes to one per frame.
 4. **Two-stage filtering.** `compass.ts` low-passes the raw magnetometer to reject jitter; `heading-indicator.ts` eases the drawn angle along the shortest arc so a heading crossing north turns 20° forward rather than 340° backward.
 
-The map itself does **not** rotate — this is the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md), chosen over `leaflet-rotate` (GPL-3 license clash) and CSS-transform rotation (per-overlay coordinate inversion).
+The map itself does **not** rotate; this is the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md), chosen over `leaflet-rotate` (GPL-3 license clash) and CSS-transform rotation (per-overlay coordinate inversion).
 
 **GPS weak-signal hysteresis.** A badge surfaces in the UI when fixes degrade. Two-fix streaks debounce the badge in either direction with a deadband (25–30 m) so flickering signal doesn't toggle the badge.
 
@@ -176,11 +176,11 @@ idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
                                   off-route ◀───off-route streak (3)
 ```
 
-- **idle** — pill is hidden; no refcount held.
-- **routing** — POSTs to FOSSGIS Valhalla; spinner pill with "Cancel". Fetch is `AbortController`-friendly so a newer route supersedes a stale in-flight request.
-- **guiding** — refcount incremented; route polyline + glow + destination marker drawn; pill shows next maneuver, distance to maneuver, total remaining, ETA, and the `auto`/`pedestrian`/`bicycle` chip.
-- **off-route** — set after `OFF_ROUTE_STREAK = 3` consecutive fixes farther than the profile threshold from the route polyline. Throttled recalc fires once per 15 s; recovery within tolerance returns the status to `guiding`.
-- **arrived** — entered when straight-line distance ≤ profile arrival radius. The pill displays "Arrived" for 3 s, then `stopGuidance()` collapses to idle.
+- **idle** - pill is hidden; no refcount held.
+- **routing** - POSTs to FOSSGIS Valhalla; spinner pill with "Cancel". Fetch is `AbortController`-friendly so a newer route supersedes a stale in-flight request.
+- **guiding** - refcount incremented; route polyline + glow + destination marker drawn; pill shows next maneuver, distance to maneuver, total remaining, ETA, and the `auto`/`pedestrian`/`bicycle` chip.
+- **off-route** - set after `OFF_ROUTE_STREAK = 3` consecutive fixes farther than the profile threshold from the route polyline. Throttled recalc fires once per 15 s; recovery within tolerance returns the status to `guiding`.
+- **arrived** - entered when straight-line distance ≤ profile arrival radius. The pill displays "Arrived" for 3 s, then `stopGuidance()` collapses to idle.
 
 **Profile-dependent thresholds** (initial v1 values in `src/guidance.ts`):
 
@@ -190,7 +190,7 @@ idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
 | pedestrian | 10 m | 15 m |
 | bicycle | 15 m | 20 m |
 
-**Routing client (`src/routing.ts`).** Single `fetchRoute()` POSTs to `https://valhalla1.openstreetmap.de/route` with the start, destination, and `costing`, requesting kilometer units. The response carries pre-formatted natural-language maneuver instructions and a polyline6-encoded shape; a 25-LOC inline decoder converts the shape to `L.LatLng[]`. The endpoint URL is the **single egress point** — replacing the routing provider is a one-line change.
+**Routing client (`src/routing.ts`).** Single `fetchRoute()` POSTs to `https://valhalla1.openstreetmap.de/route` with the start, destination, and `costing`, requesting kilometer units. The response carries pre-formatted natural-language maneuver instructions and a polyline6-encoded shape; a 25-LOC inline decoder converts the shape to `L.LatLng[]`. The endpoint URL is the **single egress point**: replacing the routing provider is a one-line change.
 
 **Render survives GPS jitter.** `updateGuidance()` runs on every accepted fix and ends with `render()`, which rebuilds the pill's inner HTML. Click handlers are bound by **delegation on the persistent panel element** (not on the buttons themselves) so iOS Safari's touch-to-click synthesis still finds a target after re-render. The Stop tap-drop bug from #180 is the cautionary tale.
 
@@ -202,9 +202,9 @@ idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
 
 A bottom-left SVG compass rose rotates by `-deviceHeading` so true north stays at the top. Its heading is no longer only its own: every reading is low-passed into `state.compassHeadingDeg`, which the heading ring uses as its source while the user is stationary (see [ADR-007](adr/ADR-007-heading-source-selection.md)). Before that, the rose read a true-north heading and spent it entirely on a 38 px glyph.
 
-**Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture, which is why the compass cannot simply default to on. The first-run consent modal carries a preselected compass row and fires the request from inside its accept handler, so the grant rides on a tap the user already makes; the request is handed back to `main.ts` unresolved, because awaiting an OS prompt on the boot path would leave a blank page. Tapping the rose still works for anyone who declined, and a returning opt-in is retried without a gesture — which some platforms refuse, leaving the rose exactly as it was. `compass.ts` caches the outcome on `state.compassPermission` and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
+**Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture, which is why the compass cannot simply default to on. The first-run consent modal carries a preselected compass row and fires the request from inside its accept handler, so the grant rides on a tap the user already makes; the request is handed back to `main.ts` unresolved, because awaiting an OS prompt on the boot path would leave a blank page. Tapping the rose still works for anyone who declined, and a returning opt-in is retried without a gesture, which some platforms refuse, leaving the rose exactly as it was. `compass.ts` caches the outcome on `state.compassPermission` and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
 
-**Heading extraction (`orientation.ts`).** Prefers iOS's `webkitCompassHeading` (already true-north calibrated, clockwise). Falls back to W3C `alpha`, flipped from anti-clockwise to clockwise. Subscribes to `deviceorientationabsolute` when available — it provides true-north headings without manual calibration.
+**Heading extraction (`orientation.ts`).** Prefers iOS's `webkitCompassHeading` (already true-north calibrated, clockwise). Falls back to W3C `alpha`, flipped from anti-clockwise to clockwise. Subscribes to `deviceorientationabsolute` when available: it provides true-north headings without manual calibration.
 
 The rose is driven by a `--heading-deg` CSS custom property (same convention as the heading ring) and renders the filtered heading rather than the raw one, which is what stops it shivering at rest.
 
@@ -214,10 +214,10 @@ The rose is driven by a `--heading-deg` CSS custom property (same convention as 
 
 Mobile browsers throttle JS timers and pause `geolocation.watchPosition` when the screen is off. The `Keepalive` class works around it with **two complementary mechanisms**:
 
-1. **Wake Lock API** — `navigator.wakeLock.request('screen')` keeps the screen on (where supported). Released cleanly on stop.
-2. **Silent audio loop** — A 1-second silent `AudioBufferSourceNode` looped via Web Audio. iOS Safari treats audible playback as a foreground activity even when the screen is off, which keeps the JS event loop alive long enough for GPS fixes to dispatch. The buffer is silent (zeros) so no sound plays.
+1. **Wake Lock API** - `navigator.wakeLock.request('screen')` keeps the screen on (where supported). Released cleanly on stop.
+2. **Silent audio loop** - A 1-second silent `AudioBufferSourceNode` looped via Web Audio. iOS Safari treats audible playback as a foreground activity even when the screen is off, which keeps the JS event loop alive long enough for GPS fixes to dispatch. The buffer is silent (zeros) so no sound plays.
 
-`startSilentAudio()` runs synchronously **before** the `await` in `start()` — it must execute inside the user-gesture stack frame for iOS Safari to honor it. `acquireWakeLock()` runs after, since wake-lock has no gesture requirement.
+`startSilentAudio()` runs synchronously **before** the `await` in `start()`; it must execute inside the user-gesture stack frame for iOS Safari to honor it. `acquireWakeLock()` runs after, since wake-lock has no gesture requirement.
 
 The keepalive is owned by guidance (started on `enterGuiding`, stopped on `stopGuidance`). A `reacquireWakeLock()` method exists for the page-visibility-change path where the OS releases the lock when the tab backgrounds.
 
@@ -241,7 +241,7 @@ webmap.dev adapts its info panel between mobile and desktop:
 
 **Drag gestures.** Drag handle for snap-changes; Escape dismisses. `> 60 px` deltas snap to the next level.
 
-**iOS Safari `offsetHeight` trick.** Snap-point math uses the rendered element's `offsetHeight`, not `window.innerHeight` or CSS `vh` units. On older iOS Safari, `vh` is based on the largest viewport (toolbar hidden) while `innerHeight` reflects the current viewport — they disagree by up to ~75 px during scroll. `offsetHeight` matches what the user actually sees. See [ADR-003](adr/ADR-003-offsetheight-ios-safari.md).
+**iOS Safari `offsetHeight` trick.** Snap-point math uses the rendered element's `offsetHeight`, not `window.innerHeight` or CSS `vh` units. On older iOS Safari, `vh` is based on the largest viewport (toolbar hidden) while `innerHeight` reflects the current viewport; they disagree by up to ~75 px during scroll. `offsetHeight` matches what the user actually sees. See [ADR-003](adr/ADR-003-offsetheight-ios-safari.md).
 
 The sheet is positioned `fixed` and translated with `translateY()` for GPU-accelerated animation. The CSS fallback `translateY(110%)` keeps it hidden until JS takes over.
 
@@ -253,7 +253,7 @@ The sheet is positioned `fixed` and translated with `translateY()` for GPU-accel
 
 A first-run dialog blocks app initialization until the user accepts the privacy policy and terms of use. `CONSENT_VERSION` is the gate: `hasConsent()` returns true only when `localStorage.getItem('webmap-consent-version') === CONSENT_VERSION`. Bumping `CONSENT_VERSION` forces every existing user to re-accept.
 
-**Layout.** A flex column with three zones — sticky title, scrollable body (Privacy then Terms), sticky button row. This keeps the action buttons visible on small screens where the legal text needs scrolling.
+**Layout.** A flex column with three zones: sticky title, scrollable body (Privacy then Terms), sticky button row. This keeps the action buttons visible on small screens where the legal text needs scrolling.
 
 **Storage on accept.** `webmap-consent-version`, `webmap-consent-accepted-at` (ISO timestamp), and `webmap-consent-install-id` (anonymous UUID via `crypto.randomUUID()`). The install ID is generated once and never changes between accepts.
 
@@ -277,9 +277,9 @@ A custom popover replaces Leaflet's native `L.control.layers`:
 
 ## 11. Offline Tile Strategy
 
-Two layers of offline support work together — see [ADR-005](adr/ADR-005-offline-tile-strategy.md):
+Two layers of offline support work together; see [ADR-005](adr/ADR-005-offline-tile-strategy.md):
 
-**Passive: Workbox runtime caching (`vite.config.ts`).** OSM tile requests (`*.tile.openstreetmap.org`) are intercepted with `StaleWhileRevalidate`: serve the cached tile immediately, refetch in the background. 500-entry cap, 30-day expiration. ESRI geocode requests are `NetworkOnly` — there is no useful offline behavior for a search query.
+**Passive: Workbox runtime caching (`vite.config.ts`).** OSM tile requests (`*.tile.openstreetmap.org`) are intercepted with `StaleWhileRevalidate`: serve the cached tile immediately, refetch in the background. 500-entry cap, 30-day expiration. ESRI geocode requests are `NetworkOnly`: there is no useful offline behavior for a search query.
 
 ```typescript
 runtimeCaching: [
@@ -300,7 +300,7 @@ runtimeCaching: [
 
 **Proactive: Cache API pre-download (`offline-download.ts`).** Users select a bounding box and a min/max zoom range; the app pre-fetches every tile in the region directly into the same OSM tile cache (6 concurrent fetches matching browser per-domain limit, skipping already-cached tiles). The shared `OSM_TILE_CACHE_NAME` constant in `sw-constants.ts` is referenced by both the Vite config and the runtime download to avoid drift.
 
-**Tile error fallback (`map.ts`).** When a tile request fails offline, `initOfflineTileFallback()` looks up the parent zoom-level tile in the OSM cache (up to 3 zoom levels above) and crops it onto a 256×256 canvas — degraded but visible. A 10-second cooldown limits the "tiles unavailable" toast to one fire per cluster of failures.
+**Tile error fallback (`map.ts`).** When a tile request fails offline, `initOfflineTileFallback()` looks up the parent zoom-level tile in the OSM cache (up to 3 zoom levels above) and crops it onto a 256×256 canvas, degraded but visible. A 10-second cooldown limits the "tiles unavailable" toast to one fire per cluster of failures.
 
 **App code** is precached by the build (Vite's PWA plugin). `clientsClaim: true` means a new SW activates on the next page load and `location.reload()` is fired automatically once the new SW takes control.
 
@@ -310,15 +310,15 @@ runtimeCaching: [
 
 Production deploys land in `/var/www/webmap/web/dist/` and are served by nginx:
 
-- **HSTS** — `Strict-Transport-Security: max-age=31536000; includeSubDomains`. Browsers cache for 1 year.
-- **SPA fallback** — `try_files $uri $uri/ /index.html` so client-side routing works without 404s.
-- **Asset caching** — Hashed Vite assets (`*.js`, `*.css`, images, fonts) get `expires 1y; Cache-Control "public, immutable"`. Code changes get a new hash, so the immutable promise is safe.
-- **HTML uncached** — `index.html` always re-fetches: `expires -1; Cache-Control "no-cache, no-store, must-revalidate"`.
-- **Gzip** — JS/CSS/JSON compressed (~70% size reduction).
-- **TLS** — Let's Encrypt certs via certbot; HTTP/2; auto-renew.
-- **Apex redirect** — `webmap.dev` 301s to `https://www.webmap.dev`.
-- **Hidden file lock-down** — `location ~ /\.` denies all (no `.env`, no `.git` exposure).
-- **Security headers** — `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
+- **HSTS** - `Strict-Transport-Security: max-age=31536000; includeSubDomains`. Browsers cache for 1 year.
+- **SPA fallback** - `try_files $uri $uri/ /index.html` so client-side routing works without 404s.
+- **Asset caching** - Hashed Vite assets (`*.js`, `*.css`, images, fonts) get `expires 1y; Cache-Control "public, immutable"`. Code changes get a new hash, so the immutable promise is safe.
+- **HTML uncached** - `index.html` always re-fetches: `expires -1; Cache-Control "no-cache, no-store, must-revalidate"`.
+- **Gzip** - JS/CSS/JSON compressed (~70% size reduction).
+- **TLS** - Let's Encrypt certs via certbot; HTTP/2; auto-renew.
+- **Apex redirect** - `webmap.dev` 301s to `https://www.webmap.dev`.
+- **Hidden file lock-down** - `location ~ /\.` denies all (no `.env`, no `.git` exposure).
+- **Security headers** - `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
 
 See `infrastructure/nginx/www.webmap.dev.conf` for the canonical config.
 
