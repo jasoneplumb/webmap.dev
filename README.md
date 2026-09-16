@@ -56,7 +56,7 @@
 - **Local-only by default** - No accounts, no telemetry, no server storage; the only outbound traffic is tiles, ESRI geocoding, and Valhalla routing on user action ([ADR-004](docs/adr/ADR-004-local-only-data.md), [ADR-006](docs/adr/ADR-006-routed-guidance.md))
 - **Progressive enhancement** - Search and routing degrade to clear error toasts when offline; reverse geocoding is silenced
 - **Mobile-native UX** - Bottom sheets, peek-state geocode bar, safe-area insets, and a thumb-reach bottom-left control cluster
-- **Minimal dependencies** - No framework, no CSS library, no state management: Leaflet, esri-leaflet, esri-leaflet-geocoder, and a single mutable `AppState`
+- **Minimal dependencies** - No framework, no CSS library, no state management. Just Leaflet, esri-leaflet, esri-leaflet-geocoder, and a single mutable `AppState`
 - **Transparent architecture** - One `AppState` object threaded by reference through every module ([ADR-001](docs/adr/ADR-001-single-mutable-state.md))
 
 ## Tech Stack
