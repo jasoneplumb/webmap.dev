@@ -113,15 +113,47 @@ describe('placePopoverVertically', () => {
   });
 
   it('never collapses below a usable height', () => {
-    // A banner eating almost the whole viewport leaves 30px. Overflowing the intended
-    // bottom edge beats a popover too short to show the header it was clamped to expose.
-    expect(placePopoverVertically({
+    // A banner eating almost the whole viewport would leave 30px. The ceiling gives way
+    // instead, so the popover keeps a usable height and still fits on screen.
+    const placement = placePopoverVertically({
       btnTop: 340,
       btnBottom: 374,
       height: NATURAL_H,
       viewportHeight: 400,
       topObstruction: 350,
       margin: 10,
-    })).toEqual({ top: 360, maxHeight: 120 });
+    });
+    expect(placement).toEqual({ top: 270, maxHeight: 120 });
+    expect(placement.top + (placement.maxHeight ?? 0)).toBeLessThanOrEqual(400);
+  });
+
+  it('keeps the popover on screen when the obstruction exceeds the viewport', () => {
+    // Nothing caps .guidance-banner's height — it is a flex column that wraps — so a
+    // multi-line banner on a short viewport can push the raw ceiling past the bottom of
+    // the screen. Following it literally would put the popover entirely below the fold,
+    // stranding the close button exactly as sliding UNDER the banner did.
+    const placement = placePopoverVertically({
+      btnTop: 340,
+      btnBottom: 374,
+      height: NATURAL_H,
+      viewportHeight: 400,
+      topObstruction: 500,
+      margin: 10,
+    });
+    expect(placement).toEqual({ top: 270, maxHeight: 120 });
+    expect(placement.top).toBeLessThan(400);
+  });
+
+  it('falls back to the top margin when no band is usable at all', () => {
+    // Degenerate viewport: there is no placement that satisfies both the ceiling and a
+    // usable height, so the header wins — it carries the only way to dismiss the popover.
+    expect(placePopoverVertically({
+      btnTop: 40,
+      btnBottom: 74,
+      height: NATURAL_H,
+      viewportHeight: 100,
+      topObstruction: 60,
+      margin: 10,
+    })).toEqual({ top: 10, maxHeight: 120 });
   });
 });

@@ -116,7 +116,14 @@ export function placePopoverVertically(input: {
 }): PopoverVerticalPlacement {
   const { btnTop, btnBottom, height, viewportHeight, topObstruction, margin } = input;
   const floor = viewportHeight - margin;
-  const ceiling = Math.max(margin, topObstruction + margin);
+  // The ceiling is capped, not just floored. Nothing bounds the guidance banner's height —
+  // it is a flex column that wraps — so a multi-line banner on a short landscape viewport
+  // can push `topObstruction + margin` past the bottom of the screen. Honouring that
+  // literally would place the popover entirely below the fold, stranding the close button
+  // exactly as sliding under the banner did; this is the same bug approached from the
+  // other extreme. Leave room for POPOVER_MIN_HEIGHT_PX above the floor, and when even
+  // that does not fit, fall back to the top margin so the header stays on screen.
+  const ceiling = Math.max(margin, Math.min(topObstruction + margin, floor - POPOVER_MIN_HEIGHT_PX));
 
   let top = btnBottom + margin;
   let bottom = top + height;
