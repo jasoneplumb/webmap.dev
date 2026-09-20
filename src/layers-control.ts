@@ -82,6 +82,61 @@ export function isOverlayRedundantOverBase(overlay: OverlayDef, baseId: string |
 const LAYERS_STORAGE_KEY = 'webmap-layer-selection';
 const OVERLAY_STORAGE_KEY = 'webmap-overlay-selection';
 
+/** Floor for a clamped popover. Only reachable when fixed chrome eats nearly the whole
+ *  viewport; overflowing the intended bottom edge beats collapsing to a sliver that
+ *  cannot show its own header. */
+const POPOVER_MIN_HEIGHT_PX = 120;
+
+export interface PopoverVerticalPlacement {
+  top: number;
+  /** null when the popover renders at its natural height and needs no clamp. */
+  maxHeight: number | null;
+}
+
+/**
+ * Vertical placement for the layers popover, split out from the DOM so the geometry is
+ * testable without a map, a viewport, or a running route.
+ *
+ * `topObstruction` is the lowest y covered by fixed chrome that paints ABOVE the popover
+ * — the guidance banner. Treating it as a ceiling is the whole point: the popover used to
+ * clamp to the viewport edge and slide under the banner, which buries the header and the
+ * close button with it, leaving no way to dismiss the popover mid-route.
+ *
+ * When the ceiling forces a clamp, only the TOP edge moves. The bottom edge is left where
+ * unobstructed placement put it, so the popover shortens in place instead of sliding down
+ * the screen.
+ */
+export function placePopoverVertically(input: {
+  btnTop: number;
+  btnBottom: number;
+  height: number;
+  viewportHeight: number;
+  topObstruction: number;
+  margin: number;
+}): PopoverVerticalPlacement {
+  const { btnTop, btnBottom, height, viewportHeight, topObstruction, margin } = input;
+  const floor = viewportHeight - margin;
+  const ceiling = Math.max(margin, topObstruction + margin);
+
+  let top = btnBottom + margin;
+  let bottom = top + height;
+
+  if (bottom > floor) {
+    // Flip above the button.
+    bottom = btnTop - margin;
+    top = bottom - height;
+    // Does not fit above the button even with the entire viewport free. Stop anchoring to
+    // the button and fill the full band instead, covering it. Gated on the pre-ceiling
+    // `margin` deliberately: a popover that DID fit above the button keeps its bottom edge
+    // there, and only one that never fit falls back to the viewport floor.
+    if (top < margin) bottom = floor;
+  }
+
+  if (top >= ceiling) return { top, maxHeight: null };
+
+  return { top: ceiling, maxHeight: Math.max(POPOVER_MIN_HEIGHT_PX, bottom - ceiling) };
+}
+
 export class LayersControl extends L.Control {
   private baseMaps: LayerDef[] = [];
   private overlays: OverlayDef[] = [];
@@ -226,7 +281,10 @@ export class LayersControl extends L.Control {
       document.body.appendChild(this.popoverEl);
     }
 
-    this.popoverEl.style.display = 'block';
+    // flex, not block: .layers-popover is a flex column so a height clamp actually shrinks
+    // the scrollable body rather than letting it spill past the popover's own border.
+    // An inline display:block here would override that and silently restore the overflow.
+    this.popoverEl.style.display = 'flex';
     this.popoverOpen = true;
 
     // Before measuring: the base may have changed while the popover was closed, and a
@@ -257,41 +315,56 @@ export class LayersControl extends L.Control {
     this.popoverOpen = false;
   }
 
+  /** Lowest y covered by fixed chrome that paints above the popover. Only the guidance
+   *  banner qualifies today (z-index 1600 against the popover's 1000); everything else at
+   *  the top of the viewport is a Leaflet control corner, which the popover legitimately
+   *  covers. Queried on the --visible class because the base class is display:none, and a
+   *  hidden element measures as a zero rect at the origin — indistinguishable from a
+   *  banner genuinely sitting at the top of the screen. */
+  private topObstructionPx(): number {
+    const banner = document.querySelector('.guidance-banner--visible');
+    return banner ? banner.getBoundingClientRect().bottom : 0;
+  }
+
   private positionPopover(): void {
     if (!this.popoverEl) return;
 
     const btn = document.getElementById('layers-control-btn');
     if (!btn) return;
 
+    // Measure at natural height. A maxHeight surviving from an earlier open would be read
+    // back below as the popover's real height, so every subsequent open would inherit the
+    // tightest clamp the popover had ever been given — including after the route that
+    // caused it ended.
+    this.popoverEl.style.maxHeight = '';
+
     const btnRect = btn.getBoundingClientRect();
     const popoverRect = this.popoverEl.getBoundingClientRect();
 
-    // Position below button; flip above only if it fits; clamp to viewport
     const margin = 10;
-    let top = btnRect.bottom + margin;
-    let left = btnRect.left;
 
     // Adjust if too close to right edge
+    let left = btnRect.left;
     if (left + popoverRect.width > window.innerWidth - margin) {
       left = window.innerWidth - popoverRect.width - margin;
     }
 
-    // Flip above button if it doesn't fit below
-    if (top + popoverRect.height > window.innerHeight - margin) {
-      top = btnRect.top - popoverRect.height - margin;
-    }
-
-    // Clamp: never go off-screen top; cap height to available space
-    if (top < margin) {
-      top = margin;
-      const maxH = window.innerHeight - 2 * margin;
-      this.popoverEl.style.maxHeight = `${maxH}px`;
-    }
+    const placement = placePopoverVertically({
+      btnTop: btnRect.top,
+      btnBottom: btnRect.bottom,
+      height: popoverRect.height,
+      viewportHeight: window.innerHeight,
+      topObstruction: this.topObstructionPx(),
+      margin,
+    });
 
     this.popoverEl.style.position = 'fixed';
-    this.popoverEl.style.top = `${top}px`;
+    this.popoverEl.style.top = `${placement.top}px`;
     this.popoverEl.style.left = `${left}px`;
     this.popoverEl.style.zIndex = '1000';
+    if (placement.maxHeight !== null) {
+      this.popoverEl.style.maxHeight = `${placement.maxHeight}px`;
+    }
   }
 
   private buildPopover(): HTMLElement {

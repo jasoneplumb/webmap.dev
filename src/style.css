@@ -167,17 +167,45 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   transform: translate(-50%, -50%) rotate(var(--heading-deg, 0deg));
 }
 
+/* White casing behind the arrowhead, so the tip survives a light or busy tile. It is the
+   same triangle scaled about its INCENTRE, which is the only centre that yields an even
+   1.5px of white on all three edges — scaling about the apex or the centroid pinches the
+   border at one end. Geometry: the tip is half-width 5, height 4, so its inradius is
+   area/semiperimeter = 20 / 11.403 = 1.754px, sitting 1.754px above the base at y = -23,
+   i.e. at y = -24.75. Adding 1.5px of casing scales it by 3.254 / 1.754 = 1.8552, giving
+   half-width 9.28 and height 7.42, with the base pushed out to y = -21.5.
+   These numbers are derived from the tip's, not scaled from a previous casing: flattening
+   the tip shrinks its inradius, so the same 1.5px of white needs a larger scale factor.
+   It lives on the wrapper rather than on .blue-dot__tip because ::before on a zero-size
+   bordered box resolves against a padding box the borders have already displaced; the
+   wrapper shares .blue-dot__tip's own coordinate frame, so the two agree by construction.
+   As ::before it is the wrapper's first child and therefore paints under the tip. */
+.blue-dot__tipwrap::before {
+  content: '';
+  position: absolute;
+  left: -9.28px;
+  top: -28.92px;
+  width: 0;
+  height: 0;
+  border-left: 9.28px solid transparent;
+  border-right: 9.28px solid transparent;
+  border-bottom: 7.42px solid #fff;
+}
+
 /* Measured from the dot's centre: the ring's outer edge is at 23px, so a base at -23
-   and an 8px-tall triangle put the arrowhead just outside the ring, touching it. */
+   and a 4px-tall triangle put the arrowhead just outside the ring, touching it.
+   Half-width 5 against height 4 is deliberate — a base wider than the triangle is tall
+   resolves which end is the apex at a glance, where the near-equilateral shape this
+   replaced had to be read. */
 .blue-dot__tip {
   position: absolute;
   left: -5px;
-  top: -31px;
+  top: -27px;
   width: 0;
   height: 0;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-bottom: 8px solid var(--heading-arc);
+  border-bottom: 4px solid var(--heading-arc);
 }
 
 .blue-dot--has-heading .blue-dot__bezel,
@@ -1547,8 +1575,17 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* Layers Popover ─────────────────────────────────────────────────── */
 
+/* A flex column, so the max-height that positionPopover writes when the guidance banner
+   squeezes the available band is absorbed by the scrollable body instead of overflowing
+   it. As a block with the default overflow:visible, that clamp shrank the painted box
+   while the body kept its full height and spilled past the rounded border and shadow.
+   openPopover sets display:flex inline to match — display:block there would undo all of
+   this. overflow:hidden also keeps the body's scroll edge inside the border radius. */
 .layers-popover {
   position: fixed;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -1559,7 +1596,10 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   max-width: 320px;
 }
 
+/* Never shrink: the header carries the close button, and a clamp that ate into it would
+   recreate the unreachable-close bug from the other direction. */
 .layers-popover__header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1592,7 +1632,13 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   color: #333;
 }
 
+/* min-height:0 is load-bearing: a flex item defaults to min-height:auto, which refuses to
+   shrink below its content, so without it the body would ignore the clamp and overflow
+   exactly as it did before the popover became a flex column. max-height caps the popover
+   when there is room to spare; the flex shrink takes over when there is not. */
 .layers-popover__body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 12px;
   max-height: 400px;
   overflow-y: auto;
