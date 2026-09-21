@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.52.3 (2026-09-20)
+
+Two things on the map were hard to see or hard to reach.
+
+### Fixed
+
+- **The direction arrow on the position marker is readable against any tile.** It was a bare triangle with no outline, so it disappeared over pale satellite imagery and anywhere the ground was busy. It now sits on a white casing, and the arrowhead itself is flatter — the old one was within 8% of equilateral, which gave away little about which end was the point. Both arrows get it: the blue one for direction of travel and the amber one for where the device is facing (#331)
+- **The Map Layers popover can always be closed while a route is running.** On a short screen it opened underneath the guidance banner, which covered its header and with it the only close button. It now treats the banner's lower edge as a ceiling and shortens from the top, leaving its bottom edge where it was. Two faults sat behind it and went at the same time: the height limit was written onto a box that could not contain its own contents, so it shrank the border while the list spilled straight past it, and the limit was never cleared afterwards — once a route had squeezed the popover, it stayed squeezed for the rest of the session, long after the route ended (#332)
+
+### Documentation
+
+- README and the architecture notes rewritten to drop em-dashes and deposition framing (#329)
+
 ## v0.52.2 (2026-09-14)
 
 ### Fixed
