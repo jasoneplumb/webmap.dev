@@ -151,901 +151,107 @@ First stable release — the `-beta` postfix is retired. The app has been servin
 - **Search failures explain themselves instead of failing silently** — a failed lookup was reported as *"No results found. Try zooming out or rewording your search."*, advice that cannot help when the service is unreachable, and autocomplete failures produced no feedback at all. The message now names the cause: offline, no API key in the build, a key that doesn't authorise this site, rate limiting, or a service outage. A genuine zero-match search keeps the original wording, which is only correct there (#260, #262)
 - **Turn-by-turn directions no longer repeat themselves to screen readers** — the banner announced the full instruction, distance and ETA on every GPS fix, roughly once a second. Only the maneuver and status changes are announced now; the visible banner still updates continuously (#258, #259)
 
-## v0.45.0-beta (2026-08-08)
-
-### Changed
-
-- **Turn-by-turn directions moved to a banner across the top of the screen** — the guidance dashboard used to render inside the bottom sheet, so directions sat at the bottom of the display and vanished whenever the sheet was minimized. They now appear in a fixed banner at the top, the convention for navigation apps, present only while actually navigating. The sheet keeps the Start/Stop button and the Drive/Bike/Walk selector; only the read-only dashboard moved (#257)
-- **The navigation sheet is anchored to the right edge and half its former height** — 30vh instead of 60vh, capped at 480px so it doesn't stretch across a wide monitor (#257)
-- **Dropping a pin opens the sheet immediately** — it previously waited for the address lookup to return, so a slow or blocked geocode left no sheet at all. Coordinates appear at once and the address fills in when it arrives, or stays as coordinates if the lookup fails (#257)
-- **Draw-zone control moved to the top-right, directly below the download button**, and is now icon-only. The pencil renders as a monochrome glyph on iOS rather than a colour emoji (#257)
-- **Long-press to drop a pin is twice as fast** — 250 ms instead of 500 ms on iOS (#257)
-
-### Fixed
-
-- **Zoom, the scale bar, the version badge and the attribution were unusable whenever the navigation sheet was open** — the full-width sheet sat on top of the bottom-left controls, and because every pixel of its visible band belongs to an interactive element, those controls were genuinely unreachable rather than merely hidden. The locate button sits highest and kept working, which is why it looked like zoom specifically was broken. The cluster now rides above the sheet and moves with it, so nothing is ever covered (#253, #257)
-- **Dragging a dropped pin left navigation pointing at the original spot** — the address stopped updating and Start routed to where the pin used to be, with nothing on screen to indicate it (#257)
-- **The app could hang on a blank page after accepting the terms** — if recording the consent throws, which iOS Safari private browsing and "Block All Cookies" both cause, the promise gating startup never settled. The app never booted, no error surfaced, and the next load asked for consent again (#255, #256)
-- **Concurrent requests for the same elevation tile now share one download** — a directly-visible tile and an overzoomed tile needing the same data could each start their own fetch (#251, #252)
-
-## v0.44.1-beta (2026-08-08)
-
-### Fixed
-
-- **Switching the Hillshade sun direction no longer wipes the shading** — toggling **Satellite sun** threw away the decoded elevation along with the shaded tiles, and because Terrarium elevation tiles aren't service-worker cached, every toggle re-downloaded all visible tiles from AWS. The map sat unshaded for the whole round trip, and stayed blank when a refetch failed — offline, on flaky cellular, or when the burst of requests was throttled — since tiles are only rebuilt on the next pan or zoom. Elevation is now cached separately from the shading it feeds (elevation doesn't depend on the sun), so re-lighting re-shades from memory with no network at all. This also removes the same redundant refetch when panning back over ground at z15 or below, which previously had no cache (#250)
-
-## v0.44.0-beta (2026-07-29)
-
-### Added
-
-- **Direction-of-travel arrows and a "Too early" grade on cue events** — cue files exported with GPS debug carry `heading_deg`; each cue dot gains a small tick rotated to the direction of travel, with the rounded heading in the label. The grade vocabulary gains **Too early** (yellow) alongside Useful / False alarm / Too late / Unrecognized, and the Unrecognized grade button's missing active-state background is fixed (#248)
-
-### Changed
-
-- **The bottom navigation sheet is now two sizes: default and minimized** — the full-height state is removed (it only revealed empty sheet area; the default size already shows the handle, action row, and guidance dashboard). Tapping the handle toggles between the two sizes, upward drag stops just past the default size, and assistive tech hears expanded/collapsed to match (#247 follow-up)
-
-## v0.43.0-beta (2026-07-29)
-
-### Changed
-
-- **Dismissing the bottom navigation sheet now minimizes it instead of destroying it** — the × button or a drag-down collapses the geocode-bar to just its drag-handle pill at the screen edge, keeping the destination and route context available; tap or drag the handle to bring it back. Fully clearing the pin is still possible as a deliberate gesture (drag well below the minimized position). The minimized handle announces "Restore navigation sheet" to assistive tech, and the map stays fully interactive beneath the pill (#247)
-
-## v0.42.0-beta (2026-07-29)
-
-### Added
-
-- **Hillshade re-lit to match Satellite imagery, computed on-device** — the overlay is no longer Esri's pre-rendered NW-lit World Hillshade (roughly opposite the real sun in the imagery) but is shaded client-side from AWS Open Data Terrarium elevation tiles under a south-east sun (azimuth 150°). Flat terrain stays neutral and the layer composites with an overlay blend, so sun-facing slopes *lighten* the base map while shadowed slopes darken it — highlights run at half strength so snow and pale rock don't blow out. A **Satellite sun** checkbox on the Hillshade row (persisted, on by default) switches back to the classic NW cartographic light. Shaded tiles above the elevation data's native z15 reuse a cached ancestor, and in-flight tile fetches cancel when panned away (#246)
-- **New "Bike infrastructure" overlay** — CyclOSM-lite's transparent bike-lanes-and-paths tiles compose over any base with no baked-in hillshade, so the app's own Hillshade overlay stays the only relief source (the full CyclOSM and Thunderforest Cycle styles both rasterize shaded relief into their artwork at some zooms) (#246)
-
-## v0.41.0-beta (2026-07-29)
-
-### Changed
-
-- **Zoom limit raised from 18 to 19** — the map and every tile layer now allow one more zoom level. No provider is asked for tiles beyond its native resolution: the extra level renders the deepest native tiles scaled up, so z19 looks slightly blurrier in exchange for the closer view
-
-## v0.40.0-beta (2026-07-29)
-
-### Added
-
-- **New "Satellite" base map** — Esri World Imagery joins the base-map choices in the layers popover, served from the same free, key-less ArcGIS Online host as the hillshade overlay. Native 256px tiles capped at z18 so behavior stays uniform where metro-area imagery goes deeper; composes with the existing overlays (hillshade multiplies over the imagery, route tiles draw on top) and participates in offline tile-error handling like the other non-OSM bases (#244)
-- **New "Cycle blend" overlay, on by default** — the Cycle base map's tiles reused as a multiply-blended overlay: lighter ground colors turn near-transparent so the style's bike-route ink composites over any base, including Satellite. The `.hillshade-blend` CSS rule is generalized to `.multiply-blend`, now shared by both blend overlays. On by default for new visitors; browsers with a persisted overlay selection keep their existing choices (#244)
-
-### Fixed
-
-- **Cue events files with the `unrecognized` grade no longer fail to load** — the cue trace schema replaced `missed_risk` with `unrecognized` as the fourth review grade, and the overlay rejected such files wholesale (`outcome must be one of …`). The overlay now accepts and renders it (teal, distinct from the outcome palette and the custom-zone blue) and the map's grade row gains an **Unrecognized** button so map grading matches the app's vocabulary; `missed_risk` (purple) stays render-only for older exports (#244)
-
-## v0.39.0-beta (2026-07-21)
-
-### Added
-
-- **New "Custom squeeze zones" overlay** — a **Draw zone** map control lets you click points to draw your own zone (Finish/Cancel or Enter/Esc to commit/discard), rendered dashed blue so it's never mistaken for the derived Squeeze zones overlay's severity-colored solid lines. Tap a drawn zone to edit its label or delete it; zones persist to localStorage like the other overlays. The layers-control row adds **Export** (downloads the set as GeoJSON) and **Change…** (imports a previously-exported file, replacing the current set — same contract as the other overlays). No exporter tool yet; it's a map-only annotation layer for now (#243)
-
-### Fixed
-
-- **Draw mode no longer breaks reverse-geocode pin-drop** — the new draw-zone control was unconditionally re-enabling double-click-zoom on every Finish/Cancel/Esc, silently undoing the app's permanent disable of it (which lets a double-click drop a reverse-geocode pin instead of zooming); fixed by deferring to that existing ownership instead of toggling it per draw session (#243)
-- **Custom zone clicks no longer bleed into draw mode** — tapping an existing custom zone while drawing a new one nearby both opened that zone's edit popup and added a spurious vertex to the in-progress zone; rendered zone lines now set `bubblingMouseEvents: false` (#243)
-
-## v0.38.0-beta (2026-07-16)
-
-### Added
-
-- **Grade cue events on the map** — cue popups now carry a grade row (**Useful / False alarm / Too late**, plus Clear) so rides can be reviewed where the context lives: tapping a grade recolors the point instantly (overwriting any prior grade — latest wins), a pill shows graded/total progress, and grades persist per file in the browser so grading one ride never clobbers another's unexported work. An **Export reviews** action downloads the grades as a `reviews[]` sidecar for the cue repo's `cue-review-merge` tool — nothing else ever leaves the browser. Missed risk is deliberately not a map grade (a cue that fired wasn't missed); map-authored markers are planned follow-up work (#240)
-- **GPS track and exact event positions in the Cue events overlay** — ride files exported with GPS now draw the ride's path as a muted line beneath the event points, and cue/marker points sit at their actual GPS positions instead of segment midpoints (tooltips no longer say "approximate position" for them). Files without GPS render exactly as before (#238)
-- **Load a different overlay file without touching DevTools** — file-backed overlays (Squeeze zones, Cue events) now have a "change file…" action in the layers control that reopens the picker; the new file replaces the old data everywhere on success, while cancelling or picking a malformed file leaves current data untouched (#237)
-
-### Documentation
-
-- README preview images refreshed — live turn-by-turn navigation on the Streets basemap and hiking trails on the Outdoors basemap with hillshade — and repo sponsorship enabled via `.github/FUNDING.yml` (#242)
-
-## v0.37.0-beta (2026-07-14)
-
-### Added
-
-- **New "Cue events" overlay** — complements Squeeze zones by showing *where the cue policy actually fired* during a ride: `HEAD_UP` cue points render as circle markers colored by review outcome (useful green, false alarm red, too late orange, missed risk purple, ungraded gray), with a dashed ring when the cue never reached the wrist, and rider-placed "unsafe here" markers as a distinct neutral triangle. Tooltips/popups show ride clock, lead time, delivery latency, outcome, and decoded reasons (absent fields omitted; unknown bits render as `reserved(bit N)`). Like Squeeze zones, data loads from a GeoJSON file on your device only — no bundled or remote ride data — and persists locally so re-enabling doesn't require re-picking; malformed files show a toast and never partially render. Both overlays toggle independently and share a common file-loading path; HTML escaping is applied to all file-derived text in popups. No new dependencies (#232)
-
-## v0.36.0-beta (2026-07-13)
-
-### Added
-
-- **New "Squeeze zones" overlay** — renders cycling squeeze zones produced by the [cue](https://github.com/jasoneplumb/cue) pipeline as severity-colored polylines (red / orange / yellow) over any base map, with hover tooltips and tap popups showing the zone ID, decoded reasons (narrow lane, no shoulder / bike lane, high-speed traffic; unknown bits render as `reserved(bit N)`), and severity/confidence. Zone data is loaded from a GeoJSON file on your device — deliberately no bundled or remote data, since zone geometry reveals the producer's ride region — and persists in localStorage so re-enabling doesn't require re-picking. Hovering one segment highlights every segment of the same zone; malformed files show a toast and never partially render. No new dependencies; bundle stays under the 100 kB cap (#228)
-
-### Removed
-
-- **Repo hygiene**: removed a stale committed clone-dispatch prompt artifact (`.droid-prompt`) and extended `.gitignore` to cover all clone prompt files (#230)
-
-## v0.35.0-beta (2026-06-05)
-
-### Changed
-
-- **The first-run consent dialog now requires reading the terms before accepting** — the "I agree — continue" button stays disabled (with a "Please scroll to the bottom to continue." hint) until you scroll to the end of the Privacy Policy and Terms of Use. It enables immediately when the terms already fit on screen without scrolling, re-checks on rotate, and moves keyboard focus to the button once unlocked; Decline is always available. Verified in-browser across short/tall viewports and an orientation change (#226)
-
-## v0.34.9-beta (2026-06-05)
-
-### Changed
-
-- **Removed the temporary on-screen blank-page diagnostics** and simplified the service worker. The investigation into the Edge/Chrome-on-iPhone blank screen concluded it's an iOS-26 WKWebView (third-party-browser) whole-page render freeze — not reachable, detectable, or preventable from web code — and is paused pending a future iOS update (Safari is unaffected; tracked for follow-up). The diagnostic overlays and service-worker-side error capture added during the investigation are now removed; the automatic recovery for a service worker serving a stale chunk is kept (#224)
-
-## v0.34.8-beta (2026-06-05)
-
-### Fixed
-
-- **Further attempt at the Edge/Chrome-on-iPhone blank white screen** — reduced the work the browser's compositor does at first paint, since the freeze only affects iOS third-party browsers (WKWebView) and not Safari, which suggests WKWebView is more sensitive to compositing pressure during the initial render. Removed an always-on full-screen compositing layer on the map container (`isolation: isolate`, which was only needed to contain the hillshade blend and is visually a no-op to drop) and stopped rendering the offline banner into the page until it's actually needed. The page can't detect the freeze itself to auto-recover (the browser reports the paint as done even when nothing reaches the screen), so this targets preventing it (#223)
-
-## v0.34.7-beta (2026-06-05)
-
-### Fixed
-
-- **Blank white screen on cold start in Edge/Chrome on iPhone now auto-recovers** — the real cause is a whole-page render freeze in iOS WebKit (iOS 26 / WKWebView): the page loads and runs but the browser intermittently never paints the content, and only a full reload clears it (scrolling/tapping/rotating doesn't). Since it can't be prevented from the page, the app now detects it via the Paint Timing API — if no content paint is recorded ~3 seconds after load, it reloads once automatically (guarded against loops) — so a freeze becomes a brief white flash that self-heals instead of a stuck dead page. On-device diagnostics (`bundleRan=true`, `swController=no`, even injected overlays not painting) confirmed the app, service worker, and consent dialog were all healthy; the earlier consent-overlay timing change (v0.34.6) is reverted (#221)
-
-## v0.34.6-beta (2026-06-05)
-
-### Fixed
-
-- **Blank white screen on cold start in Edge/Chrome on iPhone — root cause** — the first-run consent dialog was injected into the page synchronously during the browser's first paint, and iOS WebKit (which all third-party iOS browsers run on) intermittently failed to composite that fixed-position layer, leaving a white screen with the dialog present in the DOM but unpainted. With the dialog invisible the user couldn't accept it, so the app appeared blank until a manual refresh. The consent overlay now mounts one animation frame later (after first paint) with a forced layout flush, so it renders reliably. On-device diagnostics (`bundleRan=true`, `swController=no`) confirmed the app and service worker were healthy all along — earlier service-worker changes targeted the wrong layer (#219)
-
-## v0.34.5-beta (2026-06-04)
-
-### Fixed
-
-- **Blank page on cold start in Edge on iPhone can no longer happen** — the service worker was rewritten (`generateSW` → `injectManifest`, `src/sw.ts`) so navigation is network-first but *any* failure or empty response falls back to the install-verified precached `index.html`. Third-party iOS browsers (WKWebView) intermittently returned an empty navigation under accumulated storage/runtime pressure, leaving a white screen that needed a manual refresh; the worker now always serves a real document (worst case a slightly-stale shell). Adds `purgeOnQuotaError` on the tile cache (the documented iOS mitigation for failures that build up over several loads) and temporary service-worker-side diagnostics that surface any recovered blank navigation on the next load (#217)
-
-## v0.34.4-beta (2026-06-04)
-
-### Fixed
-
-- **Residual blank page on cold start in Edge on iPhone** — removed the NetworkFirst navigation timeout (`networkTimeoutSeconds: 3`). On a slow cold start (cold-radio wake) the timeout made the service worker fall back to the WKWebView-flaky runtime cache, which intermittently returned an empty navigation → blank document. Navigation now waits for the network when online; only a genuine offline failure falls back to cache. Follows the NetworkFirst navigation change in v0.34.3-beta (#215)
-
-## v0.34.3-beta (2026-06-04)
-
-### Fixed
-
-- **Blank page on cold start in Edge on iPhone** — navigation requests are now served NetworkFirst instead of cache-first from the service-worker precache. Third-party iOS browsers (WKWebView) have flakier Cache Storage than Safari, so the cache-first navigation route intermittently returned a blank document; an online cold start now always fetches a fresh `index.html` from the network, with the last cached navigation as the offline fallback (#213)
-- **Stale service worker pinned for a year** — nginx now serves `/sw.js` with `no-cache` instead of the generic 1-year `immutable` rule that applied to every `.js` file. Because the service-worker filename is stable (unhashed), that rule kept browsers on a stale SW that never discovered new deploys; it is now re-fetched and revalidated on every load (#210)
-
-## v0.34.2-beta (2026-06-04)
-
-### Changed
-
-- **Diagnostic refinement** — the temporary blank-page probe now detects "blank" by counting actually-rendered map tiles (Leaflet adds panes/controls to `#map` immediately, so the previous child-count check missed a blank-but-initialized map) and always appends its state dump alongside any captured error (#208)
-
-## v0.34.1-beta (2026-06-04)
-
-### Changed
-
-- **Temporary on-screen diagnostic** for a blank-on-load that only reproduces on mobile Chromium (Edge/Chrome) on the returning-user path. On an uncaught error or a map that never renders, it now shows an error/state readout instead of a blank page; invisible on normal loads. Instrumentation to be removed once the root cause is fixed (#207)
-
-## v0.34.0-beta (2026-06-04)
-
-### Added
-
-- **Separate Hiking and Cycling route overlays** — the combined "Routes" overlay is now two independent toggles, **Hiking routes** and **Cycling routes** (both on by default). Because Waymarked colors routes by network hierarchy rather than by activity, turning Cycling off is the way to reveal hiking-only segments (#202)
-
-### Fixed
-
-- **Blank page on first load could require a manual reload** — added an inline boot-watchdog that reloads the page once (within ~3s) if the JS bundle never executes (e.g. a stale service worker serving a 404'd chunk), so the app recovers automatically instead of waiting for a manual refresh. Complements the `navigateFallback` app-shell fix in v0.33.2-beta (#206)
-
-## v0.33.2-beta (2026-06-04)
-
-### Fixed
-
-- **Blank page on first load after an update** — a returning user (with the previous service worker cached) could get a blank white page until a manual reload, because the service worker had no navigation fallback and a navigation could be answered with a stale app-shell/chunk-hash mismatch. The SW now serves the app shell via `navigateFallback` and cleans up outdated precaches on activation, and the app self-heals with a one-shot reload if initialization fails — so it no longer requires a manual refresh (#204)
-
-## v0.33.1-beta (2026-06-04)
-
-### Fixed
-
-- **Blank tray flashed over the map on the first load after an update** — an orphaned bottom-sheet ("info panel"), unused since search moved to the floating dropdown, computed its off-screen position from `offsetHeight` before layout was ready on the service-worker update's cold first paint, leaving an empty tray covering the map until a manual refresh. Removed the dead module, its call, test, and styles entirely (#200)
-
-## v0.33.0-beta (2026-06-04)
-
-### Added
-
-- **Dedicated hiking & cycling trail base maps** — new **Cycle** (OpenCycleMap, now the default base) and **Outdoors** maps from Thunderforest, replacing the unreliable CyclOSM source that frequently left the trail map blank at city zoom levels. A new toggleable **Routes** overlay (Waymarked hiking + cycling routes) highlights marked routes over any base map, alongside the existing Hillshade overlay (#195)
-
-### Changed
-
-- **Unified search-to-navigation flow** — tapping a search result (or its numbered map marker) now flies to it and opens the same bottom sheet used for dropped pins, with Drive/Bike/Walk options and a prominent Start button, instead of a cramped accordion with four buried buttons (#195)
-- **Map recenters at neighborhood zoom on locate** — the first GPS fix and every locate activation now frame your position at a readable neighborhood zoom rather than leaving the map zoomed out (#195)
-- **Quieter, clearer GPS status messages** — the location-status toast now shows at most once per loss/acquisition episode (auto-clearing when a fix returns), with platform-specific guidance and a grace period for transient macOS location errors (#195)
-
-### Fixed
-
-- **Search result text no longer clips** — long place names and the "POI" badge were cut off (e.g. showing "PO"); results now truncate cleanly and the dropdown stays within the screen on narrow phones (#195)
-- **Trail base map renders reliably** — the previous CyclOSM tile server timed out at city zoom levels, leaving only the hillshade visible; the new Thunderforest bases render at every zoom (#195)
-- **PWA manifest syntax error** — a duplicate manifest link caused a "Manifest: Line 1, column 1, Syntax error"; the link is now injected once by the build (#195)
-
-### Removed
-
-- **Accordion search-result detail UI** — replaced by the unified bottom sheet (~150 lines removed); also removed the redundant standalone Topographic base map (its terrain view is covered by Outdoors) and the unused Mapbox token wiring (#195)
-
-## v0.32.3-beta (2026-06-02)
-
-### Fixed
-
-- **Page didn't load until the user manually reloaded** — the service-worker update reload gated `updateSW(true)` behind a single `requestAnimationFrame`, which fires *before* that frame's paint, so the page reloaded before Leaflet had painted (a blank page on iOS Safari that only a manual reload recovered). `requestAnimationFrame` is also paused while the document is hidden, so an update that landed while the tab/PWA was backgrounded never applied and the page stayed on the stale worker. The update reload is now visibility-aware (defers until the document is visible) and genuinely post-paint (waits two animation frames), applied at most once (#192)
-
-## v0.32.2-beta (2026-05-23)
-
-### Fixed
-
-- **Browser tab title hijacked by search and pin-drop** — `document.title` was overwritten on every search-result selection, marker click, and reverse-geocode lookup, leaving the tab labeled with stale addresses or coordinates long after the user moved on. The title now stays as `webmap.dev` until turn-by-turn navigation actually starts, switches to the destination label while guiding, and reverts to `webmap.dev` when navigation stops
-
-## v0.32.1-beta (2026-05-20)
-
-### Fixed
-
-- **Routing failures were hidden behind the navigation tray** — routing errors (e.g. the Valhalla service being unreachable) were shown in a toast (`z-index 1000`) that the geocode-bar tray (`z-index 1500`) covered, so the message went unseen exactly when navigating from the tray. Routing failures now appear in a modal dialog above all app chrome, with distinct titles for an initial route failure vs. a route-type change failure (#188)
-
-### Changed
-
-- **Production deploys now run only on releases** — the deploy workflow triggered on every push to `mainline`, shipping unreleased work and running independently of CI. It now runs only on a version-tag (`v*`) push or manual `/deploy`, and only after the full CI quality gate passes against the release tag (#187)
-
-## v0.32.0-beta (2026-05-20)
-
-### Added
-
-- **Locale-aware distance units** — turn-by-turn maneuver distances and route summaries now display in miles/feet or kilometres/metres based on the browser locale (imperial for US/GB/MM/LR regions, metric elsewhere). Valhalla is queried with matching units so its instruction text agrees with the pill display (#184)
-
-### Changed
-
-- Moved the navigation dashboard into the tray and trimmed the tray navigation bundle
-
-### Fixed
-
-- **Opaque CORS error when routing was unreachable** — `fetch()` rejects with a raw `TypeError` on any network-level failure (DNS, connection refused, TLS, blocked CORS preflight), which the browser surfaces as an opaque "CORS request did not succeed / Status (null)" console error and a cryptic toast. `fetchRoute()` now converts these into an actionable "routing service unavailable" message while letting `AbortError` propagate unchanged; also fixed a double-prefixed HTTP-error message (#182)
-- Fixed routed guidance controls
-
-## v0.31.4-beta (2026-04-26)
-
-### Fixed
-
-- **Guidance Stop button silently dropped taps on mobile** — `updateGuidance()` runs on every accepted GPS fix (~1 Hz on a moving phone) and ends with `render()`, which does `panelEl.innerHTML = ''` and re-creates the Stop button. iOS Safari's touch-to-click synthesis tracks the specific DOM element that received `touchstart`; if it's destroyed before `touchend`, the click never fires. With GPS fixes coming faster than typical tap-and-release timing, the user perceived "Stop doesn't respond like it's not a button". Switched to event delegation: a single persistent `click` listener on `panelEl` checks `closest('.guidance-btn')` and dispatches to `onStop`. The listener survives every render so the button can come and go without breaking the touch path. Added `type="button"` defensively (#179, #180)
-
-## v0.31.3-beta (2026-04-26)
-
-### Fixed
-
-- **Geocode-bar Navigate button silently swallowed taps in peek state** — `.geocode-bar__nav` was missing from the peek-state `pointer-events: auto` opt-in list (`.geocode-bar--peek` is `pointer-events: none` and only specific children opt back in). Mobile Safari has long-standing quirks where `pointer-events: none` propagates to children that don't explicitly override — exactly what was already happening for handle / copy / close / addr. Adding Navigate to the list makes long-press → Navigate fire reliably. This also unblocks the Stop fix from #176: when Navigate doesn't fire, `hideGeocodeBar()` doesn't run, and the bar's drag handle keeps eating taps intended for the guidance pill's Stop button (#177, #178)
-- **Search dropdown stayed open after "Navigate here"** — the `.sheet-result__nav-btn` handler started guidance without closing the dropdown. The dropdown sits at `z-index: 2000` (above the guidance pill) and on smaller viewports could overlap the pill area. Added `hideDropdown()` before `startGuidance()` (#177, #178)
-
-## v0.31.2-beta (2026-04-26)
-
-### Fixed
-
-- **Guidance Stop button silently swallowed taps when navigation started from the geocode-bar** — the geocode-bar (`position: fixed; bottom: 0; height: 60vh; z-index: 1500`) in peek state covers the bottom ~130 px of the viewport above all Leaflet controls. Its drag handle has `pointer-events: auto` and spans the bar's full width, sitting at the top of the visible peek area — exactly the y-coordinate of the guidance pill's Stop button at the bottom of the bottom-left control cluster. Every tap intended for Stop hit the handle instead. Hide the bar from its own Navigate click handler before `startGuidance()` runs — the bar is redundant once the pill shows the destination, and the overlap goes away (#175, #176)
-
-## v0.31.1-beta (2026-04-26)
-
-### Fixed
-
-- **Hillshade rendered fully opaque, hiding the base map** — v0.31.0's per-tile-image `mix-blend-mode` placement put the blend INSIDE the transformed `.leaflet-tile-container`'s stacking context, where it had nothing to multiply against and rendered the source pixels opaque. Reverted to the layer-level `.hillshade-blend` selector and added `isolation: isolate` on `#map` so the multiply blend has the base layer as a stable backdrop. Addresses both the v0.31.0 regression and the original "sometimes not applied at max zoom" symptom from #168 (#171, #172)
-- **Navigate button silently failed for search results and drag-moved pins** — the geocode-bar's "Navigate" button tracked its destination via a `pinLayer` `layeradd` listener, which only fires on layer *addition*. That missed two flows: search → "Go to location" (which clears the pin layer without re-adding) and pin-drag (which moves the same marker without re-adding), causing Navigate to either silently no-op or, worse, route to a stale prior pin. Threaded `latlng` through `showGeocodeBar` so the single setter all three flows already share captures the destination reliably. Added a "No destination set" toast so any future regression surfaces visibly (#173, #174)
-
-## v0.31.0-beta (2026-04-26)
-
-### Added
-
-- **Device-orientation compass widget** — top-right SVG compass rose that shows where the device is physically facing relative to the (always-north-up) map. Tap to enable on iOS (handles the iOS-13+ `DeviceOrientationEvent.requestPermission()` user-gesture flow); non-iOS browsers grant immediately. Most useful at low speed / stationary at a junction, where the GPS-course heading-cone fades. Hidden entirely on platforms without orientation sensors. Prefers iOS `webkitCompassHeading` (true-north calibrated); falls back to W3C `alpha` flipped to clockwise. Driven by `--heading-deg` CSS custom property with a 0.12 s transition for jitter smoothing (#163, #170)
-
-### Fixed
-
-- **Hillshade multiply blend dropouts at max zoom** — `mix-blend-mode: multiply` is now applied to individual hillshade tile images (`.hillshade-blend img.leaflet-tile`) instead of the Leaflet layer container. The container's inner `.leaflet-tile-container` uses `transform: translate3d` for hardware-accelerated zoom animation, which can intermittently establish its own stacking context and isolate the container-level blend from the base layer below — visible as the multiply effect "dropping out" at the closest zoom levels, most noticeable on the Topographic basemap where Esri's hillshade upscales from its z=16 native ceiling. Per-tile blending sidesteps the isolation entirely (#168, #169)
-
-## v0.30.0-beta (2026-04-26)
-
-### Added
-
-- **Turn-by-turn routed navigation replaces GPS trail recording** — tap "Navigate here" on any search result or dropped pin and the app fetches a route from the FOSSGIS Valhalla service (driving / cycling / walking) and shows a bottom-left guidance pill with the next maneuver, distance, and ETA. Off-route detection (3-fix streak with profile-dependent thresholds: driving 30 m / cycling 20 m / walking 15 m) triggers automatic recalculation, throttled to once per 15 s. Arrival within a profile-dependent radius (driving 25 m / cycling 15 m / walking 10 m) collapses the pill back to idle after a brief "Arrived" confirmation (#154, #156, #158, #160, #166)
-- **Heading-cone wedge on the GPS dot** — the same Google / Apple Maps idiom: a translucent cone behind the blue dot shows direction of travel from GPS course (`e.heading`). At low speeds where the browser reports `heading: NaN`, the wedge holds the last valid bearing for ~10 s before fading. No map rotation; north always stays up (#162, #165)
-- **ADR-006: Routed Turn-by-Turn Guidance** — documents the architectural decisions: Valhalla via FOSSGIS over OSRM (multi-profile support), heading-cone over `leaflet-rotate` (GPL-3 license clash with the project's MIT), and the privacy regression vs. ADR-004 with explicit mitigations (single egress point, explicit-action only, consent re-acceptance) (#166)
-
-### Changed
-
-- **Consent text discloses routing egress** — added a new "Turn-by-turn routing" privacy bullet that names the FOSSGIS Valhalla service and discloses that current location + destination are sent only when the user explicitly taps "Navigate here". Privacy Policy and Terms of Use updated for the navigation use-case (e.g., "GPS trail recording" → "GPS-based navigation"; safety disclaimer updated to mention routing-direction accuracy). `CONSENT_VERSION` bumped 2.1 → 2.2, forcing re-acceptance from existing users (#166)
-
-### Removed
-
-- **GPS trail recording feature** — `src/recording.ts`, `src/trail-backup.ts`, `recording.test.ts`, the recording pill UI, GPX export (`buildGpx` / `downloadGpx`), localStorage trail-backup crash recovery, and the recording fields on `AppState`. Replaced by the routed guidance feature above. The `Keepalive`, battery monitoring, and GPS-weak-signal hysteresis subsystems carry over and are reused by guidance (#154, #156)
-
-### Fixed
-
-- **Mainline type-check on `lastValidHeading*` fields** — PR #162 introduced `state.lastValidHeadingDeg` / `state.lastValidHeadingMs` references in `src/location.ts` without declaring the corresponding `AppState` fields, breaking `npm run type-check`. Fields added next to the existing GPS-fix metadata; `createInitialState()` defaults updated (#164, #165)
-
-## v0.29.0-beta (2026-04-26)
-
-### Added
-
-- **Maskable PWA icons for Android adaptive shapes** — installed PWAs on Android 13+ now render with proper rounded / squircle / teardrop shapes without corner-cropping the logo. Added `purpose: 'maskable'` icon entries (192×192 and 512×512) generated programmatically from the source SVG with 20%-per-side safe-zone padding, on a white background. Regenerate with `npm run icons` (#56, #153)
-
-## v0.28.0-beta (2026-04-26)
-
-### Added
-
-- **Programmatic OG / social-preview image** — link previews on Slack / X / Discord / Facebook / iMessage now render a custom 1200×630 image: dark navy with topo-line pattern, "webmap.dev" wordmark + tagline ("Record GPS trails. Offline maps. No account."), three feature pills, and a stylized GPS pulse-dot. Source SVG lives at `public/og-image.svg`; rendered PNG is committed; regenerate with `npm run og` (uses `sharp`). Full `og:*` and `twitter:*` meta tags wired in `index.html` (#112, #152)
-
-## v0.27.1-beta (2026-04-26)
-
-### Changed
-
-- **Shared collapse-helper consolidates label-collapse code across controls** — three near-identical inline patterns in `controls.ts`, `layers-control.ts`, and `offline-download.ts` collapsed into a single `setupCollapsibleLabel` helper exported from `controls.ts`. The new helper skips appending the label entirely when previously collapsed (read from `localStorage`), which incidentally fixes a brief flash-then-collapse the old `makeToggleControl` pattern produced on reload after first use. No user-facing behavior change beyond the eliminated flash (#140, #151)
-
-## v0.27.0-beta (2026-04-26)
-
-### Added
-
-- **Hillshade blends with multiply for higher base-map contrast** — the hillshade overlay now uses CSS `mix-blend-mode: multiply` instead of a 0.4 alpha blend. Flat/lit areas (where hillshade is near-white) leave the base map untouched; only shaded slopes darken. Result: street and topo colors stay vivid when hillshade is enabled, while relief is still readable (#149, #150)
-
-### Changed
-
-- **Mouse-wheel zoom drops locate to passive** — wheel zoom translates the view toward the cursor (same effective consequence as a drag), so the "follow" semantic no longer holds. Wheel-zoom now mirrors the existing `dragstart` handler and flips locate from active → passive on the first wheel turn. Subsequent wheel ticks short-circuit; button zoom is unaffected (deliberate, keeps active center) (#147, #148)
-
-## v0.26.1-beta (2026-04-26)
-
-### Changed
-
-- **Recording pill announces state to screen readers and manages focus** — the recording panel container now has `role="group"` and a state-driven `aria-label` ("Recording controls" / "Recording in progress" / "Recording paused"). Each button gets a plain-text `aria-label` so screen readers don't read the leading emoji glyph. On real state transitions (Record → Pause, Pause → Resume, Resume → Pause) keyboard focus moves to the new primary button, triggering AT announcement of the action. No visual or behavioral changes for sighted users (#143, #146)
-
-### Fixed
-
-- **Dead CSS rules removed** — six `.leaflet-bottom.leaflet-right` rules that targeted the empty post-rebalance cluster are gone; two compact-sizing rules that had been silently broken (targeting the wrong cluster) are now correctly scoped to `.leaflet-bottom.leaflet-left`. Plus `onRemove` cleanup added to LayersControl and the offline-download toggle so their `mouseenter` / `touchstart` / `touchend` / `click` listeners detach if the controls are ever removed and re-added (#141, #145)
-
-## v0.26.0-beta (2026-04-26)
-
-### Changed
-
-- **Recording UI is now a single bottom-left "pill"** — the standalone `#recording-stats` overlay is gone; the recording panel now owns the full lifecycle as a pill with three state-driven appearances. Idle: compact transparent pill with just the green Record button. Active (recording): dark expanded pill with Duration / Dist / Ascent stats above Pause. Active (paused): same dark pill, Resume + Finish in place of Pause. After Finish: 1.5 s green "Saved ✓" confirmation, then collapses back to idle. CSS transitions `padding`, `background-color`, and `box-shadow` over 0.25 s for a smooth idle ↔ active morph; a `.recording-panel--always-expanded` fallback class is shipped for low-end Android. The `createStatsBar()` and `setStatsBarVisible()` helpers are removed in favor of state-driven class + content swaps in `renderButtons()` (#138, #144)
-
-## v0.25.0-beta (2026-04-26)
-
-### Changed
-
-- **Two-step Pause→Finish reveal during recording** — the always-visible Stop button is gone. While recording, only Pause is shown; tapping Pause reveals Resume + Finish in the paused state. The reveal IS the confirmation, so the Stop confirmation modal (`confirmStop()`) and its `#consent-overlay`/`#consent-panel` modal is removed entirely. Strava + AllTrails dominant convention. Renamed `.rec-btn-stop` → `.rec-btn-finish` (#137, #142)
-
-## v0.24.0-beta (2026-04-26)
-
-### Changed
-
-- **Mobile-first control layout (Phase 1 of the layout-rebalance epic)** — relocated frequently-used map controls into a single bottom-left thumb-reach cluster, reading top→bottom: locate, record, zoom +/−, scale, version-badge, attribution. Layers and Download moved to a top-right column; both labels collapse on first hover or touch with the state persisted in `localStorage`. Compact 28×28 sizing with 4px column gap and lighter shadow. The recording dashboard (`#recording-stats`) moves to upper-left during active recording. Honors the project's Mobile-First design principle (#135, #139)
-
-### Fixed
-
-- **Stop-recording dialog text padding** — the `<p>` element no longer butts up against the rounded panel's left edge; added a CSS rule for `#consent-panel > p` (#139)
-- **Scale bar visibility** — restored the U-shaped left/right/bottom border with a darker `#333` stroke for readability against light terrain (#139)
-- **Version badge clickable** — added `pointer-events: auto` to `#version-badge` so the changelog modal opens on click; the badge now lives inside `.leaflet-bottom.leaflet-left` which is `pointer-events: none` by default and only opts `.leaflet-control` children back in (#139)
-
-### Removed
-
-- **ZoomViewer dev indicator** — removed the 200px-wide opacity:0.15 "Zoom level: X.X" overlay from `map.ts` (was barely visible and was forcing the bottom-left cluster width to 200px) (#139)
-
-## v0.23.0-beta (2026-04-18)
-
-### Added
-
-- **Double-tap locate hint** — when the map is panned (locate drops to passive), a 2.5s toast "Double-tap map to re-center" appears on touch devices on the first pan per session (`sessionStorage` key `locate-hint-shown`); the locate button icon also pulses twice via a one-shot CSS animation to draw the eye (#124)
-
-### Fixed
-
-- **GPS polling refcount guard** — `activatePolling()` now emits a `console.warn` in dev builds (`import.meta.env.DEV`) when `updateCallback` exceeds 2, catching activate-without-deactivate leaks before they silently keep GPS running forever; stripped by Vite in production (#125)
-- **GPX trkpt timestamp docs** — added inline comments in `buildGpx()` documenting that `<time>` is required on every `<trkpt>` for Strava/Garmin moving-time and elevation-over-time compatibility, and that GPX 1.1 schema order is `<ele> → <time> → <extensions>` (#126)
-
-## v0.22.2-beta (2026-04-18)
-
-### Fixed
-
-- **Locate label persists collapsed** — after tapping the Locate button once (collapsing the text label), the collapsed state is now stored in `localStorage` (`webmap-ctrl-label-locate`) and restored on reload; previously the label reappeared on every page load (#127)
-- **Basemap screenshots aligned** — all four basemap preview images now use identical tile coordinates (z=13, eastern SF) so they show the same geographic region; streets image switched to `tile.openstreetmap.de` to avoid OSM policy blocks on scripted tile fetches
-
-## v0.22.1-beta (2026-04-18)
-
-### Added
-
-- **Basemap previews** — docs/images now includes screenshots for all four basemaps (Trails, Streets, Topographic, Parks & POIs); README Preview section shows them side by side
-
-### Fixed
-
-- **Double-tap to re-center** — double-tapping the map on mobile re-activates locate from passive state without triggering zoom-in; uses capture-phase `touchend` with `passive:false` so `preventDefault()` suppresses the synthesized `dblclick`; guards simultaneous multi-finger lifts via `changedTouches.length === 1` (#123)
-
-## v0.22.0-beta (2026-04-18)
-
-### Added
-
-- **Background GPS keepalive** — new `Keepalive` class (`src/keepalive.ts`) wraps Screen Wake Lock API and a silent `AudioContext` loop to keep GPS active when the phone locks or the browser is backgrounded during recording; wake lock re-acquired automatically on screen wakeup; both mechanisms degrade gracefully if unavailable (#119)
-
-### Fixed
-
-- **Blank page on iOS Safari after app update** — service worker `onNeedRefresh` reload now deferred via `requestAnimationFrame` so the map renders before any SW-triggered navigation fires; also adds a guarded `.catch()` on the consent promise chain to reload on failure without looping (#121)
-
-## v0.21.0-beta (2026-04-17)
-
-### Added
-
-- **Test coverage** — 3 new test files: haversine distance formula (`location.test.ts`), bottom-sheet snap-point math (`bottom-sheet.test.ts`), recording state machine transitions (`recording.test.ts`); 23 new tests bringing total to 103
-- **Bundle size tracking** — `size-limit` checks gzipped JS bundle stays under 100KB; added to CI pipeline and README badge (93KB gzip)
-
-### Changed
-
-- **Haversine distance** — extracted as exported `haversineDistance()` function from inline code in `location.ts` for testability
-- **Snap-point math** — extracted as exported `computeSnapPx()` function and constants from `bottom-sheet.ts` for testability
-
-## v0.20.9-beta (2026-04-17)
-
-### Added
-
-- **README badges** — CI status, license, and TypeScript badges at the top of README
-- **Repo topics** — 10 topics (pwa, typescript, leaflet, gps, etc.) for GitHub discoverability
-- **PR and issue templates** — bug report, feature request, and PR templates in `.github/`
-- **README screenshots section** — Preview placeholder with `docs/images/` directory
-- **Design principles** — offline-first, local-only data, progressive enhancement, mobile-native UX, minimal dependencies, transparent architecture
-- **Architecture Decision Records** — 5 ADRs documenting single state, refcount polling, iOS Safari viewport, local-only data, and offline tile strategy
-- **SECURITY.md** — threat model, data architecture, vulnerability reporting via GitHub private advisories
-- **CONTRIBUTING.md** — development workflow, code conventions, quality gate, file structure
-- **CODE_OF_CONDUCT.md** — simplified Contributor Covenant
-
-### Changed
-
-- **Repo description** — updated to "Privacy-first PWA for GPS trail recording, offline maps, and address search"
-- **Documentation** — updated README, architecture, features, and development guides with all new source files and features
-
-## v0.20.8-beta (2026-04-17)
-
-### Changed
-
-- **Consent dialog** — condensed title and summary into a one-liner; reordered Privacy Policy above Terms of Use; removed preamble text; title and buttons now stay pinned while legal text scrolls independently
-
-## v0.20.7-beta (2026-04-17)
-
-### Fixed
-
-- **Locate icon consistency** — active and passive states now use the same outline shape as the off state, differing only in stroke color (blue for active, gray for passive)
-- **Download panel on mobile** — repositioned to bottom of screen and made collapsible so it no longer blocks the map and selection handles
-
-### Changed
-
-- **Control labels** — Locate, Layers, and Download buttons collapse to icon-only after first use, reclaiming screen space on mobile
-
-## v0.20.6-beta (2026-04-17)
-
-### Fixed
-
-- **Bottom sheet on older iOS Safari** — info-panel no longer bleeds ~80px into view on load; `vh` units and `window.innerHeight` disagree on older iOS Safari, so snap-point math now uses the actual rendered element height (`offsetHeight`) instead of computing from `innerHeight`
-
-## v0.20.5-beta (2026-04-17)
-
-### Changed
-
-- **Stop recording dialog** — replaced browser's native `confirm()` with a styled custom modal; removes the browser's "Prevent this page from creating additional dialogs" checkbox
-
-## v0.20.4-beta (2026-04-17)
-
-### Fixed
-
-- **Hillshade after base map switch** — overlays now re-stack above the new base map when switching layers; previously the opaque base map was added on top of the tile pane, burying the hillshade overlay
-
-## v0.20.3-beta (2026-04-17)
-
-### Fixed
-
-- **Layers popover** — popover no longer goes off-screen when flipped above the button; clamps to viewport bounds and caps height so content remains scrollable
-
-## v0.20.2-beta (2026-04-17)
-
-### Fixed
-
-- **Hillshade overlay** — default hillshade now renders on initial load; a ghost OSM tile layer added in `createMap()` was sitting permanently in the tile pane, blocking the overlay; also fixes offline tile fallback which referenced the wrong layer variable
-
-## v0.20.1-beta (2026-04-17)
-
-### Fixed
-
-- **Zoom limits** — map no longer goes blank at high zoom; added map-level maxZoom (18), corrected OpenTopoMap maxNativeZoom from 18 to 17, and set layer maxZoom to 20 so Leaflet upscales tiles gracefully
-
-## v0.20.0-beta (2026-04-17)
-
-### Added
-
-- **Default layers** — Trails (CyclOSM) is now the default base map and Hillshade overlay is enabled by default for new users; returning users keep their persisted selection
-
-### Changed
-
-- **Locate icon** — redesigned to match the Apple iOS location services arrow: elongated diagonal pointer with iOS blue (#007AFF) when active, gray when passive, outline-only when off
-
-## v0.19.4-beta (2026-04-17)
-
-### Fixed
-
-- **Layers popover font** — popover now uses `system-ui, sans-serif` consistently with button text; previously inherited the body default since the popover is appended to `document.body`
-- **Offline badges removed** — the green "Offline" badge appeared on every layer, adding visual noise without conveying useful information; the `offline` property has been removed from layer definitions
-
-## v0.19.3-beta (2026-04-17)
-
-### Fixed
-
-- **Hillshade overlay** — replaced broken OpenTopoMap hillshade endpoint (403 Forbidden) with Esri World Hillshade service
-
-## v0.19.2-beta (2026-04-17)
-
-### Changed
-
-- **Consent modal** — reworded to cover general app usage, not just GPS recording; includes a description of webmap.dev and inlines shorter Terms of Use and Privacy Policy without expandable sections; bumps consent version to 2.0 so existing users re-accept
-- **Recording button** — removed redundant consent check since consent is now required at app load time
-
-## v0.19.1-beta (2026-04-17)
-
-### Fixed
-
-- **Consent gate** — consent modal now blocks all app usage at load time until terms are accepted; previously it only appeared when starting a recording, allowing unrestricted map usage without consent
-
-## v0.19.0-beta (2026-04-16)
-
-### Added
-
-- **Consent modal** — first-run consent dialog shown before GPS recording begins; displays inline Terms of Use and Privacy Policy with expandable sections; stores consent version, timestamp, and anonymous install ID in localStorage (#103)
-
-## v0.18.1-beta (2026-04-16)
-
-### Fixed
-
-- **Layers control** — fixed runtime error when layer control tried to add tile layers to the map; tile layers are now properly exported and retrieved via getTileLayers() function
-
-
-## v0.18.0-beta (2026-04-16)
-
-### Added
-
-- **Layers** — custom popover UI control replacing Leaflet's native layer switcher; allows switching between base maps (Streets, Trails, Topographic, Parks) and toggling overlays (Hillshade)
-- **Free tile sources** — replaced Mapbox and Google imagery with community-maintained alternatives: CyclOSM (trails-focused), OpenTopoMap (topographic), Humanitarian OSM (parks & POIs); all sources are free and offline-cacheable
-
-### Changed
-
-- **Layers control** — new button with gear icon (⚙) in top-left, matching Locate and Download control styling; opens popover on click with layer selection UI
-- **Service Worker caching** — updated to cache all free OSM tile sources (CyclOSM, OpenTopoMap, Humanitarian OSM) alongside existing OSM Standard tiles; removed Mapbox and Google caching
-
-### Removed
-
-- **Mapbox Topo layer** — replaced with free OpenTopoMap (same topographic + hillshade features, zero cost, offline-capable)
-- **Google Imagery layer** — removed to eliminate vendor lock-in and unapproved costs
-
-### Benefits
-
-- **Zero cost** — unregulated public traffic no longer risks surprise billing
-- **Offline resilience** — all layers available for pre-download via offline-download panel; no vendor outages can break the app
-- **Improved UX** — visual layer switcher with descriptions; matches existing control aesthetic
-
-
-## v0.17.1-beta (2026-04-16)
-
-### Fixed
-
-- **UI** — tooltips on Locate and Download buttons now appear when hovering anywhere on the button (was only showing on icon, not label area)
-
-
-## v0.17.0-beta (2026-04-16)
-
-### Added
-
-- **UI** — explanatory tooltips on Locate and Download buttons to improve discoverability; Locate tooltip guides users through state transitions (off → following → passive)
-
-### Changed
-
-- **UI** — Locate button tooltips now explain the button's function rather than just showing state
-
-
-## v0.16.0-beta (2026-04-16)
-
-### Added
-
-- **UI** — locate, tracking, and download buttons now display with text labels for clarity; offline download control repositioned above search control for better logical flow
-
-### Changed
-
-- **UI** — button width adjusted to accommodate text labels with uniform padding and icon-label spacing
-
-
-## v0.15.0-beta (2026-04-14)
-
-### Added
-
-- **GPS** — adaptive polling interval reduces battery drain during trail recording; GPS poll frequency lowers when stationary and increases on movement (#99)
-- **Search** — expandable result items on mobile: first tap shows full address, type badge, coordinates, and action buttons; second tap flies to location (#98)
-- **UX** — mouse drag support for reverse geocode bottom sheet handle on desktop (#96)
-- **Offline** — region pre-download UI: select bounding box and zoom range to pre-cache tiles for offline use, with progress bar and Safari quota warnings (#97)
-
-### Fixed
-
-- **UX** — GPS weak-signal badge now uses hysteresis (show after 2+ consecutive weak fixes, hide below 25m) to prevent flicker in marginal signal (#95)
-- **UX** — long addresses in geocode bar peek state are tap-to-expand on mobile: tap reveals full text for 3s, then collapses (#94)
-
-
-## v0.14.3-beta (2026-04-14)
-
-### Fixed
-
-- **UX** — GPS weak-signal badge appears in stats bar when recording and accuracy exceeds 30m; hides automatically when signal improves (#91)
-- **UX** — geocode-bar address element now has a `title` attribute so long addresses are accessible via tooltip without expanding the sheet (#90)
-
-
-## v0.14.2-beta (2026-04-11)
-
-### Fixed
-
-- **UI** — top-left controls (zoom, locate, track, layers) resized to match the geocoder search button: 26px on desktop, 34px on touch devices
-
-
-## v0.14.1-beta (2026-04-11)
-
-### Fixed
-
-- **UI** — recording stats bar no longer overlaps Pause/Resume buttons on Safari iPhone; bottom offset raised to `145px + safe-area-inset-bottom` to clear the button panel
-- **UI** — stats bar layout changed to vertical stack: Duration (top) / Dist + Ascent row / Recording indicator (bottom) — narrower footprint on small screens
-- **UI** — recording buttons are no longer full-width; `width: auto` with `min-width: 80px` and symmetrical horizontal padding gives a more compact, well-padded appearance
-
-
-## v0.14.0-beta (2026-04-11)
-
-### Changed
-
-- **UI** — recording stats bar reordered: Duration | Dist | Ascent | ● RECORDING indicator moved to trailing position
-- **UI** — "Time" label renamed to "Duration"
-- **UI** — "Speed" stat replaced with "Ascent" — displays cumulative elevation gain in metres; shows "-- m" until altitude data is available
-
-### Added
-
-- **Recording** — cumulative ascent (total metres gained) tracked from GPS altitude deltas during trail recording; persisted and restored via trail backup (backup schema v2)
-
-
-## v0.13.0-beta (2026-04-11)
-
-### Added
-
-- **Trail Recording** — start, pause, resume, and stop GPS trail recording; real-time polyline rendered on the map during recording
-- **GPX Export** — stop recording to auto-download a GPX 1.1 file importable by Strava, AllTrails, and Garmin Connect
-- **Offline Resilience** — trail recording continues without network; GPS points persist to localStorage so a page reload mid-hike restores the session with a prompt to resume
-- **Offline Tile Warnings** — toast notification when offline tiles are unavailable at the current zoom level (debounced, max once per 10s); lower-resolution canvas fallback renders instead of blank tiles
-
-### Fixed
-
-- **GPS Accuracy** — fixes with accuracy > 30m are discarded before being added to the trail, eliminating noise from weak satellite lock
-- **Bottom Sheet** — reverse geocode bar upgraded to a draggable bottom sheet with peek/full snap points, drag-to-dismiss, peek-state map pass-through, haptic feedback on Copy, and keyboard accessibility
-- **Offline Data Safety** — `beforeunload` handler flushes the trail backup to localStorage if the tab closes mid-recording; restore prompt shown once per session
-
-
-## v0.12.1-beta (2026-04-09)
-
-### Fixed
-
-- **UI** — all edge-pinned controls, buttons, and overlays now respect Safari iPhone safe areas (notch, home indicator, side bezels) via `env(safe-area-inset-*)` and `viewport-fit=cover`
-
-
-## v0.12.0-beta (2026-04-09)
-
-### Added
-
-- **UI** — recording stats bar uses locale-appropriate units (miles/mph in US, km/h elsewhere)
-- **UI** — Copy button turns green with "✓ Copied" confirmation for 1.5s after clipboard write
-- **UI** — selecting a search result now shows the geocode bar with the address and coordinates for copying
-- **UI** — recording control buttons are larger (48px min-height) with Stop separated from Pause/Resume to prevent accidental taps
-- **UI** — recording stats bar has larger text and higher contrast
-
-### Changed
-
-- **Docs** — source file headers migrated to JSDoc style matching tiles- project convention (Intent/Context/Pattern/Future)
-
-
-## v0.11.0-beta (2026-04-09)
-
-### Added
-
-- **UI** — version badge (upper right) is now a button that toggles a scrollable changelog panel; click again or press Escape to dismiss
-
-
-## v0.10.0-beta (2026-04-09)
-
-### Added
-
-- **Search** — toast notification when geocoder returns no results, with suggestions to zoom out or reword the search
-
-### Fixed
-
-- **Search** — iOS keyboard "Done" / checkmark button now submits the search instead of cancelling it
-
-
-## v0.9.4-beta (2026-04-09)
-
-### Fixed
-
-- **Location** — "Location access is denied" toast now persists until dismissed (×) and includes iOS settings path: Settings > Privacy & Security > Location Services > Safari Websites > Allow
-
-
-## v0.9.3-beta (2026-04-09)
-
-### Fixed
-
-- **Controls** — double-clicking a toolbar button no longer drops a pin on the map
-- **PWA** — app now auto-reloads after a service worker update without requiring a manual refresh
-- **UI** — scale bar raised to match the Record button's bottom offset, no longer obscured by the Safari toolbar
-- **Location** — iOS no longer falsely reports "Location access is denied" after permission has been granted
-
-
-## v0.9.2-beta (2026-04-08)
-
-### Fixed
-
-- **UI** — replaced the reverse geocode bottom sheet with a compact single-line bar (Copy | address | ×) centred at the bottom of the viewport; coordinates omitted when geocoding succeeds, shown as fallback on failure
-
-## v0.9.1-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — selecting a result in the floating dropdown now clears the dropped pin marker and closes the reverse-geocode info panel
-
-## v0.9.0-beta (2026-04-08)
-
-### Added
-
-- **UI** — toggle controls (locate, track) now match Leaflet zoom button width: 36 px on desktop, 44 px on mobile
-
-### Removed
-
-- **UI** — removed "copy dropped pin to clipboard" toggle button and feature
-
-### Fixed
-
-- **UI** — standardized overlay shadows across map controls, panels, dropdown, and version badge for visual consistency
-
-## v0.8.6-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — reverted sticky-header dropdown layout; scrollbar restored to original behaviour
-- **Search** — clicking the search icon now immediately dismisses the previous dropdown and clears result pins so each search starts clean
-
-## v0.8.5-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — dropdown header (search string + × button) is now sticky and always visible regardless of scroll position; only the results list scrolls
-- **Search** — pressing Enter to start a new search immediately dismisses the previous dropdown and removes old result pins from the map
-
-## v0.8.4-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — dropping a reverse-geocode pin now clears the search result selection (all numbered markers reset to blue)
-
-## v0.8.3-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — dropdown now dismisses only via the × close button in its header, eliminating all spurious auto-dismiss behaviour when clicking results or markers
-
-## v0.8.2-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — clicking a result in the dropdown no longer spuriously dismisses it (stopPropagation prevents the outside-click handler from treating result clicks as outside-clicks)
-- **Search** — result items now show a native tooltip (name · location · type · coordinates) on hover
-
-## v0.8.1-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — clicking a map marker now restores the floating dropdown if dismissed, clears any dropped reverse-geocode pin, and updates the page title to the selected result
-
-## v0.8.0-beta (2026-04-08)
-
-### Changed
-
-- **Search** — results now appear in a floating dropdown anchored below the search bar, overlaying the map where the user typed; the bottom sheet / side panel is retained only for reverse-geocode (drop-pin) results
-
-## v0.7.2-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — result list now always visible after search; sheet upgrades from peek to half instead of staying collapsed
-
-## v0.7.1-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — zoom-responsive markers: full circle at zoom ≥ 12, compact at 7–11, dot-only below 7
-- **Search** — `flyToBounds` mobile padding was incorrectly adding 300px to top/left; now bottom-only
-- **Search** — single-result zoom uses ESRI extent so country/city results fit the right geographic scale
-- **Search** — result subtitle no longer hard-truncated on narrow screens
-
-## v0.7.0-beta (2026-04-08)
-
-### Added
-
-- **Search** — fit map to all result bounds on search so all pins are visible (#69)
-- **Search** — numbered markers (1, 2, 3…) linking map pins to the result list (#71)
-- **Search** — richer result detail: address subtitle and type badge per result (#72)
-- **Search** — smart zoom using result bounds or Addr_type heuristics on click (#70)
-- **Search** — bidirectional selection between result list and map markers (#73)
-- **Map** — red dropped-pin marker renders above blue search result pins
-
-## v0.6.2-beta (2026-04-08)
-
-### Fixed
-
-- **Search** — constrain search results to visible map area when zoomed in (zoom >= 7)
-
-## v0.6.1-beta (2026-04-07)
-
-### Fixed
-
-- **Location** — replace GPS polling loop with `watchPosition` to eliminate user-gesture console violations (#60)
-- **UI** — replace locate crosshair icon with angled navigation arrow — the standard location symbol (#62)
-
-## v0.6.0-beta (2026-04-01)
-
-### Added
-
-- **UI** — fix bottom sheet drift, scroll jank, tile blur, and icon allocation (#54)
-
-### Fixed
-
-- **Recording** — GPX export data correctness: locale-safe track name, multi-segment support across pause/resume, timing drift fix, deferred revokeObjectURL (#57)
-- **PWA** — guard against auto-update during active recording; add PNG icons; remove ToS tile caching (#49)
-- **Recording** — reduce revokeObjectURL timeout from 1000ms to 0ms (#58)
-
-## v0.5.1-beta (2026-04-01)
-
-### Fixed
-
-- **GPS** — resolved polling refcount leaks and state machine edge cases (#51)
-- **Search** — replaced private API access with public APIs; added missing-key guard (#52)
-- **Search** — spinner resolves on suggest errors; Enter no longer collapses before results (#42)
-- **Mobile** — disabled button bypass fixed; iOS long-press fallback added; location markers removed when locate turns off (#53)
-
-### Documentation
-
-- Added README, architecture, features, development, and deployment docs (#55)
-
-### Other
-
-- Added MIT license
-- Added Claude Code review CI workflow
-
-## v0.5.0-beta (2026-03-31)
-
-### Features
-
-- **GPX export** — track is automatically downloaded as a GPX 1.1 file when recording is stopped; filename includes start date/time (#41)
-
-### Fixes
-
-- **Search** — spinner now resolves on results/error; pressing Enter submits the query instead of collapsing the control (#40)
-- **iOS locate** — removed racy `permissions.query` check that caused the first Locate tap to fail with a false "access denied" (#38)
-- **Map layers** — restored missing dropped-pin marker icon; default layer changed to Streets; layer labels renamed to Structures and Topo (#37)
-
-## v0.4.0-beta (2026-03-31)
-
-### Features
-
-- **UI controls** — relocated controls from bottom-right to top-left for better thumb reach on mobile
-- **Version badge** — version overlay displayed in upper-right corner of the map (#20)
-
-### Fixes
-
-- **iOS user gestures** — GPS and clipboard operations now execute within the user gesture to avoid Safari's permission expiry (#25, #26)
-- **iOS GPS permission** — location request now occurs directly inside user gesture handler (#23)
-- **Record button** — disabled when location is not enabled to prevent invalid state (#24)
-- **Clipboard copy** — reverse geocode clipboard copy no longer fails due to expired user gesture
-
-## v0.3.0-beta (2026-03-18)
-
-### Features
-
-- **Location button** — three-state locate button (off / following / passive) with blue pulsing dot, accuracy circle, and graceful GPS signal loss handling (#12)
-- **Enhanced search** — throttled autocomplete (3 chars, 250ms debounce), viewport-biased results, draggable reverse-geocode pin, flyTo animation, right-click/long-press support (#11)
-- **Track recording** — start/pause/resume/stop state machine with confirmation, real-time stats overlay (time, distance, speed), styled trail with glow and direction arrows (#13)
-- **Mobile bottom sheet** — three-snap-point bottom sheet (peek/half/full) on mobile, side panel on desktop, for search results and reverse geocode info (#14)
-- **Map interaction polish** — fractional zoom (`zoomSnap: 0`), smooth scroll-zoom, `flyTo` animations for all programmatic transitions, mobile-optimized control layout (#16)
-- **Service Worker** — `vite-plugin-pwa` with Workbox; app shell cached (CacheFirst), map tiles cached (StaleWhileRevalidate, 500 entries/30 days), geocoding API NetworkOnly, offline banner (#15)
-- **Canvas renderer** — `preferCanvas: true`, `keepBuffer: 3`, `updateWhenZooming: false` on tile layers, `idle.ts` utility for debounced map events (#10)
-- **Vite + TypeScript** — modernized build toolchain with Vite 5, strict TypeScript, ESLint 9, and CI/CD pipeline
-
-### Fixes
-
-- **Search bar** — silent API key failure now warns in console; `useMapBounds` disabled at low zoom levels to prevent empty results (#18)
-- **CI** — corrected branch trigger (`main` → `mainline`), deploy SSH key secret name, and enforced LF line endings for shell scripts
+## Earlier releases
+
+Condensed to one line each. Full entries for these versions remain in the git history of this file.
+
+- **v0.45.0-beta** (2026-08-08) — Turn-by-turn directions moved to a banner across the top; navigation sheet anchored right at half its height; dropping a pin opens the sheet immediately; the bottom-left controls ride above the sheet instead of being buried by it (#253, #257)
+- **v0.44.1-beta** (2026-08-08) — Switching the Hillshade sun direction no longer wipes the shading; elevation is cached separately from the shading it feeds, so re-lighting needs no network (#250)
+- **v0.44.0-beta** (2026-07-29) — Direction-of-travel arrows and a "Too early" grade on cue events; the bottom navigation sheet drops to two sizes (#247, #248)
+- **v0.43.0-beta** (2026-07-29) — Dismissing the navigation sheet minimizes it to a drag-handle pill instead of destroying it (#247)
+- **v0.42.0-beta** (2026-07-29) — Hillshade re-lit on-device from Terrarium elevation to match Satellite imagery; new Bike infrastructure overlay (#246)
+- **v0.41.0-beta** (2026-07-29) — Zoom limit raised from 18 to 19, rendering the deepest native tiles scaled up rather than asking providers for more
+- **v0.40.0-beta** (2026-07-29) — New Satellite base map and Cycle blend overlay; cue files using the `unrecognized` grade load again (#244)
+- **v0.39.0-beta** (2026-07-21) — New Custom squeeze zones overlay with draw, edit, export and import; draw mode no longer breaks reverse-geocode pin-drop (#243)
+- **v0.38.0-beta** (2026-07-16) — Grade cue events on the map with a reviews sidecar export; GPS track and exact event positions; change an overlay's file without DevTools (#237, #238, #240, #242)
+- **v0.37.0-beta** (2026-07-14) — New Cue events overlay showing where the cue policy actually fired during a ride, loaded from a local file only (#232)
+- **v0.36.0-beta** (2026-07-13) — New Squeeze zones overlay rendering cycling squeeze zones from a local GeoJSON file, deliberately with no bundled or remote data (#228, #230)
+- **v0.35.0-beta** (2026-06-05) — The first-run consent dialog requires reading the terms: Accept stays disabled until you scroll to the end (#226)
+- **v0.34.9-beta** (2026-06-05) — Removed the temporary blank-page diagnostics; the iOS-26 WKWebView render freeze is paused pending a future iOS update (#224)
+- **v0.34.8-beta** (2026-06-05) — Reduced first-paint compositing pressure as a further attempt at the Edge/Chrome-on-iPhone blank screen (#223)
+- **v0.34.7-beta** (2026-06-05) — Blank screen on cold start now auto-recovers: no content paint after ~3s triggers one guarded reload (#221)
+- **v0.34.6-beta** (2026-06-05) — Consent overlay mounts one animation frame after first paint so iOS WebKit composites it reliably (#219)
+- **v0.34.5-beta** (2026-06-04) — Service worker rewritten to `injectManifest` so any failed navigation falls back to the precached shell (#217)
+- **v0.34.4-beta** (2026-06-04) — Removed the NetworkFirst navigation timeout that fell back to a flaky runtime cache on slow cold starts (#215)
+- **v0.34.3-beta** (2026-06-04) — Navigation served NetworkFirst; nginx serves `/sw.js` with `no-cache` instead of a year of `immutable` (#210, #213)
+- **v0.34.2-beta** (2026-06-04) — Blank-page probe detects blankness by counting rendered map tiles rather than child nodes (#208)
+- **v0.34.1-beta** (2026-06-04) — Temporary on-screen diagnostic for a blank-on-load reproducing only on mobile Chromium (#207)
+- **v0.34.0-beta** (2026-06-04) — Hiking and Cycling routes split into independent overlays; a boot watchdog reloads once if the bundle never executes (#202, #206)
+- **v0.33.2-beta** (2026-06-04) — Blank page on first load after an update fixed with `navigateFallback` and outdated-precache cleanup (#204)
+- **v0.33.1-beta** (2026-06-04) — Removed a dead bottom-sheet module that flashed an empty tray over the map after an update (#200)
+- **v0.33.0-beta** (2026-06-04) — Thunderforest Cycle and Outdoors base maps replace the unreliable CyclOSM source; new Routes overlay; unified search-to-navigation flow (#195)
+- **v0.32.3-beta** (2026-06-02) — Service-worker update reload is visibility-aware and genuinely post-paint, applied at most once (#192)
+- **v0.32.2-beta** (2026-05-23) — Browser tab title no longer hijacked by search and pin-drop; it tracks navigation only
+- **v0.32.1-beta** (2026-05-20) — Routing failures surface in a modal above all app chrome; production deploys run only on version tags (#187, #188)
+- **v0.32.0-beta** (2026-05-20) — Locale-aware distance units; opaque CORS failures become an actionable "routing service unavailable" message (#182, #184)
+- **v0.31.4-beta** (2026-04-26) — Guidance Stop button switched to event delegation so ~1 Hz re-renders stop eating taps (#179, #180)
+- **v0.31.3-beta** (2026-04-26) — Geocode-bar Navigate opts back into `pointer-events` in peek state; the search dropdown closes on "Navigate here" (#177, #178)
+- **v0.31.2-beta** (2026-04-26) — The geocode bar hides itself before guidance starts, so its drag handle stops swallowing Stop taps (#175, #176)
+- **v0.31.1-beta** (2026-04-26) — Hillshade blend reverted to layer level with `isolation: isolate`; the Navigate destination threaded through one shared setter (#171, #172, #173, #174)
+- **v0.31.0-beta** (2026-04-26) — Device-orientation compass widget; per-tile hillshade blending to dodge stacking-context dropouts at max zoom (#163, #168, #169, #170)
+- **v0.30.0-beta** (2026-04-26) — Turn-by-turn routed navigation via FOSSGIS Valhalla replaces GPS trail recording; heading cone on the GPS dot; ADR-006 (#154, #156, #158, #160, #162, #164, #166)
+- **v0.29.0-beta** (2026-04-26) — Maskable PWA icons so Android adaptive shapes stop corner-cropping the logo (#56, #153)
+- **v0.28.0-beta** (2026-04-26) — Programmatic OG / social-preview image with full `og:*` and `twitter:*` meta tags (#112, #152)
+- **v0.27.1-beta** (2026-04-26) — A shared `setupCollapsibleLabel` helper consolidates three near-identical control patterns, removing a flash-then-collapse on reload (#140, #151)
+- **v0.27.0-beta** (2026-04-26) — Hillshade blends with multiply for higher base-map contrast; wheel zoom drops locate to passive (#147, #148, #149, #150)
+- **v0.26.1-beta** (2026-04-26) — Recording pill announces state and manages focus; dead CSS removed and control listeners detach on removal (#141, #143, #145, #146)
+- **v0.26.0-beta** (2026-04-26) — Recording UI became a single bottom-left pill with idle, active and paused appearances (#138, #144)
+- **v0.25.0-beta** (2026-04-26) — Two-step Pause then Finish reveal replaces the Stop button and its confirmation modal (#137, #142)
+- **v0.24.0-beta** (2026-04-26) — Mobile-first layout: one bottom-left thumb cluster, Layers and Download moved to a top-right column (#135, #139)
+- **v0.23.0-beta** (2026-04-18) — Double-tap locate hint on first pan; a GPS polling refcount guard warns on activate-without-deactivate leaks in dev (#124, #125, #126)
+- **v0.22.2-beta** (2026-04-18) — Locate label persists collapsed across reloads; basemap screenshots aligned to identical tile coordinates (#127)
+- **v0.22.1-beta** (2026-04-18) — Basemap preview images in the README; double-tap to re-center without triggering zoom (#123)
+- **v0.22.0-beta** (2026-04-18) — Background GPS keepalive via Wake Lock and a silent audio loop; blank page after an iOS Safari update fixed (#119, #121)
+- **v0.21.0-beta** (2026-04-17) — Tests for haversine distance, snap-point math and the recording state machine; `size-limit` bundle tracking in CI
+- **v0.20.9-beta** (2026-04-17) — README badges, repo topics, PR and issue templates, five ADRs, SECURITY.md, CONTRIBUTING.md and a code of conduct
+- **v0.20.8-beta** (2026-04-17) — Consent dialog condensed, with title and buttons pinned while the legal text scrolls independently
+- **v0.20.7-beta** (2026-04-17) — Locate icon consistent across states; download panel repositioned and collapsible on mobile; control labels collapse after first use
+- **v0.20.6-beta** (2026-04-17) — Bottom sheet no longer bleeds into view on older iOS Safari; snap points measure the rendered element instead of `innerHeight`
+- **v0.20.5-beta** (2026-04-17) — Stop-recording dialog replaced the native `confirm()` with a styled modal
+- **v0.20.4-beta** (2026-04-17) — Overlays re-stack above the new base map when switching layers, instead of being buried by it
+- **v0.20.3-beta** (2026-04-17) — Layers popover clamps to the viewport when flipped above the button and caps its height so content stays scrollable
+- **v0.20.2-beta** (2026-04-17) — Default hillshade renders on first load; a ghost OSM tile layer had been blocking the overlay
+- **v0.20.1-beta** (2026-04-17) — Map no longer goes blank at high zoom; `maxZoom` and `maxNativeZoom` corrected per layer
+- **v0.20.0-beta** (2026-04-17) — Trails became the default base with Hillshade on for new users; locate icon redesigned to the iOS arrow
+- **v0.19.4-beta** (2026-04-17) — Layers popover font matches the buttons; the uninformative per-layer Offline badge removed
+- **v0.19.3-beta** (2026-04-17) — Broken OpenTopoMap hillshade endpoint (403) replaced with the Esri World Hillshade service
+- **v0.19.2-beta** (2026-04-17) — Consent modal reworded to cover general app usage; consent version bumped to 2.0, forcing re-acceptance
+- **v0.19.1-beta** (2026-04-17) — Consent now gates all app usage at load time, not just starting a recording
+- **v0.19.0-beta** (2026-04-16) — First-run consent dialog with inline Terms of Use and Privacy Policy (#103)
+- **v0.18.1-beta** (2026-04-16) — Fixed a runtime error when the layers control added tile layers to the map
+- **v0.18.0-beta** (2026-04-16) — Custom layers popover replaces Leaflet's native switcher; free OSM tile sources replace Mapbox and Google imagery
+- **v0.17.1-beta** (2026-04-16) — Locate and Download tooltips trigger anywhere on the button, not just the icon
+- **v0.17.0-beta** (2026-04-16) — Explanatory tooltips on Locate and Download to improve discoverability
+- **v0.16.0-beta** (2026-04-16) — Text labels on the locate, tracking and download buttons; download control repositioned above search
+- **v0.15.0-beta** (2026-04-14) — Adaptive GPS polling to cut battery drain; expandable search results on mobile; offline region pre-download UI (#95, #96, #97, #98, #99)
+- **v0.14.3-beta** (2026-04-14) — GPS weak-signal badge in the stats bar; long addresses get a `title` tooltip (#90, #91)
+- **v0.14.2-beta** (2026-04-11) — Top-left controls resized to match the geocoder search button
+- **v0.14.1-beta** (2026-04-11) — Recording stats bar no longer overlaps the buttons on iPhone; vertical stack and compact buttons
+- **v0.14.0-beta** (2026-04-11) — Ascent replaces Speed in the stats bar, tracked from GPS altitude deltas
+- **v0.13.0-beta** (2026-04-11) — GPS trail recording with GPX export, offline resilience and localStorage crash recovery
+- **v0.12.1-beta** (2026-04-09) — All edge-pinned controls and overlays respect Safari iPhone safe areas
+- **v0.12.0-beta** (2026-04-09) — Locale-appropriate units, a Copy confirmation, larger recording buttons and higher-contrast stats
+- **v0.11.0-beta** (2026-04-09) — Version badge became a button toggling a scrollable changelog panel
+- **v0.10.0-beta** (2026-04-09) — Toast when the geocoder returns nothing; the iOS keyboard "Done" button submits the search
+- **v0.9.4-beta** (2026-04-09) — Location-denied toast persists until dismissed and includes the iOS settings path
+- **v0.9.3-beta** (2026-04-09) — Double-clicking a toolbar button no longer drops a pin; auto-reload after a service-worker update
+- **v0.9.2-beta** (2026-04-08) — Reverse-geocode bottom sheet replaced with a compact single-line bar
+- **v0.9.1-beta** (2026-04-08) — Selecting a search result clears the dropped pin and closes the info panel
+- **v0.9.0-beta** (2026-04-08) — Toggle controls match Leaflet zoom button width; overlay shadows standardized
+- **v0.8.6-beta** (2026-04-08) — Reverted the sticky-header dropdown; the search icon clears the previous dropdown and its pins
+- **v0.8.5-beta** (2026-04-08) — Sticky dropdown header with only the results list scrolling
+- **v0.8.4-beta** (2026-04-08) — Dropping a reverse-geocode pin clears the search result selection
+- **v0.8.3-beta** (2026-04-08) — Dropdown dismisses only via its × button, removing spurious auto-dismiss
+- **v0.8.2-beta** (2026-04-08) — Clicking a result no longer dismisses the dropdown; results gained hover tooltips
+- **v0.8.1-beta** (2026-04-08) — Clicking a map marker restores the dropdown and updates the page title
+- **v0.8.0-beta** (2026-04-08) — Search results moved to a floating dropdown anchored below the search bar
+- **v0.7.2-beta** (2026-04-08) — Result list always visible after a search; the sheet upgrades from peek to half
+- **v0.7.1-beta** (2026-04-08) — Zoom-responsive markers, corrected `flyToBounds` padding and ESRI-extent single-result zoom
+- **v0.7.0-beta** (2026-04-08) — Numbered markers, richer result detail, smart zoom and bidirectional list/map selection (#69, #70, #71, #72, #73)
+- **v0.6.2-beta** (2026-04-08) — Search results constrained to the visible map area at zoom 7 and above
+- **v0.6.1-beta** (2026-04-07) — `watchPosition` replaces the GPS polling loop; locate icon became the standard angled arrow (#60, #62)
+- **v0.6.0-beta** (2026-04-01) — Bottom-sheet drift and tile blur fixed; GPX export correctness; PWA guarded against auto-update while recording (#49, #54, #57, #58)
+- **v0.5.1-beta** (2026-04-01) — GPS refcount leaks resolved, ESRI private-API access removed, docs and the MIT license added (#42, #51, #52, #53, #55)
+- **v0.5.0-beta** (2026-03-31) — GPX export on stop; search spinner and Enter fixed; racy iOS `permissions.query` check removed (#37, #38, #40, #41)
+- **v0.4.0-beta** (2026-03-31) — Controls relocated to top-left; version badge; iOS user-gesture fixes for GPS and clipboard (#20, #23, #24, #25, #26)
+- **v0.3.0-beta** (2026-03-18) — Three-state locate, enhanced search, track recording, mobile bottom sheet, service worker and the Vite + TypeScript toolchain (#10, #11, #12, #13, #14, #15, #16, #18)
