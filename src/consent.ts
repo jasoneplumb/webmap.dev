@@ -10,6 +10,7 @@
  * instead of costing a second, undiscoverable one on the compass rose.
  */
 import { requestOrientationPermission, type OrientationPermission } from './orientation';
+import { isPointerDeviceNow } from './device';
 
 /**
  * Bumped from 2.2 for the compass opt-in. The modal now asks for a device sensor it did not
@@ -40,9 +41,16 @@ export function hasConsent(): boolean {
   return localStorage.getItem(KEY_VERSION) === CONSENT_VERSION;
 }
 
-/** Whether the platform can be asked for orientation at all — false on desktop. */
+/**
+ * Whether the platform can be asked for orientation at all — false on desktop.
+ *
+ * The constructor check alone never delivered that: desktop Chrome and Safari both define
+ * DeviceOrientationEvent and then never fire a reading with a heading, so the row appeared on
+ * machines with no magnetometer and promised a direction they cannot show. The pointer test is
+ * what actually excludes them, and it matches where the compass rose is mounted (compass.ts).
+ */
 function orientationAvailable(): boolean {
-  return typeof DeviceOrientationEvent !== 'undefined';
+  return typeof DeviceOrientationEvent !== 'undefined' && !isPointerDeviceNow();
 }
 
 /**
