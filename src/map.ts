@@ -232,6 +232,21 @@ async function handleTileError(
 }
 
 /**
+ * The deepest zoom the map allows, shared by the map itself and every layer on it.
+ *
+ * It is one level past each layer's `maxNativeZoom`, so the last level is upscaled rather than
+ * fetched — deliberate, since a map that stops dead feels broken where one that goes slightly
+ * soft does not.
+ *
+ * Exported because other defaults are defined relative to it rather than restating the number:
+ * see INITIAL_FIX_ZOOM in location.ts.
+ */
+export const MAX_ZOOM = 19;
+
+/** The deepest level the tile providers actually serve; past this Leaflet upscales. */
+const MAX_NATIVE_ZOOM = MAX_ZOOM - 1;
+
+/**
  * The OSM data credit, contributed by every layer whose tiles are rendered from OSM data.
  *
  * Kept as one exact string on purpose: Leaflet's attribution control refcounts by literal
@@ -248,21 +263,6 @@ async function handleTileError(
  * live — the thing a reader following this credit is actually looking for. It is also what the
  * OSM attribution guidelines ask for, and the one credit here whose link is not optional.
  */
-/**
- * The deepest zoom the map allows, shared by the map itself and every layer on it.
- *
- * It is one level past each layer's `maxNativeZoom`, so the last level is upscaled rather than
- * fetched — deliberate, since a map that stops dead feels broken where one that goes slightly
- * soft does not.
- *
- * Exported because other defaults are defined relative to it rather than restating the number:
- * see INITIAL_FIX_ZOOM in location.ts.
- */
-export const MAX_ZOOM = 19;
-
-/** The deepest level the tile providers actually serve; past this Leaflet upscales. */
-const MAX_NATIVE_ZOOM = MAX_ZOOM - 1;
-
 const OSM_DATA_ATTRIBUTION = `© ${sourceCredit(
   'OpenStreetMap',
   'https://www.openstreetmap.org/copyright',
@@ -513,6 +513,10 @@ export function createMap(): L.Map {
   // asks for, not a change to what the layer can do. Same pixels either way: both
   // routes bilinear-upsample the same z15 data at the same density. (#287)
   hillshadeLayer = createHillshadeLayer({
+    // The only credit whose link text is a phrase rather than one provider name, because the
+    // terrain data has two: Mapzen made it and AWS publishes it, and the registry page is the
+    // one page that covers both. Deliberate — not an oversight to be tidied into the shape the
+    // other five credits have.
     attribution: `Terrain: ${sourceCredit(
       'Mapzen, AWS Open Data',
       'https://registry.opendata.aws/terrain-tiles/',
