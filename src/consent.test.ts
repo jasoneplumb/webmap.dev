@@ -80,6 +80,49 @@ describe('showConsentModal', () => {
     await pending;
   });
 
+  it('omits the compass row on a pointer device', async () => {
+    // The bug this pins (#343): the row was gated on `typeof DeviceOrientationEvent` alone, and
+    // desktop Chrome and Safari both define that constructor and then never fire a reading with
+    // a heading. So the modal promised a direction to machines with no magnetometer — and now
+    // that the rose is not mounted there either, the row would promise a control that is gone.
+    //
+    // jsdom provides no matchMedia at all (which is why the row is offered in every other test
+    // here), so a desktop has to be stubbed in rather than merely described.
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('pointer: fine') }),
+    });
+    try {
+      const pending = showConsentModal();
+      expect(document.querySelector('#consent-compass')).toBeNull();
+      expect(document.querySelector('#consent-compass-check')).toBeNull();
+      document.querySelector<HTMLButtonElement>('#consent-decline')!.click();
+      await pending;
+    } finally {
+      // Deleting it, not restoring: there was nothing here to restore to, and leaving a stub
+      // behind would silently turn every later test in this file into a desktop.
+      Reflect.deleteProperty(window, 'matchMedia');
+    }
+  });
+
+  it('records no opt-in and requests nothing when the row is absent', async () => {
+    // The accept path reads `compassBox?.checked ?? false`, so a modal with no row must record
+    // a stored false and hand back no pending grant — otherwise a desktop would re-request
+    // orientation on every later load through the hasCompassOptIn() path in main.ts.
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('pointer: fine') }),
+    });
+    try {
+      const pending = showConsentModal();
+      accept();
+      await expect(pending).resolves.toMatchObject({ accepted: true, compassRequest: null });
+      expect(hasCompassOptIn()).toBe(false);
+    } finally {
+      Reflect.deleteProperty(window, 'matchMedia');
+    }
+  });
+
   it('records the opt-in and hands back a pending grant when accepted as-is', async () => {
     const pending = showConsentModal();
     accept();

@@ -1113,6 +1113,15 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   flex: 0 0 auto;
 }
 
+/* Each provider's name links to its own colour key or dataset page. Leaflet's stylesheet sets
+   text-decoration: none on attribution links, which leaves them indistinguishable from the credit
+   text around them — so the only affordance would be a hover, and a phone has none. Underline
+   them instead, offset so the descenders in "waymarkedtrails.org" stay readable. */
+.leaflet-bottom.leaflet-left .leaflet-control-attribution a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* Breathing room between the search pair and the readouts below it, separating
    the things you act on from the things you only read. Applied to the scale's
    top rather than the search's bottom so the gap survives the results toggle

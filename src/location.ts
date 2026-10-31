@@ -12,9 +12,22 @@ import { haversineDistance } from './geo';
 import { updateGuidance } from './guidance';
 import { STATIONARY_SPEED_MS } from './heading';
 import { resetHeadingIndicator, updateHeadingIndicator } from './heading-indicator';
+import { MAX_ZOOM } from './map';
 
 /** Discard GPS fixes coarser than this threshold (metres). */
 export const TRAIL_MAX_ACCURACY_M = 30;
+
+/**
+ * Zoom the map lands on at the first GPS fix of a locate activation — the app's
+ * default working zoom. One level in from MAX_ZOOM, written as that subtraction
+ * rather than as the number, so raising the ceiling carries the default up with
+ * it instead of silently leaving it two levels adrift.
+ *
+ * That level is also each layer's maxNativeZoom, so arriving costs native tiles:
+ * the one level the providers do not serve is the one above this, which Leaflet
+ * upscales. The default lands at the deepest zoom that is still sharp.
+ */
+export const INITIAL_FIX_ZOOM = MAX_ZOOM - 1;
 
 /** Consecutive stationary fixes before switching to low-accuracy GPS to save battery. */
 const STATIONARY_THRESHOLD = 5;
@@ -78,12 +91,13 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     e.latlng.lat, e.latlng.lng,
   );
 
-  // On first GPS fix, recenter at neighborhood zoom (defer if screen is off).
+  // On first GPS fix, recenter at the default working zoom (defer if screen is off).
   // setView (not setZoom) guarantees the map jumps from the world-view
   // placeholder straight to the user's location even when not actively
-  // following, so "geolocate on load" lands at ~zoom 14 rather than world view.
+  // following, so "geolocate on load" lands at INITIAL_FIX_ZOOM rather than
+  // world view.
   if (state.initialZoom && !state.screenOff) {
-    map.setView(e.latlng, 14);
+    map.setView(e.latlng, INITIAL_FIX_ZOOM);
     state.initialZoom = false;
   }
 

@@ -34,6 +34,7 @@ import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
 import { addGuidanceControl, setGuidanceBannerTapHandler } from './guidance';
 import { addCompassControl } from './compass';
+import { isPointerDeviceNow } from './device';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
 import { scheduleSwUpdate } from './sw-update';
@@ -562,11 +563,16 @@ const compassControl = addCompassControl(map, state);
 if (pendingCompassRequest !== null) {
   // Fresh install: the grant was requested from the consent tap and may still be pending.
   void pendingCompassRequest.then((permission) => { compassControl.applyPermission(permission); });
-} else if (hasCompassOptIn()) {
+} else if (hasCompassOptIn() && !isPointerDeviceNow()) {
   // Returning visitor who opted in previously. There is no gesture on this path, so the
   // request may be refused outright — on a platform that already remembers the grant it
   // resolves straight to 'granted', and where it does not, the rose stays tappable and
   // nothing is worse than before.
+  //
+  // The pointer-device guard is for the cohort the old consent bug created: a desktop that
+  // was shown the compass row, left it checked, and so carries a stored opt-in. Without it
+  // that machine asks the permission API for orientation on every single load, and throws
+  // the answer away — there is no rose for it to drive. (#343)
   void requestOrientationPermission().then((permission) => {
     if (permission === 'granted') compassControl.applyPermission(permission);
   });

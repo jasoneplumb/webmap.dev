@@ -14,6 +14,7 @@ import {
   unwrapHeadingDeg,
 } from './heading';
 import { scheduleHeadingIndicatorUpdate } from './heading-indicator';
+import { isPointerDeviceNow } from './device';
 
 const COMPASS_HTML = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <circle cx="20" cy="20" r="18" fill="rgba(255,255,255,0.92)" stroke="#444" stroke-width="1.5"/>
@@ -38,6 +39,22 @@ export interface CompassControl {
 }
 
 export function addCompassControl(map: L.Map, state: AppState): CompassControl {
+  // The rose answers "which way is the device facing", and only a magnetometer can answer it.
+  // A desktop or laptop has none, so the control was a permanently-north glyph occupying a slot
+  // in the bottom-left column. Not mounted there at all, rather than hidden: the existing
+  // `compass-rose--unavailable` rule is visibility:hidden, which keeps the box and would leave
+  // a 38 px gap in the column on every desktop.
+  //
+  // The platform guard in onAdd below stays as the narrower case it always was — a browser with
+  // no DeviceOrientationEvent constructor. Desktop Chrome and Safari both define it and then
+  // never fire a reading with a heading, which is why that guard never covered this.
+  if (isPointerDeviceNow()) {
+    state.compassPermission = 'unsupported';
+    // No button, no subscription: a grant arriving from the consent modal has nothing to drive,
+    // and heading-indicator.ts reads 'unsupported' as "no compass heading" on its own.
+    return { applyPermission: () => { /* intentionally inert — see above */ } };
+  }
+
   let unsubscribe: (() => void) | null = null;
   let button: HTMLButtonElement | null = null;
   /**
