@@ -10,6 +10,7 @@ import { createHillshadeLayer, type HillshadeLayer } from './hillshade';
 import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid';
 import { OSM_TILE_CACHE_NAME, REGION_TILE_CACHE_NAME } from './sw-constants';
 import { hasSavedLayer, savedRegionCoversTile } from './offline-regions';
+import { sourceCredit } from './attribution';
 
 /** Leaflet grid-layer internals that @types/leaflet doesn't declare.
  *
@@ -242,8 +243,16 @@ async function handleTileError(
  *
  * ODbL still requires the credit whenever OSM-derived tiles are shown; this changes how
  * many times it is printed, not whether it appears.
+ *
+ * The name links to the copyright page, which is where the licence and the contributor terms
+ * live — the thing a reader following this credit is actually looking for. It is also what the
+ * OSM attribution guidelines ask for, and the one credit here whose link is not optional.
  */
-const OSM_DATA_ATTRIBUTION = '© OpenStreetMap contributors';
+const OSM_DATA_ATTRIBUTION = `© ${sourceCredit(
+  'OpenStreetMap',
+  'https://www.openstreetmap.org/copyright',
+  'OpenStreetMap — licence, contributors and reuse terms',
+)} contributors`;
 
 export function createMap(): L.Map {
   const map = L.map('map', {
@@ -361,7 +370,15 @@ export function createMap(): L.Map {
   // The style credit is theirs alone; the ODbL credit is the shared one every
   // OSM-derived layer contributes, added separately so it is shown once rather than
   // repeated inside each provider's string (see OSM_DERIVED_LAYERS below).
-  const tfAttribution = 'Maps © Thunderforest';
+  // One string for Cycle, Outdoors and the Cycle blend overlay, so it points at the style index
+  // rather than any one style's key: the index page carries every Thunderforest style, including
+  // OpenCycleMap's "Key and More Info". A per-style credit would print the Thunderforest name
+  // twice whenever the Cycle overlay is composited over the Outdoors base.
+  const tfAttribution = `Maps © ${sourceCredit(
+    'Thunderforest',
+    'https://www.thunderforest.com/maps/',
+    'Thunderforest map styles — colour key for Cycle (OpenCycleMap) and Outdoors',
+  )}`;
   cycleLayer = L.tileLayer(
     'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=' + tfKey,
     {
@@ -391,7 +408,11 @@ export function createMap(): L.Map {
   bikeInfraLayer = L.tileLayer(
     'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png',
     {
-      attribution: '© CyclOSM',
+      attribution: `© ${sourceCredit(
+        'CyclOSM',
+        'https://www.cyclosm.org/legend.html',
+        'CyclOSM legend — what each colour, line and symbol means',
+      )}`,
       ...stdConfig,
     },
   );
@@ -414,13 +435,22 @@ export function createMap(): L.Map {
   // activity, so the only way to see hiking-only segments is to switch cycling off.
   // Kept out of the base layer so a route-tile failure can never blank the map;
   // share stdConfig geometry so routes scale 1:1 with the base.
+  // One shared credit for both overlays, so it links to the project rather than to either
+  // activity map — two credits reading "© waymarkedtrails.org" side by side is the duplication
+  // the single-string convention above exists to prevent. Waymarked Trails publishes no legend
+  // page of its own; the hub leads to each activity map, where the network colours are shown.
+  const wmtAttribution = `© ${sourceCredit(
+    'waymarkedtrails.org',
+    'https://waymarkedtrails.org/',
+    'Waymarked Trails — route networks by activity; routes are coloured by network hierarchy',
+  )}`;
   hikingLayer = L.tileLayer(
     'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
-    { attribution: '© waymarkedtrails.org', ...stdConfig },
+    { attribution: wmtAttribution, ...stdConfig },
   );
   cyclingLayer = L.tileLayer(
     'https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png',
-    { attribution: '© waymarkedtrails.org', ...stdConfig },
+    { attribution: wmtAttribution, ...stdConfig },
   );
 
   humanitarianLayer = L.tileLayer(
@@ -438,7 +468,11 @@ export function createMap(): L.Map {
   satelliteLayer = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     {
-      attribution: 'Esri, Maxar, Earthstar Geographics',
+      attribution: `${sourceCredit(
+        'Esri',
+        'https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9',
+        'Esri World Imagery — sources, resolution and imagery dates by region',
+      )}, Maxar, Earthstar Geographics`,
       tileSize: 256,
       zoomOffset: 0,
       maxZoom: 19,
@@ -464,7 +498,11 @@ export function createMap(): L.Map {
   // asks for, not a change to what the layer can do. Same pixels either way: both
   // routes bilinear-upsample the same z15 data at the same density. (#287)
   hillshadeLayer = createHillshadeLayer({
-    attribution: 'Terrain: Mapzen, AWS Open Data',
+    attribution: `Terrain: ${sourceCredit(
+      'Mapzen, AWS Open Data',
+      'https://registry.opendata.aws/terrain-tiles/',
+      'Terrarium terrain tiles — elevation sources, coverage and licensing',
+    )}`,
     maxNativeZoom: 15,
     className: 'overlay-blend',
     tileSize: 256,
