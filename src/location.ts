@@ -16,6 +16,14 @@ import { resetHeadingIndicator, updateHeadingIndicator } from './heading-indicat
 /** Discard GPS fixes coarser than this threshold (metres). */
 export const TRAIL_MAX_ACCURACY_M = 30;
 
+/**
+ * Zoom the map lands on at the first GPS fix of a locate activation — the app's
+ * default working zoom. Street-level rather than neighbourhood-level: close
+ * enough that the surrounding streets are named and labelled on arrival.
+ * Below each layer's maxNativeZoom (see map.ts), so it costs no upscaled tiles.
+ */
+export const INITIAL_FIX_ZOOM = 16;
+
 /** Consecutive stationary fixes before switching to low-accuracy GPS to save battery. */
 const STATIONARY_THRESHOLD = 5;
 
@@ -78,12 +86,13 @@ export function onLocationFound(e: L.LocationEvent, state: AppState, map: L.Map)
     e.latlng.lat, e.latlng.lng,
   );
 
-  // On first GPS fix, recenter at neighborhood zoom (defer if screen is off).
+  // On first GPS fix, recenter at street zoom (defer if screen is off).
   // setView (not setZoom) guarantees the map jumps from the world-view
   // placeholder straight to the user's location even when not actively
-  // following, so "geolocate on load" lands at ~zoom 14 rather than world view.
+  // following, so "geolocate on load" lands at INITIAL_FIX_ZOOM rather than
+  // world view.
   if (state.initialZoom && !state.screenOff) {
-    map.setView(e.latlng, 14);
+    map.setView(e.latlng, INITIAL_FIX_ZOOM);
     state.initialZoom = false;
   }
 
