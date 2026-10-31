@@ -114,6 +114,9 @@ export function createTileGridLayer(): TileGridLayer {
     pane: 'overlayPane',
     tileSize: 256 * GRID_CELL_TILE_SPAN,
     minZoom: 2,
+    // Must match MAX_ZOOM in map.ts, and is written out rather than imported because map.ts
+    // imports THIS module — reading the constant back would close an import cycle. The grid
+    // draws no tiles, so the cost of drift here is a debug overlay that stops one level early.
     maxZoom: 19,
     // Deliberately NOT given the deferred-zoom override the raster layers get, and
     // deliberately left at Leaflet's eager updateWhenZooming default: costing no
