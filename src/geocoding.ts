@@ -10,6 +10,7 @@ import type { AppState } from './types';
 import { onGuidanceRender, setGuidanceCosting, startGuidance, stopGuidance } from './guidance';
 import type { Costing } from './routing';
 import { escapeHtml } from './html';
+import { isPointerDeviceNow } from './device';
 
 function createNumberedIcon(n: number): L.DivIcon {
   return L.divIcon({
@@ -85,33 +86,6 @@ export function describeSearchFailure(
     return 'Address search couldn\u2019t reach ArcGIS \u2014 the request was blocked or timed out.';
   }
   return `Address search failed \u2014 ArcGIS returned ${code}.`;
-}
-
-/**
- * Media query deciding whether the search box takes focus on load. Hover and
- * pointer precision, deliberately not viewport width: a narrow laptop window is
- * still a keyboard device, and a large tablet still isn't.
- */
-export const AUTOFOCUS_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
-
-/**
- * Whether to focus the search box on load. True only for mouse/trackpad
- * devices: focusing an input on touch raises the on-screen keyboard over the
- * map on every load, which is the opposite of useful for an app opened to see
- * where you are.
- *
- * Note this moves focus without user action, which usually warrants care
- * (WCAG 3.2.1-adjacent) — a desktop screen-reader user lands in the search box
- * before hearing the map's context. Kept deliberately: this is a search-first
- * entry point and the behaviour was asked for explicitly. Recorded here so it
- * reads as a decision rather than an oversight.
- *
- * Takes matchMedia as an argument so the decision is testable without a browser.
- */
-export function shouldAutofocusSearch(
-  matchMediaFn: (query: string) => { matches: boolean },
-): boolean {
-  return matchMediaFn(AUTOFOCUS_POINTER_QUERY).matches;
 }
 
 function zoomForAddrType(addrType: string): number {
@@ -228,11 +202,28 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
   // immediately when Enter is pressed (before results arrive). We handle collapse
   // ourselves in the results handler and on blur.
   const MIN_CHARS = 3;
+  /**
+   * Two load-time decisions hang off this one answer, for the same reason: on a phone the map
+   * is what the user opened the app to see, so the search box neither takes the width nor
+   * raises the keyboard until it is tapped.
+   *
+   *   - `expanded` below: a search icon on touch, full width on mouse/trackpad. Tapping the
+   *     icon expands it — the library's own behaviour, which collapseSearch() already uses.
+   *   - the autofocus at the end of this function: the caret lands in the box on pointer
+   *     devices only. Focusing an input on touch raises the on-screen keyboard over the map on
+   *     every load, which is the opposite of useful.
+   *
+   * That autofocus moves focus without user action, which usually warrants care (WCAG
+   * 3.2.1-adjacent) — a desktop screen-reader user lands in the search box before hearing the
+   * map's context. Kept deliberately: this is a search-first entry point and the behaviour was
+   * asked for explicitly. Recorded here so it reads as a decision rather than an oversight.
+   */
+  const pointerDevice = isPointerDeviceNow();
   const searchControl = geosearch({
     placeholder: SEARCH_PLACEHOLDER,
     title: 'Search for places or addresses',
     position: 'bottomleft',
-    expanded: true,
+    expanded: pointerDevice,
     useMapBounds: 7,
     zoomToResult: false,
     collapseAfterResult: false,
@@ -595,8 +586,9 @@ export function addSearchControl(map: L.Map, state: AppState, showMessage: (mess
   });
 
   // Land with the caret in the search box, so a keyboard user can type a place
-  // and press Enter without reaching for the pointer.
-  if (shouldAutofocusSearch((q) => window.matchMedia(q))) {
+  // and press Enter without reaching for the pointer. Touch devices start
+  // collapsed instead (see the `expanded` option above).
+  if (pointerDevice) {
     input.focus({ preventScroll: true });
   }
 }
