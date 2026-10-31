@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.53.0 (2026-10-31)
+
+Four defaults that were wrong for the device they landed on, and credits that named their sources without saying where to find them.
+
+### Changed
+
+- **The first GPS fix lands at street level instead of neighbourhood scale.** Locate used to recentre at zoom 14, far enough out that no surrounding street carries a label, so the first act on arrival was always to zoom in. The default is now one level in from the zoom ceiling, written as that subtraction rather than as a number so raising the ceiling carries the default up with it. It is also each layer's deepest native zoom, which means the view lands on real tiles rather than upscaled ones (#343)
+- **The search box starts collapsed on a phone.** It was built expanded unconditionally, putting a 275px bar across the bottom-left corner of a map you opened to see where you are. On touch it is now the search icon and expands when tapped — the same collapsed state a blur already produced. Mouse and trackpad are unchanged: expanded, with the caret in it (#343)
+- **Each map credit links to the key or dataset behind it.** OpenStreetMap's copyright page, the Thunderforest style index, the CyclOSM legend, the Waymarked Trails hub, Esri World Imagery, and the Terrarium dataset on the AWS registry. The provider's name is the link, so the line gains no characters on a screen where it already wraps, and the underline is back — Leaflet strips it, and a phone has no hover to reveal that the text leads anywhere (#343)
+
+### Fixed
+
+- **No compass rose on machines that have no magnetometer.** The guard for it tested whether `DeviceOrientationEvent` exists, and desktop Chrome and Safari both define that constructor and then never report a reading carrying a heading — so the guard never fired where it was meant to, and a desktop carried a rose frozen at north. The control is now not built at all there rather than hidden, because the hidden state keeps its box and would leave a 38px gap in the bottom-left column (#343)
+- **The first-run consent modal no longer offers the compass to a device that cannot do it.** It carried the same faulty check behind the same comment claiming the opposite, so it promised "show which way I'm facing" to desktops — and would now have promised a rose that is no longer there. A desktop that was shown that row under the old bug and left it checked also stops asking the browser for orientation permission on every load and discarding the answer, since there is nothing on that machine for a grant to drive (#343)
+
+### Internal
+
+- The device predicate — `(hover: hover) and (pointer: fine)`, the capability test this repo already prefers over viewport width — moves into its own module now that the search box, the compass rose and the consent modal all need the same answer. It previously lived in the geocoding module, which the other two have no business importing from. It remains a proxy, and it is wrong for a convertible laptop with a mouse attached; the alternatives are wrong more often (#343)
+- Changelog entries older than the ten most recent are condensed to one-line summaries, so the file stays readable as releases accumulate
+
 ## v0.52.3 (2026-09-20)
 
 Two things on the map were hard to see or hard to reach.
