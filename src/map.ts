@@ -248,6 +248,21 @@ async function handleTileError(
  * live — the thing a reader following this credit is actually looking for. It is also what the
  * OSM attribution guidelines ask for, and the one credit here whose link is not optional.
  */
+/**
+ * The deepest zoom the map allows, shared by the map itself and every layer on it.
+ *
+ * It is one level past each layer's `maxNativeZoom`, so the last level is upscaled rather than
+ * fetched — deliberate, since a map that stops dead feels broken where one that goes slightly
+ * soft does not.
+ *
+ * Exported because other defaults are defined relative to it rather than restating the number:
+ * see INITIAL_FIX_ZOOM in location.ts.
+ */
+export const MAX_ZOOM = 19;
+
+/** The deepest level the tile providers actually serve; past this Leaflet upscales. */
+const MAX_NATIVE_ZOOM = MAX_ZOOM - 1;
+
 const OSM_DATA_ATTRIBUTION = `© ${sourceCredit(
   'OpenStreetMap',
   'https://www.openstreetmap.org/copyright',
@@ -269,7 +284,7 @@ export function createMap(): L.Map {
     zoomDelta: 1,
     // Past each layer's maxNativeZoom Leaflet scales the native tiles, so the
     // last levels render progressively blurrier rather than fetching new tiles.
-    maxZoom: 19,
+    maxZoom: MAX_ZOOM,
     // Leaflet's tile fade ramps each tile's opacity 0→1 over 200ms on its own
     // load timestamp, and leaflet.css composites tiles with mix-blend-mode:
     // plus-lighter — so a half-faded tile is *additively* blended over the
@@ -339,8 +354,8 @@ export function createMap(): L.Map {
   const stdConfig = {
     tileSize: 512,
     zoomOffset: -1,
-    maxZoom: 19,
-    maxNativeZoom: 18,
+    maxZoom: MAX_ZOOM,
+    maxNativeZoom: MAX_NATIVE_ZOOM,
     minZoom: 2,
     minNativeZoom: 2,
     ...tilePerf,
@@ -475,8 +490,8 @@ export function createMap(): L.Map {
       )}, Maxar, Earthstar Geographics`,
       tileSize: 256,
       zoomOffset: 0,
-      maxZoom: 19,
-      maxNativeZoom: 18,
+      maxZoom: MAX_ZOOM,
+      maxNativeZoom: MAX_NATIVE_ZOOM,
       minZoom: 2,
       minNativeZoom: 2,
       ...tilePerf,
@@ -506,7 +521,7 @@ export function createMap(): L.Map {
     maxNativeZoom: 15,
     className: 'overlay-blend',
     tileSize: 256,
-    maxZoom: 19,
+    maxZoom: MAX_ZOOM,
     minZoom: 2,
     ...tilePerf,
   });
