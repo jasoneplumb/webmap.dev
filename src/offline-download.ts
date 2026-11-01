@@ -103,6 +103,43 @@ export function shouldSaveDownloadedRegion(
   return completed && result.cached > 0 && !alreadyListed;
 }
 
+/** How many `cache.match` lookups the pre-filter runs at once. The lookups are local
+ *  Cache API reads, not network requests, so the per-domain fetch limit doesn't apply.
+ *  The cap bounds how many pending promises a selection of tens of thousands of tiles
+ *  can create at one time. */
+const CACHE_MATCH_CHUNK_SIZE = 64;
+
+/** Look up `urls` in `cache` in parallel chunks and return the ones not already there,
+ *  keeping their input order. Before this, the loop awaited one `cache.match` per tile,
+ *  which left the progress bar stalled on large selections before any fetch began. The
+ *  service worker's `matchRegionTile` runs its lookups in parallel the same way.
+ *
+ *  `signal` is checked before each chunk. Once it is aborted, URLs that were never looked
+ *  up are left out of the result. That matches the old loop's `break`: the caller sees
+ *  `done < total` and treats the run as cancelled. `onChunk` receives the number of cache
+ *  hits in each chunk that completes. */
+export async function partitionCachedTiles(
+  cache: Pick<Cache, 'match'>,
+  urls: readonly string[],
+  signal: AbortSignal,
+  onChunk: (cachedInChunk: number) => void,
+  chunkSize = CACHE_MATCH_CHUNK_SIZE,
+): Promise<string[]> {
+  const uncached: string[] = [];
+  for (let start = 0; start < urls.length; start += chunkSize) {
+    if (signal.aborted) break;
+    const chunk = urls.slice(start, start + chunkSize);
+    const hits = await Promise.all(chunk.map((url) => cache.match(url)));
+    let cachedInChunk = 0;
+    chunk.forEach((url, i) => {
+      if (hits[i]) cachedInChunk++;
+      else uncached.push(url);
+    });
+    onChunk(cachedInChunk);
+  }
+  return uncached;
+}
+
 let _abortController: AbortController | null = null;
 
 async function downloadTiles(
@@ -122,18 +159,13 @@ async function downloadTiles(
     failed: 0,
   };
 
-  // Filter out already-cached tiles first
-  const uncached: string[] = [];
-  for (const url of urls) {
-    if (signal.aborted) break;
-    const existing = await cache.match(url);
-    if (existing) {
-      progress.cached++;
-      progress.done++;
-    } else {
-      uncached.push(url);
-    }
-  }
+  // Filter out already-cached tiles first. Each chunk reports progress, so a selection
+  // that is mostly cached already moves the bar during the lookup phase.
+  const uncached = await partitionCachedTiles(cache, urls, signal, (cachedInChunk) => {
+    progress.cached += cachedInChunk;
+    progress.done += cachedInChunk;
+    onProgress(progress);
+  });
   onProgress(progress);
 
   // Fetch uncached tiles in parallel chunks
