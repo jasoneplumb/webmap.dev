@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.53.1 (2026-11-01)
+
+Two fixes to data you had already entered or asked for: a draft label that vanished when you saved a different zone, and a download that sat at zero while it worked out what it already had.
+
+### Fixed
+
+- **Saving one custom zone no longer throws away an unsaved edit in another.** Save, Reverse and Delete on any zone, and drawing a new one, rebuilt every zone on the map from scratch, including the popup where you type a label. A label or Directional change you had made in zone A but not saved was wiped the moment you saved zone B, even with A's popup closed. Each zone is now redrawn on its own, so only the zone you acted on changes. Duplicate zone ids in an imported file, which the importer accepts, are now handled per zone, so deleting one of a pair no longer removes the other's drawing (#281, #349)
+- **The offline download's progress bar moves from the start.** Before fetching anything, a download checks which tiles are already saved, and it did that one tile at a time while the bar sat at zero. On a large region, especially one mostly saved already, that looked like a hang. The check now runs in parallel batches and moves the bar as it goes. Cancelling during the check still counts as a cancel (#348, refs #318)
+
+### Dependencies
+
+- Patch updates to vite 8.3.5 (#340), vitest 4.1.12 (#352), undici 7.30.1 (#342), sharp 0.35.5 (#350), serialize-javascript 7.1.4 (#351), fast-uri 3.1.9 (#341), source-map-js 1.2.2 (#339) and brace-expansion 1.1.21 (#345). Several close published advisories in build-time tooling; none of these packages ships in the app bundle
+
+### Internal
+
+- **ADR numbering is checked by a test.** Two decision records had both taken the number 007, because each was written on a branch that started when 006 was the latest, and git saw two differently named files rather than a conflict. The heading-source record is now ADR-008, and a new test fails if two records share a number or any record is missing from the index (#346, #347)
+
 ## v0.53.0 (2026-10-31)
 
 Four defaults that were wrong for the device they landed on, and credits that named their sources without saying where to find them.
