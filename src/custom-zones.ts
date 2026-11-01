@@ -168,6 +168,12 @@ export interface CustomZonesOverlay {
  */
 export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: number) => void): CustomZonesOverlay {
   const group = L.layerGroup();
+  // One sub-group per zone (its polyline plus any direction arrows) so an action on one zone
+  // rebuilds only that zone's layers. Rebuilding the whole group would replace every other zone's
+  // popup DOM too — and that DOM is where an unsaved label or Directional edit lives, even while
+  // the popup is closed (#281). Keyed by the zone object, not its id: parseCustomZones does not
+  // reject duplicate ids in an imported file, and an id key would leave one of a pair unrendered.
+  const zoneLayers = new Map<CustomZoneFeature, L.LayerGroup>();
   let zones: CustomZoneFeature[] = [];
   let fileInput: HTMLInputElement | null = null;
 
@@ -225,7 +231,7 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
     saveBtn.addEventListener('click', () => {
       commitDraft();
       persist();
-      renderAll();
+      renderZone(zone);
       showToast('Custom zone updated');
     });
     actions.appendChild(saveBtn);
@@ -247,7 +253,7 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
       commitDraft();
       zone.coordinates = [...zone.coordinates].reverse();
       persist();
-      renderAll();
+      renderZone(zone);
       showToast('Custom zone reversed');
     });
     actions.appendChild(reverseBtn);
@@ -263,9 +269,9 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
     deleteBtn.className = 'custom-zone-popup__delete';
     deleteBtn.textContent = 'Delete';
     deleteBtn.addEventListener('click', () => {
-      zones = zones.filter((z) => z.properties.id !== zone.properties.id);
+      zones = zones.filter((z) => z !== zone);
       persist();
-      renderAll();
+      removeZoneLayers(zone);
       showToast('Custom zone deleted');
     });
     destructiveActions.appendChild(deleteBtn);
@@ -273,27 +279,47 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
     return root;
   }
 
+  function removeZoneLayers(zone: CustomZoneFeature): void {
+    const layers = zoneLayers.get(zone);
+    if (!layers) return;
+    group.removeLayer(layers);
+    zoneLayers.delete(zone);
+  }
+
+  /**
+   * (Re)build one zone's layers, leaving every other zone's layers — and popup DOM — untouched. The
+   * rebuilt zone gets fresh popup DOM: its callers (Save, Reverse) commit that zone's draft first,
+   * so nothing unsaved is lost.
+   */
+  function renderZone(zone: CustomZoneFeature): void {
+    removeZoneLayers(zone);
+    const layers = L.layerGroup();
+    const latlngs = zone.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
+    const line = L.polyline(latlngs, {
+      color: CUSTOM_ZONE_COLOR,
+      weight: ZONE_WEIGHT,
+      opacity: ZONE_OPACITY,
+      dashArray: ZONE_DASH,
+      interactive: true,
+      // Leaflet Path layers bubble clicks to the map by default — without this, tapping an
+      // existing zone while drawing a new one would both open this zone's popup AND add a
+      // spurious vertex to the in-progress zone via addDrawZoneControl's map click handler.
+      bubblingMouseEvents: false,
+    });
+    // Tooltip content is set via innerHTML by Leaflet; label is free-form user/file text — escape it.
+    line.bindTooltip(escapeHtml(zoneDisplayLabel(zone.properties)), { sticky: true });
+    line.bindPopup(buildZonePopup(zone)); // tap on touch devices; hosts the label/delete controls
+    layers.addLayer(line);
+    if (zone.properties.directional === true) addDirectionArrows(layers, latlngs);
+    group.addLayer(layers);
+    zoneLayers.set(zone, layers);
+  }
+
+  /** Full rebuild — only for when the whole zone set is replaced (startup, file import). */
   function renderAll(): void {
     group.clearLayers();
-    for (const zone of zones) {
-      const latlngs = zone.coordinates.map(([lng, lat]) => L.latLng(lat, lng));
-      const line = L.polyline(latlngs, {
-        color: CUSTOM_ZONE_COLOR,
-        weight: ZONE_WEIGHT,
-        opacity: ZONE_OPACITY,
-        dashArray: ZONE_DASH,
-        interactive: true,
-        // Leaflet Path layers bubble clicks to the map by default — without this, tapping an
-        // existing zone while drawing a new one would both open this zone's popup AND add a
-        // spurious vertex to the in-progress zone via addDrawZoneControl's map click handler.
-        bubblingMouseEvents: false,
-      });
-      // Tooltip content is set via innerHTML by Leaflet; label is free-form user/file text — escape it.
-      line.bindTooltip(escapeHtml(zoneDisplayLabel(zone.properties)), { sticky: true });
-      line.bindPopup(buildZonePopup(zone)); // tap on touch devices; hosts the label/delete controls
-      group.addLayer(line);
-      if (zone.properties.directional === true) addDirectionArrows(latlngs);
-    }
+    zoneLayers.clear();
+    for (const zone of zones) renderZone(zone);
   }
 
   /**
@@ -302,7 +328,7 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
    * non-interactive: hover, tap, and the popup all belong to the line beneath them, and an
    * interactive marker here would also swallow map clicks while another zone is being drawn.
    */
-  function addDirectionArrows(latlngs: L.LatLng[]): void {
+  function addDirectionArrows(layers: L.LayerGroup, latlngs: L.LatLng[]): void {
     for (let i = 0; i + 1 < latlngs.length; i++) {
       const a = latlngs[i]!;
       const b = latlngs[i + 1]!;
@@ -311,7 +337,7 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
       // bearingDeg is finite by construction from parse-validated finite coordinates — safe to
       // interpolate into the style attribute (same convention as cue-events.ts's heading tick).
       const deg = bearingDeg(a, b);
-      group.addLayer(L.marker(midpoint, {
+      layers.addLayer(L.marker(midpoint, {
         icon: L.divIcon({
           className: 'custom-zone-arrow',
           html: `<span class="custom-zone-arrow__glyph" aria-hidden="true" style="--heading-deg: ${deg}deg">▲</span>`,
@@ -370,12 +396,13 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
       showToast(`Exported ${zones.length} custom zone${zones.length === 1 ? '' : 's'}`);
     },
     addZone: (coordinates) => {
-      zones.push({
+      const zone: CustomZoneFeature = {
         coordinates,
         properties: { kind: 'custom_zone', id: newZoneId(), created_at: new Date().toISOString() },
-      });
+      };
+      zones.push(zone);
       persist();
-      renderAll();
+      renderZone(zone);
     },
   };
 }
