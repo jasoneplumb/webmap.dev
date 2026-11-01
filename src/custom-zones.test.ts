@@ -267,6 +267,29 @@ describe('createCustomZonesOverlay — per-zone rendering (#281)', () => {
     expect(polylines(overlay.group)).toHaveLength(3);
   });
 
+  it('adds and removes direction arrows for only the saved zone', () => {
+    const overlay = createCustomZonesOverlay(() => {});
+    const arrowCount = (): number => {
+      let n = 0;
+      overlay.group.eachLayer((layer) => {
+        if (layer instanceof L.LayerGroup) layer.eachLayer((l) => { if (l instanceof L.Marker) n++; });
+      });
+      return n;
+    };
+    expect(arrowCount()).toBe(0);
+
+    const popupB = popupFor(overlay.group, 'B');
+    const directionalB = popupB.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    directionalB.checked = true;
+    button(popupB, 'Save').click();
+    expect(arrowCount()).toBe(1); // zone B has one edge; zone A stays bidirectional
+
+    const reopenedB = popupFor(overlay.group, 'B');
+    reopenedB.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked = false;
+    button(reopenedB, 'Save').click();
+    expect(arrowCount()).toBe(0);
+  });
+
   it('renders and deletes zones independently even when an imported file repeats an id', () => {
     localStorage.setItem(STORAGE_KEY, collection(
       syntheticFeature({ id: 'dup', label: 'A' }),

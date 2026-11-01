@@ -286,7 +286,11 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
     zoneLayers.delete(zone);
   }
 
-  /** (Re)build one zone's layers, leaving every other zone's layers — and popup DOM — untouched. */
+  /**
+   * (Re)build one zone's layers, leaving every other zone's layers — and popup DOM — untouched. The
+   * rebuilt zone gets fresh popup DOM: its callers (Save, Reverse) commit that zone's draft first,
+   * so nothing unsaved is lost.
+   */
   function renderZone(zone: CustomZoneFeature): void {
     removeZoneLayers(zone);
     const layers = L.layerGroup();
