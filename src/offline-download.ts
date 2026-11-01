@@ -166,7 +166,10 @@ async function downloadTiles(
     progress.done += cachedInChunk;
     onProgress(progress);
   });
-  onProgress(progress);
+  // An empty selection runs no chunks, so it needs this one tick. Anything else has
+  // already reported its final lookup state from the last chunk. A run aborted before
+  // the first chunk gets no tick, because the cancel handler has already reset the panel.
+  if (urls.length === 0) onProgress(progress);
 
   // Fetch uncached tiles in parallel chunks
   let idx = 0;
