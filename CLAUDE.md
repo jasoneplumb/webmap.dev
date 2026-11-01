@@ -59,7 +59,7 @@ docs/adr/                    # Architecture Decision Records
 
 **GPS polling uses a refcount** (`updateCallback: number`) so locate, guidance, and other consumers can independently request/release the watch without stepping on each other. See [ADR-002](docs/adr/ADR-002-refcount-gps-polling.md).
 
-**One heading indicator, two sources.** `selectHeading()` in `heading.ts` picks GPS course above 0.5 m/s and the device compass below it; `heading-indicator.ts` draws it. The compass grant rides on the first-run consent tap because iOS will not grant orientation without a user gesture. See [ADR-007](docs/adr/ADR-007-heading-source-selection.md).
+**One heading indicator, two sources.** `selectHeading()` in `heading.ts` picks GPS course above 0.5 m/s and the device compass below it; `heading-indicator.ts` draws it. The compass grant rides on the first-run consent tap because iOS will not grant orientation without a user gesture. See [ADR-008](docs/adr/ADR-008-heading-source-selection.md).
 
 ## Notes
 

@@ -24,6 +24,13 @@ Each ADR follows a consistent template:
 5. [ADR-005: Two-Tier Offline Tile Strategy](ADR-005-offline-tile-strategy.md) — Why offline uses Workbox passive caching plus Cache API pre-download
 6. [ADR-006: Routed Turn-by-Turn Guidance](ADR-006-routed-guidance.md) — Why recording was replaced with Valhalla-powered guidance and a heading-cone wedge instead of map rotation
 7. [ADR-007: Protected Region Cache for Multi-Layer Pre-Downloads](ADR-007-region-tile-cache.md) — Why deliberately saved regions live in their own eviction-exempt cache and which layers may be bulk-downloaded
+8. [ADR-008: Heading source follows motion state](ADR-008-heading-source-selection.md) — Why one heading indicator is drawn and motion state picks between GPS course and the device compass
+
+## Numbering
+
+A new ADR takes the next number after the highest in the index above, and **must** add its own entry here in the same change. Registering it is what reserves the number: two records once both took 007 because the record that skipped this list left its claim invisible, and git cannot see the collision when the two filenames differ (#346).
+
+`adr-consistency.test.ts` in this directory enforces that — numbers unique, every record listed, ordinals and `#` headings agreeing with filenames — so a duplicate fails `npm test` rather than merging quietly.
 
 ## References
 

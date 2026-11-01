@@ -1,4 +1,4 @@
-# ADR-007: Heading source follows motion state
+# ADR-008: Heading source follows motion state
 
 - **Status:** Accepted
 - **Date:** 2026-09-13

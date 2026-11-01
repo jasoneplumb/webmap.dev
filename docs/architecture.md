@@ -147,7 +147,7 @@ if (e.accuracy < state.prior || dist > e.accuracy / 2) {
 
 The pure haversine, bearing, and point-to-segment helpers live in `src/geo.ts` and are independently unit-tested.
 
-**Heading ring.** A ring around the blue dot (faint bezel, bright arc, arrowhead) shows one heading, whose source follows motion state. See [ADR-007](adr/ADR-007-heading-source-selection.md).
+**Heading ring.** A ring around the blue dot (faint bezel, bright arc, arrowhead) shows one heading, whose source follows motion state. See [ADR-008](adr/ADR-008-heading-source-selection.md).
 
 Four implementation details matter:
 
@@ -200,7 +200,7 @@ idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
 
 ## 6. Device-Orientation Compass (`compass.ts` + `orientation.ts`)
 
-A bottom-left SVG compass rose rotates by `-deviceHeading` so true north stays at the top. Its heading is no longer only its own: every reading is low-passed into `state.compassHeadingDeg`, which the heading ring uses as its source while the user is stationary (see [ADR-007](adr/ADR-007-heading-source-selection.md)). Before that, the rose read a true-north heading and spent it entirely on a 38 px glyph.
+A bottom-left SVG compass rose rotates by `-deviceHeading` so true north stays at the top. Its heading is no longer only its own: every reading is low-passed into `state.compassHeadingDeg`, which the heading ring uses as its source while the user is stationary (see [ADR-008](adr/ADR-008-heading-source-selection.md)). Before that, the rose read a true-north heading and spent it entirely on a 38 px glyph.
 
 **Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture, which is why the compass cannot simply default to on. The first-run consent modal carries a preselected compass row and fires the request from inside its accept handler, so the grant rides on a tap the user already makes; the request is handed back to `main.ts` unresolved, because awaiting an OS prompt on the boot path would leave a blank page. Tapping the rose still works for anyone who declined, and a returning opt-in is retried without a gesture, which some platforms refuse, leaving the rose exactly as it was. `compass.ts` caches the outcome on `state.compassPermission` and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
 
