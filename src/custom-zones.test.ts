@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { encodeCustomZones, parseCustomZones, zoneDisplayLabel, type CustomZoneFeature } from './custom-zones';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import L from 'leaflet';
+import {
+  createCustomZonesOverlay,
+  encodeCustomZones,
+  parseCustomZones,
+  zoneDisplayLabel,
+  type CustomZoneFeature,
+} from './custom-zones';
 
 function syntheticFeature(overrides: Record<string, unknown> = {}, coordinates?: unknown): unknown {
   return {
@@ -165,5 +172,111 @@ describe('encodeCustomZones', () => {
 
   it('encodes an empty list as an empty FeatureCollection', () => {
     expect(JSON.parse(encodeCustomZones([]))).toEqual({ type: 'FeatureCollection', features: [] });
+  });
+});
+
+describe('createCustomZonesOverlay — per-zone rendering (#281)', () => {
+  const STORAGE_KEY = 'webmap-custom-squeeze-zones-geojson';
+
+  beforeEach(() => {
+    localStorage.setItem(STORAGE_KEY, collection(
+      syntheticFeature({ id: 'zone-a', label: 'A' }),
+      syntheticFeature({ id: 'zone-b', label: 'B' }, [[1, 1], [1.001, 1.0005]]),
+    ));
+  });
+
+  afterEach(() => localStorage.clear());
+
+  function polylines(group: L.LayerGroup): L.Polyline[] {
+    const found: L.Polyline[] = [];
+    group.eachLayer((layer) => {
+      if (layer instanceof L.Polyline) found.push(layer);
+      else if (layer instanceof L.LayerGroup) found.push(...polylines(layer));
+    });
+    return found;
+  }
+
+  function popupFor(group: L.LayerGroup, label: string): HTMLElement {
+    const line = polylines(group).find((l) => l.getTooltip()?.getContent() === label);
+    if (!line) throw new Error(`no zone labelled ${label}`);
+    return line.getPopup()!.getContent() as HTMLElement;
+  }
+
+  function button(popup: HTMLElement, text: string): HTMLButtonElement {
+    const btn = [...popup.querySelectorAll('button')].find((b) => b.textContent === text);
+    if (!btn) throw new Error(`no ${text} button`);
+    return btn;
+  }
+
+  function draftInZoneA(group: L.LayerGroup): { label: HTMLInputElement; directional: HTMLInputElement } {
+    const popup = popupFor(group, 'A');
+    const label = popup.querySelector<HTMLInputElement>('input[type="text"]')!;
+    const directional = popup.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    label.value = 'unsaved draft';
+    directional.checked = true;
+    return { label, directional };
+  }
+
+  function expectDraftSurvives(group: L.LayerGroup, draft: { label: HTMLInputElement; directional: HTMLInputElement }): void {
+    const popup = popupFor(group, 'A');
+    expect(popup.contains(draft.label)).toBe(true);
+    expect(draft.label.value).toBe('unsaved draft');
+    expect(draft.directional.checked).toBe(true);
+  }
+
+  it('keeps an unsaved edit in one popup when another zone is saved', () => {
+    const overlay = createCustomZonesOverlay(() => {});
+    const draft = draftInZoneA(overlay.group);
+    const popupB = popupFor(overlay.group, 'B');
+    popupB.querySelector<HTMLInputElement>('input[type="text"]')!.value = 'B renamed';
+    button(popupB, 'Save').click();
+
+    expectDraftSurvives(overlay.group, draft);
+    expect(polylines(overlay.group).map((l) => l.getTooltip()?.getContent()).sort()).toEqual(['A', 'B renamed']);
+  });
+
+  it('keeps an unsaved edit in one popup when another zone is reversed', () => {
+    const overlay = createCustomZonesOverlay(() => {});
+    const draft = draftInZoneA(overlay.group);
+    const popupB = popupFor(overlay.group, 'B');
+    const directionalB = popupB.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    directionalB.checked = true;
+    directionalB.dispatchEvent(new Event('change')); // enables Reverse, as a real tap would
+    const reverseB = button(popupB, 'Reverse');
+    expect(reverseB.disabled).toBe(false);
+    reverseB.click();
+
+    expectDraftSurvives(overlay.group, draft);
+  });
+
+  it('keeps an unsaved edit in one popup when another zone is deleted', () => {
+    const overlay = createCustomZonesOverlay(() => {});
+    const draft = draftInZoneA(overlay.group);
+    button(popupFor(overlay.group, 'B'), 'Delete').click();
+
+    expectDraftSurvives(overlay.group, draft);
+    expect(polylines(overlay.group)).toHaveLength(1);
+  });
+
+  it('keeps an unsaved edit in an existing popup when a new zone is added', () => {
+    const overlay = createCustomZonesOverlay(() => {});
+    const draft = draftInZoneA(overlay.group);
+    overlay.addZone([[2, 2], [2.001, 2.0005]]);
+
+    expectDraftSurvives(overlay.group, draft);
+    expect(polylines(overlay.group)).toHaveLength(3);
+  });
+
+  it('renders and deletes zones independently even when an imported file repeats an id', () => {
+    localStorage.setItem(STORAGE_KEY, collection(
+      syntheticFeature({ id: 'dup', label: 'A' }),
+      syntheticFeature({ id: 'dup', label: 'B' }, [[1, 1], [1.001, 1.0005]]),
+    ));
+    const overlay = createCustomZonesOverlay(() => {});
+    expect(polylines(overlay.group)).toHaveLength(2);
+
+    button(popupFor(overlay.group, 'B'), 'Delete').click();
+    expect(polylines(overlay.group).map((l) => l.getTooltip()?.getContent())).toEqual(['A']);
+    expect(parseCustomZones(localStorage.getItem(STORAGE_KEY)!)).toHaveLength(1);
   });
 });
