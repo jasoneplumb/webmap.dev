@@ -99,6 +99,21 @@ describe('partitionCachedTiles', () => {
     expect(stats.lookups).toBe(4);
   });
 
+  it('treats a lookup that rejects as a miss instead of failing the whole chunk', async () => {
+    const cache = {
+      match(url: RequestInfo | URL): Promise<Response | undefined> {
+        if (String(url).endsWith('/2.png')) return Promise.reject(new Error('storage error'));
+        return Promise.resolve(String(url).endsWith('/3.png') ? new Response('tile') : undefined);
+      },
+    };
+    const counts: number[] = [];
+    const uncached = await partitionCachedTiles(
+      cache, urls.slice(0, 4), new AbortController().signal, (n) => counts.push(n),
+    );
+    expect(uncached).toEqual(urls.slice(0, 3));
+    expect(counts).toEqual([1]);
+  });
+
   it('does nothing for an empty selection or an already-aborted signal', async () => {
     const { cache, stats } = fakeCache([]);
     const counts: number[] = [];

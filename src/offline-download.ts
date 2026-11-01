@@ -129,7 +129,10 @@ export async function partitionCachedTiles(
   for (let start = 0; start < urls.length; start += chunkSize) {
     if (signal.aborted) break;
     const chunk = urls.slice(start, start + chunkSize);
-    const hits = await Promise.all(chunk.map((url) => cache.match(url)));
+    // A lookup that rejects counts as a miss, the same rule matchRegionTile follows. One
+    // failure must not reject the whole chunk: that would leave the panel stuck in
+    // 'downloading'. Treating it as a miss just fetches and stores the tile again.
+    const hits = await Promise.all(chunk.map((url) => cache.match(url).catch(() => undefined)));
     let cachedInChunk = 0;
     chunk.forEach((url, i) => {
       if (hits[i]) cachedInChunk++;
