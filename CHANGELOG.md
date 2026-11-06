@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **New installs open on the satellite map alone, and zoom settles on whole levels.** The default Hillshade and Cycle-blend overlays are off, which cuts roughly three times the tile requests and removes two blend-mode layers; overlays you have already chosen are kept. Zoom now settles on whole levels (pinch stays continuous), which stops adjacent tile levels sitting a pixel apart. Neither change has had the on-device A/B yet; `zoomSnap` goes back to 0.5 in one line if pinch feels wrong (#291)
+
 ## v0.53.1 (2026-11-01)
 
 Two fixes to data you had already entered or asked for: a draft label that vanished when you saved a different zone, and a download that sat at zero while it worked out what it already had.

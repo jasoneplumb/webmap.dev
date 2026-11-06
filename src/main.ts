@@ -546,7 +546,10 @@ const overlayDefs: OverlayDef[] = [
 
 layersControl = addLayersControl(
   map, layerDefs, overlayDefs,
-  ['hillshade', 'cycle-blend'], SATELLITE_BASE_ID, syncToBase);
+  // No overlays by default (#291): three simultaneous GridLayers, two of them
+  // mix-blend-mode, cost ~3x the tile requests and de-synchronise during a zoom.
+  // Users who want the old look switch Hillshade / Cycle-blend on; that choice persists.
+  [], SATELLITE_BASE_ID, syncToBase);
 // selectBaseMap fires syncToBase on every later switch, but the FIRST base
 // comes from persisted state (or the default above) without going through it.
 syncToBase(layersControl.activeBaseId);
