@@ -1,10 +1,16 @@
 # Changelog
 
-## Unreleased
+## v0.54.0 (2026-11-09)
+
+A lighter map on first open, and a route line that shows how much of it is behind you.
 
 ### Changed
 
 - **New installs open on the satellite map alone, and zoom settles on whole levels.** The default Hillshade and Cycle-blend overlays are off, which cuts roughly three times the tile requests and removes two blend-mode layers; overlays you have already chosen are kept. Zoom now settles on whole levels (pinch stays continuous), which stops adjacent tile levels sitting a pixel apart. Neither change has had the on-device A/B yet; `zoomSnap` goes back to 0.5 in one line if pinch feels wrong (#291)
+
+### Fixed
+
+- **The stretch of route you have already covered turns grey during guidance.** The whole line stayed in its travel-mode colour from start to finish, so a glance at the map could not tell you how far along you were. Each on-route fix now projects your position onto the route and greys everything behind it. Progress only moves forward, so GPS jitter never un-dims the line and a route that doubles back on itself does not snap to the later pass; the first fix after a start or reroute searches the whole route, later ones look at most 100 segments ahead. The grey overlay is removed on stop and rebuilt on reroute. Not yet checked on a device (#355, #356)
 
 ## v0.53.1 (2026-11-01)
 
