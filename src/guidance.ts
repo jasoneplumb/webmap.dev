@@ -26,7 +26,7 @@ import L from 'leaflet';
 import type { AppState } from './types';
 import type { Costing, Route } from './routing';
 import { fetchRoute } from './routing';
-import { haversineDistance, pointToSegmentMeters } from './geo';
+import { haversineDistance, pointToSegmentMeters, routeProgress } from './geo';
 import { formatDistance } from './units';
 import { showAlertDialog } from './dialog';
 import { escapeHtml } from './html';
@@ -86,6 +86,17 @@ function routeGlowOpts(c: Costing): L.PolylineOptions {
   return {
     color: routeGlowColor(c),
     weight: 14,
+    smoothFactor: 2,
+    interactive: false,
+  };
+}
+
+// Travelled stretch: neutral grey so it reads as "done" under any costing colour.
+function routeTraveledOpts(): L.PolylineOptions {
+  return {
+    color: '#9ca3af',
+    weight: 5,
+    opacity: 0.85,
     smoothFactor: 2,
     interactive: false,
   };
@@ -381,6 +392,7 @@ export function stopGuidance(state: AppState, map: L.Map): void {
   }
   if (state.guidance.routePolyline) map.removeLayer(state.guidance.routePolyline);
   if (state.guidance.routeGlow) map.removeLayer(state.guidance.routeGlow);
+  if (state.guidance.routeTraveled) map.removeLayer(state.guidance.routeTraveled);
   if (state.guidance.destMarker) map.removeLayer(state.guidance.destMarker);
 
   if (wasActive) storedDeactivatePolling?.();
@@ -392,6 +404,8 @@ export function stopGuidance(state: AppState, map: L.Map): void {
   state.guidance.route = null;
   state.guidance.routePolyline = null;
   state.guidance.routeGlow = null;
+  state.guidance.routeTraveled = null;
+  state.guidance.progressSegIdx = 0;
   state.guidance.destMarker = null;
   state.guidance.currentStepIdx = 0;
   state.guidance.distanceToManeuverM = null;
@@ -449,6 +463,7 @@ export function updateGuidance(e: L.LocationEvent, state: AppState, map: L.Map):
     if (state.guidance.status === 'off-route') {
       state.guidance.status = 'guiding';
     }
+    updateTraveled(state, here);
   }
 
   // Step advance: when we approach the next maneuver location, increment.
@@ -486,8 +501,12 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
 
   if (state.guidance.routePolyline) map.removeLayer(state.guidance.routePolyline);
   if (state.guidance.routeGlow) map.removeLayer(state.guidance.routeGlow);
+  if (state.guidance.routeTraveled) map.removeLayer(state.guidance.routeTraveled);
+  state.guidance.progressSegIdx = 0;
+  state.guidance.routeTraveled = L.polyline([], routeTraveledOpts());
   state.guidance.routeGlow = L.polyline(route.coords, routeGlowOpts(state.guidance.costing)).addTo(map);
   state.guidance.routePolyline = L.polyline(route.coords, routeLineOpts(state.guidance.costing)).addTo(map);
+  state.guidance.routeTraveled.addTo(map);
 
   if (state.guidance.destMarker) map.removeLayer(state.guidance.destMarker);
   if (state.guidance.destination) {
@@ -498,6 +517,17 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
   }
 
   render();
+}
+
+/** Advance the dimmed "already travelled" overlay to the traveller's projected position. */
+function updateTraveled(state: AppState, here: L.LatLng): void {
+  const route = state.guidance.route;
+  const layer = state.guidance.routeTraveled;
+  if (!route || !layer) return;
+  const progress = routeProgress(here, route.coords, state.guidance.progressSegIdx);
+  if (!progress || progress.segIdx < state.guidance.progressSegIdx) return;
+  state.guidance.progressSegIdx = progress.segIdx;
+  layer.setLatLngs([...route.coords.slice(0, progress.segIdx + 1), progress.point]);
 }
 
 function applyRouteStyle(state: AppState): void {

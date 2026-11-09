@@ -53,16 +53,65 @@ export function shortestArcDeg(from: number, to: number): number {
  * segments under a few kilometers.
  */
 export function pointToSegmentMeters(p: L.LatLng, a: L.LatLng, b: L.LatLng): number {
+  return projectOnSegment(p, a, b).distM;
+}
+
+/** Projection of a point onto a segment: fraction along a→b, the foot point, and the distance to it. */
+function projectOnSegment(
+  p: L.LatLng,
+  a: L.LatLng,
+  b: L.LatLng,
+): { t: number; lat: number; lng: number; distM: number } {
   const cosLat = Math.cos(((a.lat + b.lat) / 2) * DEG2RAD);
   const dx = (b.lng - a.lng) * cosLat;
   const dy = b.lat - a.lat;
   const len2 = dx * dx + dy * dy;
-  if (len2 === 0) return haversineDistance(p.lat, p.lng, a.lat, a.lng);
+  if (len2 === 0) {
+    return { t: 0, lat: a.lat, lng: a.lng, distM: haversineDistance(p.lat, p.lng, a.lat, a.lng) };
+  }
   let t = ((p.lng - a.lng) * cosLat * dx + (p.lat - a.lat) * dy) / len2;
   t = Math.max(0, Math.min(1, t));
-  const projLat = a.lat + t * dy;
-  const projLng = a.lng + t * (b.lng - a.lng);
-  return haversineDistance(p.lat, p.lng, projLat, projLng);
+  const lat = a.lat + t * dy;
+  const lng = a.lng + t * (b.lng - a.lng);
+  return { t, lat, lng, distM: haversineDistance(p.lat, p.lng, lat, lng) };
+}
+
+/** Furthest ahead (in segments) of the last known position that progress is searched. */
+export const ROUTE_PROGRESS_WINDOW = 100;
+
+export interface RouteProgress {
+  /** Index of the segment (coords[i]→coords[i+1]) the position projects onto. */
+  segIdx: number;
+  /** The projected point on the route. */
+  point: L.LatLng;
+  /** Distance from the position to that point, meters. */
+  distM: number;
+}
+
+/**
+ * How far along `coords` a position is, searching forward only from `fromSeg`.
+ *
+ * Forward-only keeps progress monotonic: GPS jitter never un-dims the line, and a route
+ * that doubles back past its own earlier stretch cannot snap progress backwards or leap
+ * to the later pass. The search is capped at ROUTE_PROGRESS_WINDOW segments for the same
+ * reason. Returns null for fewer than two coordinates.
+ */
+export function routeProgress(
+  p: L.LatLng,
+  coords: readonly L.LatLng[],
+  fromSeg = 0,
+): RouteProgress | null {
+  if (coords.length < 2) return null;
+  const start = Math.max(0, Math.min(fromSeg, coords.length - 2));
+  const end = Math.min(coords.length - 2, start + ROUTE_PROGRESS_WINDOW);
+  let best: RouteProgress | null = null;
+  for (let i = start; i <= end; i++) {
+    const proj = projectOnSegment(p, coords[i]!, coords[i + 1]!);
+    if (best === null || proj.distM < best.distM) {
+      best = { segIdx: i, point: L.latLng(proj.lat, proj.lng), distM: proj.distM };
+    }
+  }
+  return best;
 }
 
 // ── Tap pairing (pure) ────────────────────────────────────────────────────────
