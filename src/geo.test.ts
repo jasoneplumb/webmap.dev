@@ -10,6 +10,7 @@ import {
   pointToSegmentMeters,
   routeProgress,
   shortestArcDeg,
+  splitRoute,
 } from './geo';
 
 describe('bearingDeg', () => {
@@ -200,5 +201,28 @@ describe('routeProgress', () => {
     const far = L.latLng(0, 0.2505);
     expect(routeProgress(far, long, 0)!.segIdx).toBe(250);
     expect(routeProgress(far, long, 1)!.segIdx).toBe(101);
+  });
+});
+
+describe('splitRoute', () => {
+  const coords = [L.latLng(0, 0), L.latLng(0, 0.01), L.latLng(0, 0.02), L.latLng(0, 0.03)];
+
+  it('splits at the projected point, with both halves sharing it', () => {
+    const point = L.latLng(0, 0.015);
+    const { traveled, remaining } = splitRoute(coords, { segIdx: 1, point });
+    expect(traveled).toEqual([coords[0], coords[1], point]);
+    expect(remaining).toEqual([point, coords[2], coords[3]]);
+  });
+
+  it('keeps every vertex exactly once across the two halves', () => {
+    const point = L.latLng(0, 0.025);
+    const { traveled, remaining } = splitRoute(coords, { segIdx: 2, point });
+    expect([...traveled.slice(0, -1), ...remaining.slice(1)]).toEqual(coords);
+  });
+
+  it('at the very start leaves the whole route remaining', () => {
+    const { traveled, remaining } = splitRoute(coords, { segIdx: 0, point: coords[0]! });
+    expect(traveled).toEqual([coords[0], coords[0]]);
+    expect(remaining).toEqual([coords[0], ...coords.slice(1)]);
   });
 });

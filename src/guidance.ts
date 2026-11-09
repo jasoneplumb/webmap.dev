@@ -26,7 +26,7 @@ import L from 'leaflet';
 import type { AppState } from './types';
 import type { Costing, Route } from './routing';
 import { fetchRoute } from './routing';
-import { haversineDistance, pointToSegmentMeters, routeProgress } from './geo';
+import { haversineDistance, pointToSegmentMeters, routeProgress, splitRoute } from './geo';
 import { formatDistance } from './units';
 import { showAlertDialog } from './dialog';
 import { escapeHtml } from './html';
@@ -91,15 +91,11 @@ function routeGlowOpts(c: Costing): L.PolylineOptions {
   };
 }
 
-// Travelled stretch: neutral grey so it reads as "done" under any costing colour.
-function routeTraveledOpts(): L.PolylineOptions {
-  return {
-    color: '#9ca3af',
-    weight: 5,
-    opacity: 0.85,
-    smoothFactor: 2,
-    interactive: false,
-  };
+// Travelled stretch: the costing colour at 85% translucency. It is drawn instead of the full
+// line, not over it, so the opaque line and glow are trimmed to what remains (see updateTraveled).
+const ROUTE_TRAVELED_OPACITY = 0.15;
+function routeTraveledOpts(c: Costing): L.PolylineOptions {
+  return { ...routeLineOpts(c), opacity: ROUTE_TRAVELED_OPACITY };
 }
 
 const DEST_ICON = L.divIcon({
@@ -503,10 +499,9 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
   if (state.guidance.routeGlow) map.removeLayer(state.guidance.routeGlow);
   if (state.guidance.routeTraveled) map.removeLayer(state.guidance.routeTraveled);
   state.guidance.progressSegIdx = 0;
-  state.guidance.routeTraveled = L.polyline([], routeTraveledOpts());
+  state.guidance.routeTraveled = L.polyline([], routeTraveledOpts(state.guidance.costing)).addTo(map);
   state.guidance.routeGlow = L.polyline(route.coords, routeGlowOpts(state.guidance.costing)).addTo(map);
   state.guidance.routePolyline = L.polyline(route.coords, routeLineOpts(state.guidance.costing)).addTo(map);
-  state.guidance.routeTraveled.addTo(map);
 
   if (state.guidance.destMarker) map.removeLayer(state.guidance.destMarker);
   if (state.guidance.destination) {
@@ -519,20 +514,28 @@ function enterGuiding(state: AppState, map: L.Map, route: Route): void {
   render();
 }
 
-/** Advance the dimmed "already travelled" overlay to the traveller's projected position. */
+/**
+ * Split the drawn route at the traveller's projected position: the translucent line takes the
+ * stretch behind, the opaque line and glow keep only the stretch ahead.
+ */
 function updateTraveled(state: AppState, here: L.LatLng): void {
   const route = state.guidance.route;
-  const layer = state.guidance.routeTraveled;
-  if (!route || !layer) return;
+  const traveledLayer = state.guidance.routeTraveled;
+  if (!route || !traveledLayer) return;
   const progress = routeProgress(here, route.coords, state.guidance.progressSegIdx);
   if (!progress || progress.segIdx < state.guidance.progressSegIdx) return;
   state.guidance.progressSegIdx = progress.segIdx;
-  layer.setLatLngs([...route.coords.slice(0, progress.segIdx + 1), progress.point]);
+  const { traveled, remaining } = splitRoute(route.coords, progress);
+  traveledLayer.setLatLngs(traveled);
+  state.guidance.routePolyline?.setLatLngs(remaining);
+  state.guidance.routeGlow?.setLatLngs(remaining);
 }
 
 function applyRouteStyle(state: AppState): void {
-  state.guidance.routePolyline?.setStyle(routeLineOpts(state.guidance.costing));
-  state.guidance.routeGlow?.setStyle(routeGlowOpts(state.guidance.costing));
+  const c = state.guidance.costing;
+  state.guidance.routePolyline?.setStyle(routeLineOpts(c));
+  state.guidance.routeGlow?.setStyle(routeGlowOpts(c));
+  state.guidance.routeTraveled?.setStyle(routeTraveledOpts(c));
 }
 
 function maybeRecalc(state: AppState, map: L.Map): void {

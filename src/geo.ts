@@ -116,6 +116,21 @@ export function routeProgress(
   return best;
 }
 
+/**
+ * Split `coords` at a projected position into the stretch already travelled and the stretch
+ * remaining. Both halves include `point`, so the two lines meet without a gap.
+ */
+export function splitRoute(
+  coords: readonly L.LatLng[],
+  progress: Pick<RouteProgress, 'segIdx' | 'point'>,
+): { traveled: L.LatLng[]; remaining: L.LatLng[] } {
+  const cut = progress.segIdx + 1;
+  return {
+    traveled: [...coords.slice(0, cut), progress.point],
+    remaining: [progress.point, ...coords.slice(cut)],
+  };
+}
+
 // ── Tap pairing (pure) ────────────────────────────────────────────────────────
 
 /** One touch sample: where it happened and when. */
