@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.54.1 (2026-11-09)
+
+The route you have already covered keeps its colour instead of turning grey.
+
+### Changed
+
+- **The travelled stretch of a route fades instead of turning grey.** v0.54.0 drew it as a grey line on top of the route, which hid the travel-mode colour. It is now the route's own colour — blue, green or purple — at 85% translucency, and the full-strength line and its glow cover only the stretch ahead. A faint line on top of a solid one would not show, so the route is now cut in two at your position rather than overlaid; the two halves meet at that point with no gap. The fade follows a change of travel mode mid-route. Not yet checked on a device; if the faded stretch is too faint over satellite imagery, its opacity is one constant (#357, #358)
+
 ## v0.54.0 (2026-11-09)
 
 A lighter map on first open, and a route line that shows how much of it is behind you.
