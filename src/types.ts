@@ -21,7 +21,7 @@ export interface GuidanceState {
   route: Route | null;
   routePolyline: L.Polyline | null;
   routeGlow: L.Polyline | null;
-  /** Dimmed overlay on the part of the route already travelled. */
+  /** Translucent line for the part of the route already travelled; routePolyline/routeGlow hold the rest. */
   routeTraveled: L.Polyline | null;
   /** Index of the route segment the traveller has reached; progress only moves forward. */
   progressSegIdx: number;
