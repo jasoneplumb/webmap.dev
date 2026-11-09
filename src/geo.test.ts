@@ -8,6 +8,7 @@ import {
   isTapCandidate,
   normalizeDeg,
   pointToSegmentMeters,
+  routeProgress,
   shortestArcDeg,
 } from './geo';
 
@@ -167,5 +168,37 @@ describe('tap pairing', () => {
 
   it('uses a gap wider than Leaflet\u2019s 200ms, which is what missed iOS double-taps', () => {
     expect(isDoubleTap(at(0, 0, 0), at(0, 0, 250))).toBe(true);
+  });
+});
+
+describe('routeProgress', () => {
+  const coords = [L.latLng(0, 0), L.latLng(0, 0.01), L.latLng(0, 0.02), L.latLng(0, 0.03)];
+
+  it('returns null for degenerate routes', () => {
+    expect(routeProgress(L.latLng(0, 0), [L.latLng(0, 0)])).toBeNull();
+  });
+
+  it('projects onto the nearest segment', () => {
+    const r = routeProgress(L.latLng(0.0001, 0.015), coords)!;
+    expect(r.segIdx).toBe(1);
+    expect(r.point.lng).toBeCloseTo(0.015, 6);
+    expect(r.point.lat).toBeCloseTo(0, 6);
+  });
+
+  it('never searches behind fromSeg', () => {
+    const r = routeProgress(L.latLng(0, 0.005), coords, 2)!;
+    expect(r.segIdx).toBe(2);
+    expect(r.point.lng).toBeCloseTo(0.02, 6);
+  });
+
+  it('clamps an out-of-range fromSeg', () => {
+    expect(routeProgress(L.latLng(0, 0.029), coords, 99)!.segIdx).toBe(2);
+  });
+
+  it('scans the whole route from the start, but windows once progress has begun', () => {
+    const long = Array.from({ length: 301 }, (_, i) => L.latLng(0, i * 0.001));
+    const far = L.latLng(0, 0.2505);
+    expect(routeProgress(far, long, 0)!.segIdx).toBe(250);
+    expect(routeProgress(far, long, 1)!.segIdx).toBe(101);
   });
 });

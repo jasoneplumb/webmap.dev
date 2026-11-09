@@ -21,6 +21,10 @@ export interface GuidanceState {
   route: Route | null;
   routePolyline: L.Polyline | null;
   routeGlow: L.Polyline | null;
+  /** Dimmed overlay on the part of the route already travelled. */
+  routeTraveled: L.Polyline | null;
+  /** Index of the route segment the traveller has reached; progress only moves forward. */
+  progressSegIdx: number;
   destMarker: L.Marker | null;
   currentStepIdx: number;
   distanceToManeuverM: number | null;
@@ -129,6 +133,8 @@ export function createInitialState(): AppState {
       route: null,
       routePolyline: null,
       routeGlow: null,
+      routeTraveled: null,
+      progressSegIdx: 0,
       destMarker: null,
       currentStepIdx: 0,
       distanceToManeuverM: null,
