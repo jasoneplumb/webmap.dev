@@ -77,7 +77,7 @@ function projectOnSegment(
 }
 
 /** Furthest ahead (in segments) of the last known position that progress is searched. */
-export const ROUTE_PROGRESS_WINDOW = 100;
+const ROUTE_PROGRESS_WINDOW = 100;
 
 export interface RouteProgress {
   /** Index of the segment (coords[i]→coords[i+1]) the position projects onto. */
@@ -93,8 +93,8 @@ export interface RouteProgress {
  *
  * Forward-only keeps progress monotonic: GPS jitter never un-dims the line, and a route
  * that doubles back past its own earlier stretch cannot snap progress backwards or leap
- * to the later pass. The search is capped at ROUTE_PROGRESS_WINDOW segments for the same
- * reason. Returns null for fewer than two coordinates.
+ * to the later pass. Once progress has begun the search is capped at ROUTE_PROGRESS_WINDOW
+ * segments for the same reason. Returns null for fewer than two coordinates.
  */
 export function routeProgress(
   p: L.LatLng,
@@ -103,7 +103,9 @@ export function routeProgress(
 ): RouteProgress | null {
   if (coords.length < 2) return null;
   const start = Math.max(0, Math.min(fromSeg, coords.length - 2));
-  const end = Math.min(coords.length - 2, start + ROUTE_PROGRESS_WINDOW);
+  // Unbounded from the start: a fresh route (first fix, or a reroute whose response landed
+  // after the traveller moved on) has no trusted prior position to window around.
+  const end = start === 0 ? coords.length - 2 : Math.min(coords.length - 2, start + ROUTE_PROGRESS_WINDOW);
   let best: RouteProgress | null = null;
   for (let i = start; i <= end; i++) {
     const proj = projectOnSegment(p, coords[i]!, coords[i + 1]!);

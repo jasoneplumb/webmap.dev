@@ -194,4 +194,11 @@ describe('routeProgress', () => {
   it('clamps an out-of-range fromSeg', () => {
     expect(routeProgress(L.latLng(0, 0.029), coords, 99)!.segIdx).toBe(2);
   });
+
+  it('scans the whole route from the start, but windows once progress has begun', () => {
+    const long = Array.from({ length: 301 }, (_, i) => L.latLng(0, i * 0.001));
+    const far = L.latLng(0, 0.2505);
+    expect(routeProgress(far, long, 0)!.segIdx).toBe(250);
+    expect(routeProgress(far, long, 1)!.segIdx).toBe(101);
+  });
 });
