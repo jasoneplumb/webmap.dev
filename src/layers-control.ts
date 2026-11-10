@@ -154,6 +154,7 @@ export class LayersControl extends L.Control {
   private onBaseChange: ((baseId: string) => void) | undefined;
   private popoverEl: HTMLElement | null = null;
   private popoverOpen = false;
+  private outsideClickHandler: ((e: Event) => void) | null = null;
   private map: L.Map | null = null;
   private containerEl: HTMLElement | null = null;
 
@@ -304,15 +305,22 @@ export class LayersControl extends L.Control {
     // Position popover
     this.positionPopover();
 
-    // Close on outside click
-    const handleOutsideClick = (e: Event) => {
+    // Close on outside click. Stored on the instance so every close path can detach it.
+    this.detachOutsideClick();
+    this.outsideClickHandler = (e: Event) => {
       const target = e.target as HTMLElement;
       if (!this.popoverEl?.contains(target) && target.id !== 'layers-control-btn') {
         this.closePopover();
-        document.removeEventListener('click', handleOutsideClick);
       }
     };
-    document.addEventListener('click', handleOutsideClick);
+    document.addEventListener('click', this.outsideClickHandler);
+  }
+
+  private detachOutsideClick(): void {
+    if (this.outsideClickHandler) {
+      document.removeEventListener('click', this.outsideClickHandler);
+      this.outsideClickHandler = null;
+    }
   }
 
   private closePopover(): void {
@@ -320,6 +328,7 @@ export class LayersControl extends L.Control {
       this.popoverEl.style.display = 'none';
     }
     this.popoverOpen = false;
+    this.detachOutsideClick();
   }
 
   /** Lowest y covered by fixed chrome that paints above the popover. Only the guidance
@@ -752,6 +761,7 @@ export class LayersControl extends L.Control {
   }
 
   onRemove(): void {
+    this.detachOutsideClick();
     // L.DomEvent.off without a handler arg removes all Leaflet-managed listeners.
     if (this.containerEl) {
       L.DomEvent.off(this.containerEl);
