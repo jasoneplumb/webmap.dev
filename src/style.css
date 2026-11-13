@@ -165,6 +165,8 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   width: 0;
   height: 0;
   transform: translate(-50%, -50%) rotate(var(--heading-deg, 0deg));
+  /* White glow around the tip and stem, as the position dot has, so they lift off busy tiles. */
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.9));
 }
 
 /* White casing behind the arrowhead, so the tip survives a light or busy tile. It is the
@@ -206,6 +208,22 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-bottom: 4px solid var(--heading-arc);
+}
+
+/* Stem joining the dot to the arrowhead, so the tip reads as attached to the marker rather
+   than floating on the ring. It runs from the arrowhead base (y = -23) in to the dot's edge
+   (10px from centre); .blue-dot__inner is later in the DOM and paints over the last stretch.
+   The 1px white spread matches the tip's casing. */
+.blue-dot__tipwrap::after {
+  content: '';
+  position: absolute;
+  left: -1.5px;
+  top: -23px;
+  width: 3px;
+  height: 13px;
+  background: var(--heading-arc);
+  box-shadow: 0 0 0 1px #fff;
+  border-radius: 1.5px;
 }
 
 .blue-dot--has-heading .blue-dot__bezel,
