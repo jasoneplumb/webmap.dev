@@ -242,6 +242,11 @@ describe('startGuidance — start handler', () => {
     await startGuidance(state, makeMap(), { lat: 40.1, lng: -73.9, label: 'x' }, () => {});
     expect(started).not.toHaveBeenCalled();
   });
+
+  afterEach(async () => {
+    const { setGuidanceStartHandler } = await import('./guidance');
+    setGuidanceStartHandler(() => {});
+  });
 });
 
 describe('setGuidanceCosting', () => {

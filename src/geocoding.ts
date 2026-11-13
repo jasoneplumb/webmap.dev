@@ -740,7 +740,8 @@ export function addReverseGeocoding(
       return;
     }
     // Minimize the sheet so the map (and the followed position) is unobstructed.
-    snapTo('min');
+    // Only when guidance can actually start (it needs a fix); otherwise keep the pin card visible.
+    if (state.youAreHereLocation !== null) snapTo('min');
     void startGuidance(
       state,
       map,
