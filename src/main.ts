@@ -32,7 +32,7 @@ import { addSearchControl, addReverseGeocoding } from './geocoding';
 import { onLocationFound, onLocationError, clearLocationMarkers } from './location';
 import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
-import { addGuidanceControl, setGuidanceBannerTapHandler } from './guidance';
+import { addGuidanceControl, setGuidanceBannerTapHandler, setGuidanceStartHandler } from './guidance';
 import { addCompassControl } from './compass';
 import { isPointerDeviceNow } from './device';
 import { initBattery } from './battery';
@@ -355,6 +355,12 @@ map.getContainer().addEventListener('wheel', () => dropToPassive(false), { passi
 // only one when no route is running.
 setGuidanceBannerTapHandler(() => {
   if (state.locateState === 'passive') reactivateLocate();
+});
+
+// Starting guidance means following the user: off → active (also frames them), passive → active.
+setGuidanceStartHandler(() => {
+  if (state.locateState === 'off') startLocating();
+  else if (state.locateState === 'passive') reactivateLocate();
 });
 
 // Initialize custom layers control with free OSM tile sources

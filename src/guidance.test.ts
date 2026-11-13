@@ -222,6 +222,28 @@ describe('startGuidance — re-entry', () => {
   });
 });
 
+describe('startGuidance — start handler', () => {
+  it('invokes the registered start handler once guidance begins', async () => {
+    const { startGuidance, setGuidanceStartHandler } = await import('./guidance');
+    const state = createInitialState();
+    state.youAreHereLocation = L.latLng(40, -74);
+    mockRouteFetch();
+    const started = vi.fn();
+    setGuidanceStartHandler(started);
+    await startGuidance(state, makeMap(), { lat: 40.1, lng: -73.9, label: 'x' });
+    expect(started).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not invoke it when location is unavailable', async () => {
+    const { startGuidance, setGuidanceStartHandler } = await import('./guidance');
+    const state = createInitialState();
+    const started = vi.fn();
+    setGuidanceStartHandler(started);
+    await startGuidance(state, makeMap(), { lat: 40.1, lng: -73.9, label: 'x' }, () => {});
+    expect(started).not.toHaveBeenCalled();
+  });
+});
+
 describe('setGuidanceCosting', () => {
   it('updates the preferred costing while idle without fetching a route', async () => {
     const state = createInitialState();

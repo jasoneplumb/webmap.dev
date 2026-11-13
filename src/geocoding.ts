@@ -739,7 +739,8 @@ export function addReverseGeocoding(
       showToast('No destination set');
       return;
     }
-    snapTo('peek');
+    // Minimize the sheet so the map (and the followed position) is unobstructed.
+    snapTo('min');
     void startGuidance(
       state,
       map,

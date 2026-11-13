@@ -2,6 +2,16 @@
 
 let bannerEl: HTMLElement | null = null;
 let bannerTapHandler: (() => void) | null = null;
+let startHandler: (() => void) | null = null;
+
+/**
+ * Register what happens when the user starts guidance — turning on active follow, in
+ * practice. Injected for the same reason as the banner tap handler: guidance does not
+ * own the locate state.
+ */
+export function setGuidanceStartHandler(handler: () => void): void {
+  startHandler = handler;
+}
 
 /**
  * Register what a tap on the guidance banner does — re-centering, in practice.
@@ -284,6 +294,7 @@ export async function startGuidance(
 
   state.guidance.status = 'routing';
   state.guidance.destination = dest;
+  startHandler?.();
   render();
 
   const ac = new AbortController();
