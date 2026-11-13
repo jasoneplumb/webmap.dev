@@ -212,8 +212,9 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
 
 /* Stem joining the dot to the arrowhead, so the tip reads as attached to the marker rather
    than floating on the ring. It runs from the arrowhead base (y = -23) in to the dot's edge
-   (10px from centre); .blue-dot__inner is later in the DOM and paints over the last stretch.
-   The 1px white spread matches the tip's casing. */
+   (10px from centre), where it abuts .blue-dot__inner, which is later in the DOM and wins any
+   sub-pixel seam. The white spread is 1px rather than the tip's 1.5px, scaled to the
+   stem's 3px width. */
 .blue-dot__tipwrap::after {
   content: '';
   position: absolute;
