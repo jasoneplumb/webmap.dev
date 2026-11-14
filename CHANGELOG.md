@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.54.2 (2026-11-14)
+
+Starting navigation gets the sheet out of the way and follows you, and the heading arrow is joined to the position dot.
+
+### Changed
+
+- **Tapping Start minimizes the sheet and turns on active follow.** The sheet used to drop only to its peek height, still covering part of the map, and the map stayed wherever you had left it. Start now snaps the sheet to its minimum and switches locate to active following, from off or from passive. Follow is turned on at the tap rather than when the route comes back. If there is no GPS fix yet, guidance cannot start, so the sheet stays where it is and the pin card remains visible (#363, #365)
+- **The heading arrowhead has a white glow and a stem joining it to the position dot.** The arrowhead sat on the ring with nothing connecting it to the dot, and could get lost on busy tiles. It now carries the same white glow as the dot, and a 3px stem with a white casing runs from the arrowhead's base to the dot's edge. Not yet checked in a browser or on a device; stem length and glow want a look over light and dark tiles (#362, #364)
+
+### Fixed
+
+- **Closing the layers popover no longer leaks a click listener.** The outside-click listener was removed only when an outside click closed the popover. Closing with × or the layers button left it attached to the document, one more per open. It is now detached on every close path and when the control is removed (#335, #361)
+
 ## v0.54.1 (2026-11-09)
 
 The route you have already covered keeps its colour instead of turning grey.
