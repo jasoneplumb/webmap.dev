@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.55.0 (2026-11-15)
+
+The map can now turn to face the way you are going, and the changelog is a proper dialog you can read with the phone upright.
+
+### Added
+
+- **Direction up: tap the compass to turn the map the way you are heading.** Once the compass is enabled, tapping the compass rose switches between two orientations. North up is the default and is how the map has always behaved. Direction up turns the map so the direction on the heading ring points up the screen: travel direction while moving, the way you are facing while stopped. The map re-turns only when that direction has moved more than 5°, and it turns about your GPS position, so the blue dot stays where it is. The rose's ring is blue and thicker in direction up, and the choice is remembered. Without the compass enabled the map stays north up, and the tap that enables the compass does not also switch the orientation. Checked in a simulated phone browser, not yet on a device: touch drag and pinch while turned, and the iOS checks set out in ADR-009, are still to do. Known rough edges while turned: the map turns in steps rather than smoothly, it draws about 2.6× the tile area, hover labels tilt with the map, and the offline-download region box can extend past the screen (#366, #371, follow-up #370)
+
+### Changed
+
+- **The changelog opens as a dialog in the middle of the screen.** It was a 320px panel in the corner with small type. It is now nearly full width on a phone with larger text, titled "What's new", and opens at the newest entry. Close it with ✕, a tap outside it, or Escape (#371)
+- **The first GPS fix lands two zoom levels in from the closest zoom instead of one.** Locate now recentres at zoom 17 rather than 18, which shows more of the surrounding streets on arrival. It is still a zoom the tile providers serve directly, so the view lands on sharp tiles. Not yet checked on a device (#367, #368)
+
+### Internal
+
+- **ADR-009 records how the map is turned.** It chooses rotating an enlarged map container with our own CSS transform over `leaflet-rotate` (still GPL-3), a BSD-licensed Leaflet fork, and MapLibre GL, with the measured bundle cost of each, and it supersedes the "map does not rotate" part of ADR-006 (#369)
+- The toast, the tile-loading spinner and the offline-download panel now sit outside the map container, so they stay upright when the map is turned (#371)
+
 ## v0.54.2 (2026-11-14)
 
 Starting navigation gets the sheet out of the way and follows you, and the heading arrow is joined to the position dot.
