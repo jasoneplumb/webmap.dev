@@ -95,11 +95,24 @@ Constraints any mechanism has to meet:
 - `@tomickigrzegorz/leaflet-rotate`, until its provenance is settled.
 - MapLibre GL, on size (about 2× the cap on its own), scope (a full rewrite) and first-paint freeze risk.
 
-**Gates on Phase 3.** All of these must pass on a device before direction-up ships:
+**Gates on Phase 3.** Each must pass before direction-up ships. "iPhone" means the operator's current iPhone on its current iOS. "Android" means any Android phone on current Chrome. Each gate is pass/fail:
 
-1. **iOS freeze soak.** On iOS Safari and Edge (WKWebView), cold-start with direction-up stored, then a 10-minute rotation soak with guidance running. No white or frozen screen.
-2. **Correct under rotation.** On iOS and Android, at 45° and while rotating, these stay correct: the blue dot and heading ring, the accuracy circle, the route line, pin drop by both long-press and right-click, double-tap zoom, pinch around the fingers, and pan direction.
-3. **Tile and memory cost.** No visible tile gaps in the corners, and no memory-related reloads during a rotated ride. Offline, saved regions still fill the oversized square near their edges.
+1. **iOS freeze soak.**
+   - Devices: iPhone, in both Safari and Edge (WKWebView).
+   - Run: 10 cold starts with direction-up stored and the compass granted, then one 30-minute rotated soak with guidance running.
+   - Pass: zero white or frozen screens across all runs.
+2. **Correct under rotation.**
+   - Devices: iPhone in Safari, plus Android.
+   - Run: at a fixed 45° and during continuous heading-up rotation.
+   - Pass: these all behave as they do in north-up — the blue dot and heading ring, the accuracy circle, the route line, pin drop (long-press on touch, right-click on desktop with the spike's `?rotate=45`), double-tap zoom, pinch about the fingers, and pan following the finger.
+3. **Tile and memory cost.**
+   - Devices: iPhone in Safari, connected to the Web Inspector.
+   - Run: a 30-minute rotated ride.
+   - Pass, all of:
+     - no tile gaps visible in the corners at bearings 0°, 45°, 90° and 135°, at zooms 12, 15 and 18;
+     - no WebContent reload ("A problem repeatedly occurred");
+     - tile requests for the same pan no more than 3× the north-up count, as counted in the Network tab;
+     - offline, a saved region still fills the oversized square away from its edges.
 
 If gate 1 fails and cannot be fixed, the mechanism is rejected: try the runner-up or close Phase 3. Do not ship a direction-up mode that can freeze the app.
 
