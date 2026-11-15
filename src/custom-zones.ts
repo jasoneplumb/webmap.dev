@@ -339,6 +339,7 @@ export function createCustomZonesOverlay(showToast: (msg: string, durationMs?: n
       const deg = bearingDeg(a, b);
       layers.addLayer(L.marker(midpoint, {
         icon: L.divIcon({
+          // Listed in ROTATES_WITH_MAP (map-orientation.ts): a map-space bearing.
           className: 'custom-zone-arrow',
           html: `<span class="custom-zone-arrow__glyph" aria-hidden="true" style="--heading-deg: ${deg}deg">▲</span>`,
           iconSize: [16, 16],

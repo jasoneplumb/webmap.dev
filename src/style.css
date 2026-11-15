@@ -1446,6 +1446,10 @@ body.map-rotated { overflow: hidden; }
   z-index: 2000;
   font-family: system-ui, sans-serif;
   font-size: 14px;
+  /* Stated here because the panel used to inherit both from .leaflet-container as a child
+     of #map; it now lives on <body> so it does not turn with the map. */
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
 

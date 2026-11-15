@@ -30,7 +30,13 @@ import {
 
 const MODE_STORAGE_KEY = 'webmap-orientation-mode';
 
-/** Markers that draw a bearing in map space and must turn WITH the map, not stay upright. */
+/**
+ * Markers that draw a bearing in map space and must turn WITH the map, not stay upright.
+ * Matched by divIcon className, so this list is a contract with the three places that
+ * create them: location.ts (blue-dot), cue-events.ts (cue-heading-arrow) and
+ * custom-zones.ts (custom-zone-arrow). A new marker that draws a map-space bearing must
+ * be added here, or it will be counter-rotated and point the wrong way in direction-up.
+ */
 const ROTATES_WITH_MAP = ['blue-dot', 'cue-heading-arrow', 'custom-zone-arrow'];
 
 /** Bearing currently applied to the container; 0 whenever rotation is off. */
@@ -262,8 +268,15 @@ export function attachMapOrientation(map: L.Map): void {
     return L.point(p.x - container.clientLeft, p.y - container.clientTop);
   };
 
+  // One geometry pass per frame: iOS fires resize repeatedly while the URL bar and the
+  // keyboard animate, and each pass is a synchronous invalidateSize().
+  let resizeRaf: number | null = null;
   window.addEventListener('resize', () => {
-    if (rotationOn) applyGeometry(map);
+    if (!rotationOn || resizeRaf !== null) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      if (rotationOn) applyGeometry(map);
+    });
   });
 }
 
