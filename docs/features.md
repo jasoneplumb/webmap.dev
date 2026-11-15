@@ -22,7 +22,7 @@ The "Locate" text label is shown on first load for discoverability and collapses
 
 Above walking pace it follows your GPS course, so the arrow sits inline with your direction of travel. Below it, GPS stops reporting a course at all, and the ring switches to the device compass to show which way you are facing — blue for travel, amber for facing, so the two claims are never confused. With neither available the ring hides rather than point somewhere stale.
 
-The map itself never rotates — north stays up.
+**Map orientation.** North is up by default. With the compass enabled, tapping the compass rose switches to **direction up**, where the map turns so the direction on the heading ring points up the screen; tap again for north up. See [Device-Orientation Compass](#device-orientation-compass).
 
 **Accuracy circle.**
 
@@ -89,6 +89,13 @@ The mode chip in the pill shows the active profile.
 
 If you unticked it, or your install predates the option, tap the compass rose and allow the prompt.
 
+**North up and direction up.** Once the compass is enabled, tapping the rose switches the map between two orientations:
+
+- **North up** (default) — the map does not turn. This is how the app behaved before the choice existed.
+- **Direction up** — the map turns so your direction points up the screen. It uses the same direction as the heading ring: travel direction while moving, the way you are facing while stopped. The map re-turns only when that direction has moved more than 5° from what is on screen, and it turns about your GPS position, so the blue dot stays where it is.
+
+The rose's ring is blue and thicker in direction up. The choice is remembered across reloads. Without the compass enabled the map is always north up, and the tap that enables the compass does not also switch the orientation. On a desktop or laptop, where there is no rose, the map is always north up.
+
 **One direction, two sources.** There is a single indicator, not two competing ones. Moving, it shows GPS course; stopped, it shows device facing. While moving, the compass is ignored even when available — your phone can be in a bar bag or pocket, pointing nowhere near your direction of travel, and travel is the useful answer then.
 
 **Heading source.** Prefers iOS's `webkitCompassHeading` (true-north calibrated, clockwise). Falls back to the W3C `alpha` (anti-clockwise, flipped to clockwise) and the `deviceorientationabsolute` event when available.
@@ -98,6 +105,9 @@ If you unticked it, or your install predates the option, tap the compass rose an
 - Desktop platforms with no `DeviceOrientationEvent` hide the rose entirely.
 - iOS-13+ permission must be requested from a user gesture; the prompt is silently suppressed if you call from a timer.
 - Magnetic interference (cars, cases with magnets, indoor steel) can throw the heading off — a calibration figure-8 helps.
+- Direction up draws a larger map than the screen so the corners stay filled while it is turned — about 2.6× the tile area on a phone in portrait, with matching data and memory use.
+- In direction up the map turns in steps, not as a smooth animation, and does not turn before the first GPS fix.
+- In direction up, hover labels on overlay features are tilted with the map, a popup tilts briefly while zooming, and hillshade lighting turns with the map.
 
 ---
 

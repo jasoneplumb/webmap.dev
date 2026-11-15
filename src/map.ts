@@ -632,8 +632,9 @@ export function createMap(): L.Map {
 
       if (isDoubleTap(previousTap, current)) {
         e.preventDefault();
-        const rect = container.getBoundingClientRect();
-        const point = L.point(current.x - rect.left, current.y - rect.top);
+        // Through the map's own conversion rather than the bounding rect: while the map is
+        // turned (direction-up) the rect of a rotated square is not Leaflet's container frame.
+        const point = map.mouseEventToContainerPoint({ clientX: current.x, clientY: current.y } as MouseEvent);
         // ?? 1 only satisfies the optional type: zoomDelta is set explicitly above, and
         // reading it here rather than hard-coding 1 keeps this gesture tied to the same
         // step the buttons and keyboard use.

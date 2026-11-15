@@ -34,6 +34,12 @@ import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
 import { addGuidanceControl, setGuidanceBannerTapHandler, setGuidanceStartHandler } from './guidance';
 import { addCompassControl } from './compass';
+import {
+  attachMapOrientation,
+  installRotationPatches,
+  loadOrientationMode,
+  updateMapOrientation,
+} from './map-orientation';
 import { isPointerDeviceNow } from './device';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
@@ -109,6 +115,10 @@ try {
 } catch { /* localStorage unavailable */ }
 
 const state = createInitialState();
+state.orientationMode = loadOrientationMode();
+// Before createMap(): the patches go on Leaflet prototypes and must precede every marker,
+// popup and draggable. They change nothing until direction-up first turns the map.
+installRotationPatches();
 const map = createMap();
 
 // Dev-only handle on the map, used by scripts/capture-screenshots.mjs to frame
@@ -691,6 +701,11 @@ window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
 
 initOfflineTileFallback(showToast);
+
+// Map orientation (north-up / direction-up, ADR-009). Attached last so every control already
+// exists when direction-up first moves them into the unrotated layer.
+attachMapOrientation(map);
+updateMapOrientation(state);
 
 // ── Screen-off optimization ───────────────────────────────────────────────────
 // Suppress map rendering and UI updates when the screen is off to reduce

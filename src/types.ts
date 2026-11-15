@@ -8,6 +8,7 @@ import type L from 'leaflet';
 import type { Keepalive } from './keepalive';
 import type { Costing, Route } from './routing';
 import type { OrientationPermission } from './orientation';
+import type { MapOrientationMode } from './map-rotation';
 
 // Three-state location button: off → active (following) → passive (dot visible, not following)
 export type LocateState = 'off' | 'active' | 'passive';
@@ -72,6 +73,10 @@ export interface AppState {
   // Heading currently DRAWN on the position marker, kept separately from the sources above so
   // the indicator can ease toward a new bearing instead of snapping to it.
   shownHeadingDeg: number | null;
+  // The user's map orientation choice, loaded from localStorage at startup. It is the stored
+  // choice, not what is on screen: direction-up only takes effect while the compass is
+  // granted (effectiveOrientationMode in map-rotation.ts). Read by map-orientation.ts.
+  orientationMode: MapOrientationMode;
 
   // Hysteresis state for GPS weak-signal badge — prevents flicker in marginal signal
   gpsWeakStreak: number;        // consecutive fixes with accuracy > TRAIL_MAX_ACCURACY_M
@@ -116,6 +121,7 @@ export function createInitialState(): AppState {
     compassPermission: 'unknown',
     compassHeadingDeg: null,
     shownHeadingDeg: null,
+    orientationMode: 'north-up',
     gpsWeakStreak: 0,
     gpsStrongStreak: 0,
     gpsWeakBadgeVisible: false,

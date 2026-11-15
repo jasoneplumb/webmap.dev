@@ -14,6 +14,7 @@ import {
   selectHeading,
   smoothHeadingDeg,
 } from './heading';
+import { updateMapOrientation } from './map-orientation';
 
 let lastUpdateMs: number | null = null;
 let rafHandle: number | null = null;
@@ -72,6 +73,10 @@ export function updateHeadingIndicator(state: AppState, nowMs: number = performa
   // Facing and travelling are different claims, so they are drawn differently — see
   // .blue-dot--heading-facing in style.css.
   el.classList.toggle('blue-dot--heading-facing', choice.source === 'compass');
+
+  // In direction-up the map follows the heading just drawn. The marker turns with the map,
+  // so --heading-deg stays a map-space angle and needs no correction here.
+  updateMapOrientation(state);
 }
 
 /**

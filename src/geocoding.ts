@@ -1193,8 +1193,11 @@ export function addReverseGeocoding(
     longPressTimer = setTimeout(() => {
       longPressTimer = undefined;
       if (contextmenuFired) return;
-      const mapRect = mapContainer.getBoundingClientRect();
-      const point = L.point(longPressStartX - mapRect.left, longPressStartY - mapRect.top);
+      // The map's own conversion handles a turned container (direction-up); the bounding
+      // rect of a rotated square is not Leaflet's container frame.
+      const point = map.mouseEventToContainerPoint(
+        { clientX: longPressStartX, clientY: longPressStartY } as MouseEvent,
+      );
       const latlng = map.containerPointToLatLng(point);
       dropPin(latlng);
     }, LONG_PRESS_MS);

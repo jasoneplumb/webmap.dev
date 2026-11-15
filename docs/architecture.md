@@ -156,7 +156,14 @@ Four implementation details matter:
 3. **Two clocks, one element.** Fixes arrive around 1 Hz and orientation events around 60 Hz, so `heading-indicator.ts` owns the drawing and coalesces orientation-driven writes to one per frame.
 4. **Two-stage filtering.** `compass.ts` low-passes the raw magnetometer to reject jitter; `heading-indicator.ts` eases the drawn angle along the shortest arc so a heading crossing north turns 20° forward rather than 340° backward.
 
-The map itself does **not** rotate; this was the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md). Its reasons for rejecting rotation have since been re-examined in [ADR-009](adr/ADR-009-map-rotation-mechanism.md), which chooses a mechanism (turning an oversized container) for the planned direction-up mode of #366. Until that ships, north stays up.
+**Map orientation (`map-rotation.ts` + `map-orientation.ts`).** North-up is the default and leaves Leaflet untouched. Direction-up, chosen by tapping the enabled compass rose and stored in `localStorage`, turns the map so the heading drawn on the ring points up the screen. The mechanism is the one [ADR-009](adr/ADR-009-map-rotation-mechanism.md) chose, superseding the "map does not rotate" part of [ADR-006](adr/ADR-006-routed-guidance.md):
+
+1. **Oversized container.** While turned, `#map` is a square as wide as the viewport diagonal, rotated about the viewport centre with a CSS transform. Leaflet keeps working in the unrotated container frame, so tiles, the route line, the accuracy circle and the heading ring are correct with no changes.
+2. **Patched edges.** Pointer input is mapped back into the container frame (`mouseEventToContainerPoint`, drag offsets), and markers and popups are counter-rotated to stay upright. These reach into Leaflet private methods under the same exact-version pin as the `GridLayer` patches. The Leaflet controls move into an unrotated sibling layer the first time the map turns.
+3. **Bearing rule.** `heading-indicator.ts` calls `updateMapOrientation()` after drawing. The pure rules live in `map-rotation.ts`: direction-up is effective only with a compass grant; the bearing follows `state.shownHeadingDeg` but only steps when it differs by more than 5° (`BEARING_STEP_DEG`); and each step pans the map so the GPS position stays fixed on screen.
+4. **Not at first paint.** The transform composites `#map`, which the iOS render-freeze note in `style.css` warns about at first paint. The map only turns after a compass grant and a heading, both of which arrive later.
+
+ADR-009 lists on-device gates for this mode and the defects still open under rotation (tilted tooltips, popups during zoom animation, `getSize()` consumers seeing the oversized square).
 
 **GPS weak-signal hysteresis.** A badge surfaces in the UI when fixes degrade. Two-fix streaks debounce the badge in either direction with a deadband (25–30 m) so flickering signal doesn't toggle the badge.
 
@@ -200,7 +207,7 @@ idle ──Navigate-here──▶ routing ──route-fetched──▶ guiding
 
 ## 6. Device-Orientation Compass (`compass.ts` + `orientation.ts`)
 
-A bottom-left SVG compass rose rotates by `-deviceHeading` so true north stays at the top. Its heading is no longer only its own: every reading is low-passed into `state.compassHeadingDeg`, which the heading ring uses as its source while the user is stationary (see [ADR-008](adr/ADR-008-heading-source-selection.md)). Before that, the rose read a true-north heading and spent it entirely on a 38 px glyph.
+A bottom-left SVG compass rose rotates by `-deviceHeading` so true north stays at the top. Once enabled, a tap on it toggles the map between north-up and direction-up (see Map orientation above). Its heading is no longer only its own: every reading is low-passed into `state.compassHeadingDeg`, which the heading ring uses as its source while the user is stationary (see [ADR-008](adr/ADR-008-heading-source-selection.md)). Before that, the rose read a true-north heading and spent it entirely on a 38 px glyph.
 
 **Permission gate.** iOS 13+ requires `DeviceOrientationEvent.requestPermission()` to be called from a user gesture, which is why the compass cannot simply default to on. The first-run consent modal carries a preselected compass row and fires the request from inside its accept handler, so the grant rides on a tap the user already makes; the request is handed back to `main.ts` unresolved, because awaiting an OS prompt on the boot path would leave a blank page. Tapping the rose still works for anyone who declined, and a returning opt-in is retried without a gesture, which some platforms refuse, leaving the rose exactly as it was. `compass.ts` caches the outcome on `state.compassPermission` and only subscribes to events if `'granted'`. Non-iOS browsers (no `requestPermission` static method) skip the prompt and return `'granted'` immediately. Desktop platforms with no `DeviceOrientationEvent` are detected at `onAdd` time and the button hides itself.
 
@@ -331,7 +338,7 @@ These patterns work together to keep webmap.dev small, responsive, and offline-t
 1. **Single state** keeps the codebase simple and type-safe.
 2. **Refcount** lets locate and guidance share GPS without coordination.
 3. **Three-state locate button** matches the user's mental model of "follow / look / off".
-4. **Haversine filter + heading ring** clean up GPS noise and show direction without rotating the map.
+4. **Haversine filter + heading ring** clean up GPS noise and show direction; an optional direction-up mode turns the map to match.
 5. **Guidance state machine** owns the routing → guiding ↔ off-route → arrived lifecycle.
 6. **Device-orientation compass** supplies the heading ring's source while stationary.
 7. **Keepalive** keeps GPS flowing with the screen off on iOS.
