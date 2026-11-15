@@ -156,7 +156,7 @@ Four implementation details matter:
 3. **Two clocks, one element.** Fixes arrive around 1 Hz and orientation events around 60 Hz, so `heading-indicator.ts` owns the drawing and coalesces orientation-driven writes to one per frame.
 4. **Two-stage filtering.** `compass.ts` low-passes the raw magnetometer to reject jitter; `heading-indicator.ts` eases the drawn angle along the shortest arc so a heading crossing north turns 20° forward rather than 340° backward.
 
-The map itself does **not** rotate; this is the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md), chosen over `leaflet-rotate` (GPL-3 license clash) and CSS-transform rotation (per-overlay coordinate inversion).
+The map itself does **not** rotate; this was the explicit trade-off in [ADR-006](adr/ADR-006-routed-guidance.md). Its reasons for rejecting rotation have since been re-examined in [ADR-009](adr/ADR-009-map-rotation-mechanism.md), which chooses a mechanism (turning an oversized container) for the planned direction-up mode of #366. Until that ships, north stays up.
 
 **GPS weak-signal hysteresis.** A badge surfaces in the UI when fixes degrade. Two-fix streaks debounce the badge in either direction with a deadband (25–30 m) so flickering signal doesn't toggle the badge.
 
