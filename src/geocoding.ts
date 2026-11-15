@@ -11,6 +11,7 @@ import { onGuidanceRender, setGuidanceCosting, startGuidance, stopGuidance } fro
 import type { Costing } from './routing';
 import { escapeHtml } from './html';
 import { isPointerDeviceNow } from './device';
+import { clientToContainerPoint } from './map-orientation';
 
 function createNumberedIcon(n: number): L.DivIcon {
   return L.divIcon({
@@ -1193,11 +1194,7 @@ export function addReverseGeocoding(
     longPressTimer = setTimeout(() => {
       longPressTimer = undefined;
       if (contextmenuFired) return;
-      // The map's own conversion handles a turned container (direction-up); the bounding
-      // rect of a rotated square is not Leaflet's container frame.
-      const point = map.mouseEventToContainerPoint(
-        { clientX: longPressStartX, clientY: longPressStartY } as MouseEvent,
-      );
+      const point = clientToContainerPoint(map, longPressStartX, longPressStartY);
       const latlng = map.containerPointToLatLng(point);
       dropPin(latlng);
     }, LONG_PRESS_MS);

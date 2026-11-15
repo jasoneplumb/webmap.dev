@@ -11,6 +11,7 @@ import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid
 import { OSM_TILE_CACHE_NAME, REGION_TILE_CACHE_NAME } from './sw-constants';
 import { hasSavedLayer, savedRegionCoversTile } from './offline-regions';
 import { sourceCredit } from './attribution';
+import { clientToContainerPoint } from './map-orientation';
 
 /** Leaflet grid-layer internals that @types/leaflet doesn't declare.
  *
@@ -634,9 +635,7 @@ export function createMap(): L.Map {
 
       if (isDoubleTap(previousTap, current)) {
         e.preventDefault();
-        // Through the map's own conversion rather than the bounding rect: while the map is
-        // turned (direction-up) the rect of a rotated square is not Leaflet's container frame.
-        const point = map.mouseEventToContainerPoint({ clientX: current.x, clientY: current.y } as MouseEvent);
+        const point = clientToContainerPoint(map, current.x, current.y);
         // ?? 1 only satisfies the optional type: zoomDelta is set explicitly above, and
         // reading it here rather than hard-coding 1 keeps this gesture tied to the same
         // step the buttons and keyboard use.

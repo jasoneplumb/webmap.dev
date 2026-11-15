@@ -204,7 +204,13 @@ function applyGeometry(map: L.Map): void {
   map.invalidateSize();
 }
 
-/** Re-run the upright counter-rotation on everything already placed. */
+/**
+ * Re-run the upright counter-rotation on everything already placed.
+ *
+ * map.eachLayer() reaches markers inside a LayerGroup or FeatureGroup too (the dropped pin,
+ * search results, cue markers): LayerGroup.onAdd and LayerGroup.addLayer both hand every
+ * child to map.addLayer(), which registers it in the map's own layer table.
+ */
 function refreshUpright(map: L.Map): void {
   map.eachLayer((layer) => {
     // Marker.update() re-runs _setPos; @types/leaflet omits it.
@@ -246,6 +252,19 @@ function setRotation(map: L.Map, on: boolean, deg: number, pivot: L.LatLng | nul
     map.panBy([pan.x, pan.y], { animate: false });
   }
   refreshUpright(map);
+}
+
+/**
+ * Container point for a client (viewport) position, correct at any bearing.
+ *
+ * For callers that hold raw touch coordinates rather than a MouseEvent — double-tap zoom and
+ * long-press pin drop. The bounding rect of a rotated square is not Leaflet's container
+ * frame, so they must not subtract it themselves. mouseEventToContainerPoint reads only
+ * clientX and clientY, which is what makes the narrowed argument sound.
+ */
+export function clientToContainerPoint(map: L.Map, clientX: number, clientY: number): L.Point {
+  const position: Pick<MouseEvent, 'clientX' | 'clientY'> = { clientX, clientY };
+  return map.mouseEventToContainerPoint(position as MouseEvent);
 }
 
 /** Instance wiring. Call once, after createMap(). */
