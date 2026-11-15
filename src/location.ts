@@ -44,6 +44,8 @@ const BLUE_DOT_HTML =
   '<div class="blue-dot__inner"></div>';
 
 const BLUE_DOT_ICON = L.divIcon({
+  // 'blue-dot' is listed in ROTATES_WITH_MAP (map-orientation.ts): the heading ring is a
+  // map-space bearing, so this marker turns with the map in direction-up.
   className: 'blue-dot',
   html: BLUE_DOT_HTML,
   iconSize: [16, 16],

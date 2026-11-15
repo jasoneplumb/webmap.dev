@@ -11,6 +11,7 @@ import { createTileGridLayer, geometryOf, type TileGridLayer } from './tile-grid
 import { OSM_TILE_CACHE_NAME, REGION_TILE_CACHE_NAME } from './sw-constants';
 import { hasSavedLayer, savedRegionCoversTile } from './offline-regions';
 import { sourceCredit } from './attribution';
+import { clientToContainerPoint } from './map-orientation';
 
 /** Leaflet grid-layer internals that @types/leaflet doesn't declare.
  *
@@ -320,7 +321,9 @@ export function createMap(): L.Map {
   };
 
   const loadingIndicator = createLoadingIndicator();
-  map.getContainer().appendChild(loadingIndicator);
+  // On <body>, not inside the map container: the container is an oversized, rotated square
+  // in direction-up, and the spinner belongs in the corner of the screen, not of that square.
+  document.body.appendChild(loadingIndicator);
 
   map.on('loading', () => {
     if (loadingTimer !== undefined) clearTimeout(loadingTimer);
@@ -632,8 +635,7 @@ export function createMap(): L.Map {
 
       if (isDoubleTap(previousTap, current)) {
         e.preventDefault();
-        const rect = container.getBoundingClientRect();
-        const point = L.point(current.x - rect.left, current.y - rect.top);
+        const point = clientToContainerPoint(map, current.x, current.y);
         // ?? 1 only satisfies the optional type: zoomDelta is set explicitly above, and
         // reading it here rather than hard-coding 1 keeps this gesture tied to the same
         // step the buttons and keyboard use.

@@ -1,5 +1,9 @@
 // Compass widget — bottom-left SVG rose that rotates by -deviceHeading so N points at true north.
 //
+// Once the compass is enabled, a tap on the rose switches the map between north-up and
+// direction-up (#366, ADR-009). The rose itself keeps answering "where is north relative to
+// the device" in both modes; map-orientation.ts owns turning the map.
+//
 // The rose is no longer the only consumer of the heading: every reading is low-passed into
 // state.compassHeadingDeg, which heading-indicator.ts uses to give a standing user a direction
 // at all. Before this, the heading was read and then spent entirely on a 38 px glyph.
@@ -15,6 +19,7 @@ import {
 } from './heading';
 import { scheduleHeadingIndicatorUpdate } from './heading-indicator';
 import { isPointerDeviceNow } from './device';
+import { toggleOrientationMode, updateMapOrientation } from './map-orientation';
 
 const COMPASS_HTML = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <circle cx="20" cy="20" r="18" fill="rgba(255,255,255,0.92)" stroke="#444" stroke-width="1.5"/>
@@ -114,13 +119,25 @@ export function addCompassControl(map: L.Map, state: AppState): CompassControl {
     button.setAttribute('aria-label', title);
   }
 
+  /** Show which orientation a tap on the enabled rose has selected, and what the next tap does. */
+  function reflectOrientationMode(): void {
+    if (button === null) return;
+    const directionUp = state.orientationMode === 'direction-up';
+    button.classList.toggle('compass-rose--direction-up', directionUp);
+    const label = directionUp
+      ? 'Compass: direction up. Tap for north up'
+      : 'Compass: north up. Tap for direction up';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', String(directionUp));
+  }
+
   function startStreaming(): void {
     if (unsubscribe !== null) return;
     if (button !== null) {
       button.classList.remove('compass-rose--unavailable');
       button.classList.add('compass-rose--active');
-      button.title = 'Compass';
-      button.setAttribute('aria-label', 'Compass');
+      reflectOrientationMode();
     }
     unsubscribe = subscribeOrientation((heading) => {
       // First reading lands directly; easing from a null start would sweep in from north.
@@ -142,6 +159,9 @@ export function addCompassControl(map: L.Map, state: AppState): CompassControl {
     } else {
       markUnavailable(permission === 'denied' ? 'Compass permission denied' : 'Compass not supported');
     }
+    // A stored direction-up takes effect with the grant and lapses without one. With no
+    // heading drawn yet this changes nothing; the first reading turns the map.
+    updateMapOrientation(state);
   }
 
   const Control = L.Control.extend({
@@ -165,7 +185,13 @@ export function addCompassControl(map: L.Map, state: AppState): CompassControl {
       // Still tappable, and still the whole story for anyone who declined the opt-in or
       // whose install predates it.
       L.DomEvent.on(button, 'click', () => {
-        if (state.compassPermission === 'granted') return;
+        // Enabled: the tap switches north-up / direction-up. Not enabled: the tap asks for
+        // the compass and nothing else — the granting tap never also flips the mode.
+        if (state.compassPermission === 'granted') {
+          toggleOrientationMode(state);
+          reflectOrientationMode();
+          return;
+        }
         void requestOrientationPermission().then(applyPermission);
       });
 

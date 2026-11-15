@@ -43,6 +43,8 @@ src/
   ├── location.ts           # GPS locationfound handler + heading ring
   ├── heading.ts            # Pure heading-source selection + shortest-arc smoothing
   ├── heading-indicator.ts  # Writes the chosen heading onto the position marker
+  ├── map-rotation.ts       # Pure rotation geometry + north-up / direction-up rules
+  ├── map-orientation.ts    # Turns the map for direction-up (oversized container + Leaflet patches)
   ├── guidance.ts           # Turn-by-turn navigation state machine + pill UI
   ├── routing.ts            # Valhalla client + polyline6 decoder
   ├── geo.ts                # haversineDistance, bearingDeg, normalizeDeg, shortestArcDeg, pointToSegmentMeters
@@ -60,6 +62,8 @@ docs/adr/                    # Architecture Decision Records
 **GPS polling uses a refcount** (`updateCallback: number`) so locate, guidance, and other consumers can independently request/release the watch without stepping on each other. See [ADR-002](docs/adr/ADR-002-refcount-gps-polling.md).
 
 **One heading indicator, two sources.** `selectHeading()` in `heading.ts` picks GPS course above 0.5 m/s and the device compass below it; `heading-indicator.ts` draws it. The compass grant rides on the first-run consent tap because iOS will not grant orientation without a user gesture. See [ADR-008](docs/adr/ADR-008-heading-source-selection.md).
+
+**Two map orientations.** North-up is the default and leaves Leaflet untouched. Tapping the enabled compass rose switches to direction-up, where `map-orientation.ts` rotates an oversized `#map` with a CSS transform so the drawn heading points up; it steps only on a change of more than 5° and pivots about the GPS position. The choice is `state.orientationMode`, stored in `localStorage`; it is effective only with a compass grant. Rotation math and mode rules are pure functions in `map-rotation.ts`. See [ADR-009](docs/adr/ADR-009-map-rotation-mechanism.md).
 
 ## Notes
 

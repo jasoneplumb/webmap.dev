@@ -461,6 +461,7 @@ export function createCueEventsOverlay(
           // heading_deg is parse-validated finite, safe to interpolate.
           group.addLayer(L.marker(latlng, {
             icon: L.divIcon({
+              // Listed in ROTATES_WITH_MAP (map-orientation.ts): a map-space bearing.
               className: 'cue-heading-arrow',
               html: `<span class="cue-heading-arrow__glyph" aria-hidden="true" style="--heading-deg: ${props.heading_deg}deg">▲</span>`,
               iconSize: [16, 16],

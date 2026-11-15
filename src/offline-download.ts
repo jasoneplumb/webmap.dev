@@ -831,7 +831,9 @@ export function openOfflineDownloadPanel(
   }
   _downloadState = 'selecting';
   _panelEl = buildPanel(map, showToast);
-  document.getElementById('map')?.appendChild(_panelEl);
+  // On <body>, not inside #map: the map container is an oversized, rotated square in
+  // direction-up, and a panel inside it would turn and be positioned against that square.
+  document.body.appendChild(_panelEl);
   _controlEl?.classList.add(CONTROL_ACTIVE_CLASS);
 }
 

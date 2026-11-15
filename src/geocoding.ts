@@ -11,6 +11,7 @@ import { onGuidanceRender, setGuidanceCosting, startGuidance, stopGuidance } fro
 import type { Costing } from './routing';
 import { escapeHtml } from './html';
 import { isPointerDeviceNow } from './device';
+import { clientToContainerPoint } from './map-orientation';
 
 function createNumberedIcon(n: number): L.DivIcon {
   return L.divIcon({
@@ -1193,8 +1194,7 @@ export function addReverseGeocoding(
     longPressTimer = setTimeout(() => {
       longPressTimer = undefined;
       if (contextmenuFired) return;
-      const mapRect = mapContainer.getBoundingClientRect();
-      const point = L.point(longPressStartX - mapRect.left, longPressStartY - mapRect.top);
+      const point = clientToContainerPoint(map, longPressStartX, longPressStartY);
       const latlng = map.containerPointToLatLng(point);
       dropPin(latlng);
     }, LONG_PRESS_MS);
