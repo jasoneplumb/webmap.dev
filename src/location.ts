@@ -19,15 +19,15 @@ export const TRAIL_MAX_ACCURACY_M = 30;
 
 /**
  * Zoom the map lands on at the first GPS fix of a locate activation — the app's
- * default working zoom. One level in from MAX_ZOOM, written as that subtraction
+ * default working zoom. Two levels in from MAX_ZOOM, written as that subtraction
  * rather than as the number, so raising the ceiling carries the default up with
- * it instead of silently leaving it two levels adrift.
+ * it instead of silently leaving it adrift.
  *
- * That level is also each layer's maxNativeZoom, so arriving costs native tiles:
- * the one level the providers do not serve is the one above this, which Leaflet
- * upscales. The default lands at the deepest zoom that is still sharp.
+ * That is one level below each layer's maxNativeZoom (MAX_ZOOM - 1), so the
+ * landing view still uses native tiles, never Leaflet's upscaled ones. The extra
+ * level out shows more surrounding context than the deepest native zoom would.
  */
-export const INITIAL_FIX_ZOOM = MAX_ZOOM - 1;
+export const INITIAL_FIX_ZOOM = MAX_ZOOM - 2;
 
 /** Consecutive stationary fixes before switching to low-accuracy GPS to save battery. */
 const STATIONARY_THRESHOLD = 5;
