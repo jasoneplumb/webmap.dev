@@ -15,7 +15,6 @@ describe('INITIAL_FIX_ZOOM', () => {
     // arriving uses native tiles rather than an upscale. If the ceiling ever moves without
     // maxNativeZoom moving with it, this is where that shows up.
     expect(INITIAL_FIX_ZOOM).toBeLessThanOrEqual(MAX_ZOOM - 1);
-    expect(INITIAL_FIX_ZOOM).toBeLessThan(MAX_ZOOM);
     expect(INITIAL_FIX_ZOOM).toBeGreaterThan(2); // the map's minZoom
   });
 });

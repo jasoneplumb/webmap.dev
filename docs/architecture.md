@@ -19,7 +19,7 @@ export interface AppState {
 
   // GPS watch refcount — each consumer (locate, guidance) increments by 1
   updateCallback: number;
-  initialZoom: boolean;             // zoom-to-16 on first fix only
+  initialZoom: boolean;             // recentre at INITIAL_FIX_ZOOM (MAX_ZOOM - 2) on first fix only
 
   // Live blue dot + accuracy circle
   locationMarker: L.Marker | null;
