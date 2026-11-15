@@ -320,7 +320,9 @@ export function createMap(): L.Map {
   };
 
   const loadingIndicator = createLoadingIndicator();
-  map.getContainer().appendChild(loadingIndicator);
+  // On <body>, not inside the map container: the container is an oversized, rotated square
+  // in direction-up, and the spinner belongs in the corner of the screen, not of that square.
+  document.body.appendChild(loadingIndicator);
 
   map.on('loading', () => {
     if (loadingTimer !== undefined) clearTimeout(loadingTimer);

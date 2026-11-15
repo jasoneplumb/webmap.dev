@@ -160,7 +160,11 @@ function detachControls(map: L.Map): void {
   const controls = (map as unknown as MapInternals)._controlContainer;
   if (!controls || controls.parentElement?.classList.contains('map-ui-layer')) return;
   const container = map.getContainer();
-  const ui = L.DomUtil.create('div', 'leaflet-container map-ui-layer', document.body);
+  // Directly after #map rather than at the end of <body>: overlays appended to <body> later
+  // (the toast, dialogs) share z-index levels with the controls and rely on DOM order to
+  // paint above them, as they did when the controls were inside the map.
+  const ui = L.DomUtil.create('div', 'leaflet-container map-ui-layer');
+  container.insertAdjacentElement('afterend', ui);
   for (const cls of ['leaflet-touch', 'leaflet-retina']) {
     if (container.classList.contains(cls)) ui.classList.add(cls);
   }

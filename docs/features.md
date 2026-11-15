@@ -261,8 +261,8 @@ The audio is silent (zero-amplitude buffer); no sound plays. Both mechanisms are
 **How to use:**
 
 1. Tap the **version badge** (e.g., `v0.31.4-beta`) in the bottom-left thumb cluster.
-2. A scrollable panel slides in listing every release with its changes.
-3. Dismiss by tapping the badge again, the **✕** button, the panel backdrop, or pressing Escape.
+2. A dialog opens in the middle of the screen listing every release with its changes, newest first. It is nearly full width on a phone, scrolls, and stays upright whichever way the map is turned.
+3. Dismiss with the **✕** button, a tap outside the dialog, or Escape.
 
 The changelog content is bundled at build time from `CHANGELOG.md` — it reflects the version of the app you have installed.
 

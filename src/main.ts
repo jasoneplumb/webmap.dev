@@ -247,7 +247,9 @@ function showToast(message: string, durationMs = 3000): void {
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'locate-toast';
-    document.getElementById('map')?.appendChild(toast);
+    // On <body>, not inside #map: the map container turns in direction-up, and a toast
+    // inside it would turn and shift with it. Same box either way while north-up.
+    document.body.appendChild(toast);
   }
   if (toastTimer !== undefined) {
     clearTimeout(toastTimer);
@@ -614,16 +616,20 @@ if (!bottomLeftCluster) {
 }
 bottomLeftCluster.appendChild(versionBadge);
 
-const changelogPanel = document.createElement('div');
-changelogPanel.id = 'changelog-panel';
-changelogPanel.setAttribute('role', 'dialog');
-changelogPanel.setAttribute('aria-label', 'Changelog');
-changelogPanel.setAttribute('aria-hidden', 'true');
+// A native modal <dialog> on <body>, not a panel inside #map. Inside the map it turned with
+// the map in direction-up, and its fixed positioning resolved against the rotated container.
+// showModal() puts it in the top layer, which no ancestor transform or z-index can reach,
+// and brings the focus trap, Escape and the backdrop with it.
+const changelogDialog = document.createElement('dialog');
+changelogDialog.id = 'changelog-panel';
+changelogDialog.setAttribute('aria-labelledby', 'changelog-panel__title');
 
 function renderChangelog(md: string): string {
   return md
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .split('\n')
+    // The file's own "# Changelog" heading is the dialog title; do not repeat it as body text.
+    .filter(line => !/^# /.test(line))
     .map(line => {
       if (/^## /.test(line)) return `<h2>${line.slice(3)}</h2>`;
       if (/^### /.test(line)) return `<h3>${line.slice(4)}</h3>`;
@@ -636,30 +642,28 @@ function renderChangelog(md: string): string {
     .join('');
 }
 
-changelogPanel.innerHTML = `<div id="changelog-panel__inner"><button id="changelog-panel__close" aria-label="Close changelog">✕</button><div id="changelog-panel__body">${renderChangelog(changelogRaw)}</div></div>`;
-document.getElementById('map')?.appendChild(changelogPanel);
-
-function openChangelog(): void {
-  changelogPanel.classList.add('visible');
-  changelogPanel.setAttribute('aria-hidden', 'false');
-  versionBadge.setAttribute('aria-expanded', 'true');
-}
-function closeChangelog(): void {
-  changelogPanel.classList.remove('visible');
-  changelogPanel.setAttribute('aria-hidden', 'true');
-  versionBadge.setAttribute('aria-expanded', 'false');
-}
+changelogDialog.innerHTML = `<div id="changelog-panel__header"><h1 id="changelog-panel__title">What's new</h1><button id="changelog-panel__close" type="button" aria-label="Close changelog">✕</button></div><div id="changelog-panel__body" tabindex="0">${renderChangelog(changelogRaw)}</div>`;
+document.body.appendChild(changelogDialog);
 
 versionBadge.addEventListener('click', () => {
-  if (changelogPanel.classList.contains('visible')) closeChangelog();
-  else openChangelog();
+  if (changelogDialog.open) {
+    changelogDialog.close();
+    return;
+  }
+  changelogDialog.showModal();
+  versionBadge.setAttribute('aria-expanded', 'true');
+  // Always open at the newest entry, whatever was scrolled to last time.
+  const body = document.getElementById('changelog-panel__body');
+  if (body) body.scrollTop = 0;
 });
-document.getElementById('changelog-panel__close')?.addEventListener('click', closeChangelog);
-changelogPanel.addEventListener('click', (e) => {
-  if (e.target === changelogPanel) closeChangelog();
+document.getElementById('changelog-panel__close')?.addEventListener('click', () => changelogDialog.close());
+// A tap on the backdrop lands on the dialog element itself; anything inside it has its own target.
+changelogDialog.addEventListener('click', (e) => {
+  if (e.target === changelogDialog) changelogDialog.close();
 });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && changelogPanel.classList.contains('visible')) closeChangelog();
+// One place for every way out — the close button, the backdrop, Escape.
+changelogDialog.addEventListener('close', () => {
+  versionBadge.setAttribute('aria-expanded', 'false');
 });
 
 // The map is deliberately NOT focused here any more. This ran after
