@@ -1,6 +1,6 @@
 # ADR-006: Routed Turn-by-Turn Guidance over GPS Trail Recording
 
-**Status:** Accepted
+**Status:** Accepted. The "map does not rotate" part of decision 2, and the rejected rotation mechanisms under *Direction-of-Travel Indicator*, are superseded by [ADR-009](ADR-009-map-rotation-mechanism.md).
 
 ## Context
 
@@ -36,6 +36,8 @@ Direction of travel is indicated by a translucent **heading-cone wedge** rendere
 
 The map itself does **not** rotate.
 
+> **Superseded by [ADR-009](ADR-009-map-rotation-mechanism.md):** a direction-up mode may rotate the map by turning an oversized container. The heading-cone wedge decision above is unaffected.
+
 ### 3. Updated Consent Text
 
 `src/consent.ts` now explicitly lists Valhalla / FOSSGIS as a third-party service, and `CONSENT_VERSION` was bumped to force re-acceptance from existing users.
@@ -49,6 +51,8 @@ The map itself does **not** rotate.
 3. **Self-hosted Valhalla / OSRM** — operationally heavyweight; rejected.
 
 ### Direction-of-Travel Indicator
+
+> **Superseded by [ADR-009](ADR-009-map-rotation-mechanism.md),** which re-measured these options in 2026-11: the `leaflet-rotate` GPL-3 note still holds for that package and its forks, but a BSD-2 Leaflet fork exists; and the CSS-transform objection does not apply when the whole container turns, because map-space overlays then need no inversion.
 
 1. **`leaflet-rotate` plugin (full map rotation)** — the most-maintained fork is GPL-3 licensed; webmap.dev is MIT, and importing GPL-3 code would force a relicense or a dual-license arrangement. Rejected.
 2. **CSS-transform rotation** — requires manual coordinate inversion on every overlay (markers, popups, accuracy circle, route polyline) to keep them upright. Per-overlay invariants would multiply across the codebase. Rejected.

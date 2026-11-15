@@ -22,9 +22,10 @@ Each ADR follows a consistent template:
 3. [ADR-003: offsetHeight for iOS Safari Snap-Points](ADR-003-offsetheight-ios-safari.md) — Why bottom sheet snap-point math uses offsetHeight instead of CSS vh units
 4. [ADR-004: Local-Only Data](ADR-004-local-only-data.md) — Why all data stays in the browser with no server-side storage
 5. [ADR-005: Two-Tier Offline Tile Strategy](ADR-005-offline-tile-strategy.md) — Why offline uses Workbox passive caching plus Cache API pre-download
-6. [ADR-006: Routed Turn-by-Turn Guidance](ADR-006-routed-guidance.md) — Why recording was replaced with Valhalla-powered guidance and a heading-cone wedge instead of map rotation
+6. [ADR-006: Routed Turn-by-Turn Guidance](ADR-006-routed-guidance.md) — Why recording was replaced with Valhalla-powered guidance and a heading-cone wedge instead of map rotation (rotation part superseded by ADR-009)
 7. [ADR-007: Protected Region Cache for Multi-Layer Pre-Downloads](ADR-007-region-tile-cache.md) — Why deliberately saved regions live in their own eviction-exempt cache and which layers may be bulk-downloaded
 8. [ADR-008: Heading source follows motion state](ADR-008-heading-source-selection.md) — Why one heading indicator is drawn and motion state picks between GPS course and the device compass
+9. [ADR-009: Rotate the map by turning an oversized container](ADR-009-map-rotation-mechanism.md) — Why direction-up rotates an oversized `#map` with a CSS transform rather than `leaflet-rotate` or MapLibre GL, with measured licence, size and risk for each
 
 ## Numbering
 

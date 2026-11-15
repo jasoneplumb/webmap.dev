@@ -32,6 +32,8 @@ Rule 1 ignores the compass even when it is available. While moving, the phone ca
 
 **The map still does not rotate.** Only the indicator does. That trade-off from [ADR-006](ADR-006-routed-guidance.md) stands.
 
+> **Superseded by [ADR-009](ADR-009-map-rotation-mechanism.md)** for the direction-up mode of #366. `selectHeading()` stays the direction source either way.
+
 ## Consequences
 
 **Good.** A stationary user gets a direction for the first time. The heading the compass was already producing now does something. Shortest-arc interpolation means a compass crossing north turns 20° forward instead of sweeping 340° backward, and low-passing the magnetometer stops both the ring and the rose from shivering at rest.
