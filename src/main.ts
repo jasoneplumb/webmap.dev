@@ -34,6 +34,7 @@ import { startWatching, stopWatching } from './timer';
 import { addOfflineDownloadControl } from './offline-download';
 import { addGuidanceControl, setGuidanceBannerTapHandler, setGuidanceStartHandler } from './guidance';
 import { addCompassControl } from './compass';
+import { attachRotation, installRotationPatches, spikeBearingFromUrl } from './map-rotation-spike';
 import { isPointerDeviceNow } from './device';
 import { initBattery } from './battery';
 import { registerSW } from 'virtual:pwa-register';
@@ -109,6 +110,7 @@ try {
 } catch { /* localStorage unavailable */ }
 
 const state = createInitialState();
+installRotationPatches();
 const map = createMap();
 
 // Dev-only handle on the map, used by scripts/capture-screenshots.mjs to frame
@@ -691,6 +693,10 @@ window.addEventListener('offline', updateOfflineBanner);
 updateOfflineBanner();
 
 initOfflineTileFallback(showToast);
+
+// SPIKE #366: fixed-bearing rotation, after every control exists so all of them move to
+// the unrotated UI layer together.
+attachRotation(map, spikeBearingFromUrl(window.location.search));
 
 // ── Screen-off optimization ───────────────────────────────────────────────────
 // Suppress map rendering and UI updates when the screen is off to reduce

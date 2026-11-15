@@ -14,6 +14,19 @@ body { height: 100%; width: 100%; padding: 0; margin: 0; }
    full-screen map is a no-op. */
 #map { position: absolute; top: 0; bottom: 0; right: 0; left: 0; }
 
+/* SPIKE #366: rotated map. #map is an oversized square turned about the viewport centre
+   (map-rotation-spike.ts sets its geometry inline); the page clips the overhang, and the
+   Leaflet controls live in an unrotated layer that keeps leaflet.css's container scoping
+   without its grey container background. */
+body.map-rotated { overflow: hidden; }
+.map-ui-layer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+
 /* Blend at the layer container so the mode composites against the base-layer sibling below.
    multiply (Cycle blend): near-white pixels pass through, darker ink shows.
    overlay (Hillshade): mid-gray passes through, brighter lightens the base, darker darkens. */
